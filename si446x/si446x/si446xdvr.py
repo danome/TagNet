@@ -6,7 +6,7 @@ from twisted.python.constants import Names, NamedConstant
 
 from machinist import TransitionTable, MethodSuffixOutputer, constructFiniteStateMachine
 
-from Si446xFSM import Events, Actions, States, table
+from si446xFSM import Events, Actions, States, table
 from si446xact import Si446xActionProcs
 
 class Action_code(object):
