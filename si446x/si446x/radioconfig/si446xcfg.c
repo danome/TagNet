@@ -5,7 +5,7 @@
 #undef SI446X_CHIP
 #include "radio_config_si446x.h"
 #include "radio_platform_si446x.h"
-#include "si446xLocalConfig.h"
+#include "Si446xLocalConfig.h"
 
 
 const uint8_t si446x_wds_config[] = SI446X_WDS_CONFIG_BYTES;
