@@ -1,0 +1,23 @@
+from twisted.internet import reactor, defer
+
+from txdbus import client, error
+
+@defer.inlineCallbacks
+def main():
+
+    try:
+        cli = yield client.connect(reactor)
+
+        yield cli.callRemote( '/AnyValidObjPath', 'Ping',
+                              interface   = 'org.freedesktop.DBus.Peer',
+                              destination = 'org.example' )
+
+        print 'Ping Succeeded. org.example is available'
+
+    except error.DBusException, e:
+        print 'Ping Failed. org.example is not available'
+
+    reactor.stop()
+
+reactor.callWhenRunning(main)
+reactor.run()
