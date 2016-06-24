@@ -6,7 +6,7 @@
 #include "radio_config_si446x.h"
 #include "radio_platform_si446x.h"
 #include "Si446xLocalConfig.h"
-
+#include <Python.h>
 
 const uint8_t si446x_wds_config[] = SI446X_WDS_CONFIG_BYTES;
 
@@ -23,15 +23,44 @@ const uint8_t si446x_local_config[] = {
 0
 };
 
-char get_config_wds(int index) {
-     char s;
-     s = si446x_wds_config[index];
-     return s;
-}
+static PyObject *get_config_wds(PyObject *self, PyObject *args)
+{
+  int c_index;
+  char c;
+  if (!PyArg_ParseTuple(args, "i", &c_index)) {
+    return NULL;
+  }
+  if (c_index > 15) {
+    return NULL;
+  }
+  c = si446x_wds_config[c_index];
+  return Py_BuildValue("c", c);
+};
 
-char get_config_local(int index) {
-     char s;
-     s = si446x_local_config[index];
-     return s;
-}
+static PyObject *get_config_local(PyObject *self, PyObject *args)
+{
+  int c_index;
+  char c;
+  if (!PyArg_ParseTuple(args, "i", &c_index)) {
+    return NULL;
+  }
+  if (c_index > 15) {
+    return NULL;
+  }
+  c = si446x_local_config[c_index];
+  return Py_BuildValue("c", c);
+};
 
+static PyMethodDef Si446xCfgMethods[] = {
+  {"get_config_wds", get_config_wds, METH_VARARGS,
+   "get byte from WDS config string array at index offset"},
+  {"get_config_local", get_config_local, METH_VARARGS,
+   "get byte from local config string array at index offset"},
+  {NULL, NULL, 0, NULL}
+};
+
+PyMODINIT_FUNC
+initsi446xcfg(void)
+{
+  (void) Py_InitModule("si446xcfg", Si446xCfgMethods);
+}
