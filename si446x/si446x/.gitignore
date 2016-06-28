@@ -1,8 +1,10 @@
 .DS_Store
+*\.o
+*\.so
 *~
 *\.pyc
 _trial_temp*
 *\.pdf
 *\.html
 dist
-build
+
