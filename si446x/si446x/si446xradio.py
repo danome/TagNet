@@ -23,7 +23,7 @@ from si446xcfg import get_config_wds, get_config_local
 # _spi_send_command
 #
 def _spi_send_command(spi, pkt):
-    print 'spi_send' + cmd.encode('hex')
+    print 'spi_send: ' + pkt.encode('hex')
     _get_cts_wait(10)
     if (not _get_cts()):
         print("spi_send don't have cts")
@@ -109,6 +109,7 @@ class Si446xRadio(object):
             GPIO.setup(22,GPIO.IN)   #  [IRQ]
             GPIO.setup(18,GPIO.OUT)  #  [sdn]
         self.spi = spidev.SpiDev()
+        self.channel = 0
         try:
             self.spi.open(0, device_num)  # port=0, device(CS)=device_num
         except IOError as e:
@@ -190,7 +191,7 @@ class Si446xRadio(object):
     # disableInterrupt - Disable radio chip hardware interrupt
     #
     #
-    def disableInterrupt(self):
+    def disable_interrupt(self):
         pass
     #end def
 
@@ -210,7 +211,7 @@ class Si446xRadio(object):
     #
     # enableInterrupt - Enable radio chip interrupt
     #
-    def enbleInterrupt(self):
+    def enble_interrupt(self):
         pass
     #end def
 
@@ -259,11 +260,11 @@ class Si446xRadio(object):
     #
     # return a list of [rx_fifo_count, tx_fifo_space]
     #
-    def fifo_info(self, rx_f, tx_f):
+    def fifo_info(self, rx_flush=False, tx_flush=False):
         request = fifo_info_cmd_s.parse('\x00' * fifo_info_cmd_s.sizeof())
         request.cmd='FIFO_INFO'
-        request.rx=rx_f
-        request.tx=tx_f
+        request.rx=rx_flush
+        request.tx=tx_flush
         print request
         cmd = fifo_info_cmd_s.build(request)
         _spi_send_command(self.spi, cmd)
@@ -277,13 +278,20 @@ class Si446xRadio(object):
     #end def
 
 
+    # get_channel get current radio channel
+    #
+    def get_channel(self):
+        return self.channel
+    #end def
+
+
     # get_config_lists - Get a list of configuration lists
     #
     # each list is consists of concatenated pascal strings, each presenting
     # a command string for configuring radio chip properties
     #
     def get_config_lists(self):
-        return [get_config_wds(), get_config_local()]
+        return [get_config_wds, get_config_local]
     #end def
 
     
@@ -338,19 +346,11 @@ class Si446xRadio(object):
     #end def
 
 
+    # clear_interrupts() - Clear all of the radio chip pending interrupts
     #
-    #
-    #
-    #command void ll_clr_ints()
-    #Clear all of the radio chip pending interrupts.
-
-    
-    #
-    #
-    #
-    #command void ll_getclr_ints(si446x_int_state_t *intp)
-    #Clear all of the radio chip pending interrupts return pending status (prior to clear).
-
+    def clear_interrupts(self, ph, modem, chip):
+        pass
+    #end def
 
     #  power_up - Turn radio chip power on.
     #
@@ -366,8 +366,6 @@ class Si446xRadio(object):
         print request
         cmd = power_up_cmd_s.build(request)
         _spi_send_command(self.spi, cmd)
-        if (not _get_cts()):
-            print("power_up: fyi cts not ready after command sent")
     #end def
 
 
@@ -423,7 +421,14 @@ class Si446xRadio(object):
     # already formatted into proper byte string with command and parameters
     #
     def send_config(self, props):
-        _spi_send_cmd(self.spi, props)
+        _spi_send_command(self.spi, props)
+    #end def
+
+
+    # set_channel - set radio channel
+    #
+    def set_channel(self, num):
+        self.channel = num
     #end def
 
 
@@ -453,10 +458,10 @@ class Si446xRadio(object):
 
     # start_rx() - Transition the radio chip to the receive enabled state
     #
-    def start_rx(self, len, channel):
+    def start_rx(self, len, channel=255):
         request = start_rx_cmd_s.parse('\x00' * start_rx_cmd_s.sizeof())
         request.cmd='START_RX'
-        request.channel=channel
+        request.channel = self.channel if (channel != 255) else channel
         request.condition.start='IMMEDIATE'
         # all next_state fields left set to default nochange
         request.rx_len=len

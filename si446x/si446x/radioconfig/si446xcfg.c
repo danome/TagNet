@@ -25,37 +25,41 @@ const uint8_t si446x_local_config[] = {
 
 static PyObject *get_config_wds(PyObject *self, PyObject *args)
 {
-  int c_index;
-  char c;
+  int    c_index, s_len;
+  const char  *s;
   if (!PyArg_ParseTuple(args, "i", &c_index)) {
     return NULL;
   }
-  if (c_index > 15) {
+  s_len = si446x_wds_config[c_index];
+  if (s_len > 16) {
     return NULL;
   }
-  c = si446x_wds_config[c_index];
-  return Py_BuildValue("c", c);
+  c_index += 1;
+  s = &si446x_wds_config[c_index];
+  return Py_BuildValue("s#", s, s_len);
 };
 
 static PyObject *get_config_local(PyObject *self, PyObject *args)
 {
-  int c_index;
-  char c;
+  int    c_index, s_len;
+  const char  *s;
   if (!PyArg_ParseTuple(args, "i", &c_index)) {
     return NULL;
   }
-  if (c_index > 15) {
+  s_len = si446x_local_config[c_index];
+  if (s_len > 16) {
     return NULL;
   }
-  c = si446x_local_config[c_index];
-  return Py_BuildValue("c", c);
+  c_index += 1;
+  s = &si446x_local_config[c_index];
+  return Py_BuildValue("s#", s, s_len);
 };
 
 static PyMethodDef Si446xCfgMethods[] = {
   {"get_config_wds", get_config_wds, METH_VARARGS,
-   "get byte from WDS config string array at index offset"},
+   "get next string from WDS config string array at index offset"},
   {"get_config_local", get_config_local, METH_VARARGS,
-   "get byte from local config string array at index offset"},
+   "get next string from local config string array at index offset"},
   {NULL, NULL, 0, NULL}
 };
 
