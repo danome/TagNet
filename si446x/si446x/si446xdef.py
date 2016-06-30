@@ -5,9 +5,24 @@ try:
 except NameError:
     bytes = str
 
+    
 #################################################################
 #
-# Enumerations defined
+# Constants
+#
+POWER_ON_WAIT_TIME     = 500          # milliseconds
+POWER_UP_WAIT_TIME     = 100          # milliseconds
+
+TX_FIFO_MAX            = 64
+RX_FIFO_EMPTY          = 0
+
+GPIO_CTS               = 16
+GPIO_NIRQ              = 22
+GPIO_SDN               = 18
+
+#################################################################
+#
+# Enumerations
 #
 def Si446xCmds_t(code):
     return Enum(code,
@@ -93,7 +108,7 @@ def Si446xNextStates_t(subcon):
 #
 group_s = Struct('group_s',
                  Si446xCmds_t(UBInt8("cmd")),
-                 Byte('group'),
+                 Si446xPropGroups_t(Byte("group")),
                  Byte('num_props'),
                  Byte('start_prop'),
              )
@@ -111,6 +126,46 @@ change_state_rsp_s = Struct('change_state_rsp_s',
                         )
 
 #
+clr_pend_int_s = Struct('clr_pend_int',
+                          BitStruct('ph',
+                                    Flag('FILTER_MATCH_PEND_CLR'),
+                                    Flag('FILTER_MISS_PEND_CLR'),
+                                    Flag('PACKET_SENT_PEND_CLR'),
+                                    Flag('PACKET_RX_PEND_CLR'),
+                                    Flag('CRC_ERROR_PEND_CLR'),
+                                    Padding(1),
+                                    Flag('TX_FIFO_ALMOST_EMPTY_PEND_CLR'),
+                                    Flag('RX_FIFO_ALMOST_FULL_PEND_CLR'),
+                                    ),
+                          BitStruct('modem',
+                                    Padding(1),
+                                    Flag('POSTAMBLE_DETECT_PEND_CLR'),
+                                    Flag('INVALID_SYNC_PEND_CLR'),
+                                    Flag('RSSI_JUMP_PEND_CLR'),
+                                    Flag('RSSI_PEND_CLR'),
+                                    Flag('INVALID_PREAMBLE_PEND_CLR'),
+                                    Flag('PREAMBLE_DETECT_PEND_CLR'),
+                                    Flag('SYNC_DETECT_PEND_CLR'),
+                                    ),
+                          BitStruct('chip',
+                                    Padding(1),
+                                    Flag('CAL_PEND_CLR'),
+                                    Flag('FIFO_UNDERFLOW_OVERFLOW_ERROR_PEND_CLR'),
+                                    Flag('STATE_CHANGE_PEND_CLR'),
+                                    Flag('CMD_ERROR_PEND_CLR'),
+                                    Flag('CHIP_READY_PEND_CLR'),
+                                    Flag('LOW_BATT_PEND_CLR'),
+                                    Flag('WUT_PEND_CLR'),
+                                    ),
+                          )
+
+#
+clr_int_pend_cmd_s = Struct('clr_int_pend_cmd_s',
+                            Si446xCmds_t(UBInt8("cmd")),
+                            clr_pend_int_s,
+                            )
+
+#
 config_frr_cmd_s = Struct('config_frr_cmd_s',
                           Embedded(group_s),
                           Si446xFrrCtlMode_t(Byte('a_mode')),
@@ -124,8 +179,8 @@ fifo_info_cmd_s = Struct('fifo_info_cmd_s',
                          Si446xCmds_t(UBInt8("cmd")),
                          BitStruct('state',
                                    Padding(6),
-                                   Flag('rx'),
-                                   Flag('tx'),
+                                   Flag('rx_reset'),
+                                   Flag('tx_reset'),
                                ),
                     )
 
@@ -137,6 +192,15 @@ fifo_info_rsp_s = Struct('fifo_info_rsp_s',
                     )
 
 #
+get_clear_int_cmd_s = Struct('get_clear_int_cmd_s',
+                            Embedded(group_s),
+                        )
+
+
+#
+get_clear_int_rsp_s = Struct('get_clear_int_rsp_s',
+                         )
+#
 get_property_cmd_s = Struct('get_property_cmd_s',
                             Embedded(group_s),
                         )
@@ -146,6 +210,83 @@ get_property_rsp_s = Struct('get_property_rsp_s',
                             Byte('cts'),
                             Field('data', lambda ctx: 16)
                        )
+
+#
+int_status_rsp_s = Struct('int_status_rsp_s',
+                          Byte('cts'),
+                          BitStruct('int_pend',
+                                    Padding(5),
+                                    Flag('CHIP_INT_PEND'),
+                                    Flag('MODEM_INT_PEND'),
+                                    Flag('PH_INT_PEND'),
+                                ),
+                          BitStruct('int_status',
+                                    Padding(5),
+                                    Flag('CHIP_INT_STATUS'),
+                                    Flag('MODEM_INT_STATUS'),
+                                    Flag('PH_INT_STATUS'),
+                                ),
+                          BitStruct('ph_pend',
+                                    Flag('FILTER_MATCH_PEND'),
+                                    Flag('FILTER_MISS_PEND'),
+                                    Flag('PACKET_SENT_PEND'),
+                                    Flag('PACKET_RX_PEND'),
+                                    Flag('CRC_ERROR_PEND'),
+                                    Padding(1),
+                                    Flag('TX_FIFO_ALMOST_EMPTY_PEND'),
+                                    Flag('RX_FIFO_ALMOST_FULL_PEND'),
+                                ),
+                          BitStruct('ph_status',
+                                    Flag('FILTER_MATCH'),
+                                    Flag('FILTER_MISS'),
+                                    Flag('PACKET_SENT'),
+                                    Flag('PACKET_RX'),
+                                    Flag('CRC_ERROR'),
+                                    Padding(1),
+                                    Flag('TX_FIFO_ALMOST_EMPTY'),
+                                    Flag('RX_FIFO_ALMOST_FULL'),
+                                ),
+                          BitStruct('modem_pend',
+                                    Padding(1),
+                                    Flag('POSTAMBLE_DETECT_PEND'),
+                                    Flag('INVALID_SYNC_PEND'),
+                                    Flag('RSSI_JUMP_PEND'),
+                                    Flag('RSSI_PEND'),
+                                    Flag('INVALID_PREAMBLE_PEND'),
+                                    Flag('PREAMBLE_DETECT_PEND'),
+                                    Flag('SYNC_DETECT_PEND'),
+                                ),
+                          BitStruct('modem_status',
+                                    Padding(1),
+                                    Flag('POSTAMBLE_DETECT'),
+                                    Flag('INVALID_SYNC'),
+                                    Flag('RSSI_JUMP'),
+                                    Flag('RSSI'),
+                                    Flag('INVALID_PREAMBLE'),
+                                    Flag('PREAMBLE_DETECT'),
+                                    Flag('SYNC_DETECT'),
+                                ),
+                          BitStruct('chip_pend',
+                                    Padding(1),
+                                    Flag('CAL_PEND'),
+                                    Flag('FIFO_UNDERFLOW_OVERFLOW_ERROR_PEND'),
+                                    Flag('STATE_CHANGE_PEND'),
+                                    Flag('CMD_ERROR_PEND'),
+                                    Flag('CHIP_READY_PEND'),
+                                    Flag('LOW_BATT_PEND'),
+                                    Flag('WUT_PEND'),
+                                ),
+                          BitStruct('chip_status',
+                                    Padding(1),
+                                    Flag('CAL'),
+                                    Flag('FIFO_UNDERFLOW_OVERFLOW_ERROR'),
+                                    Flag('STATE_CHANGE'),
+                                    Flag('CMD_ERROR'),
+                                    Flag('CHIP_READY'),
+                                    Flag('LOW_BATT'),
+                                    Flag('WUT'),
+                                )
+                          )
 
 #
 packet_info_cmd_s = Struct('power_up_cmd_s',
@@ -453,16 +594,17 @@ rx_hop_group_s = Struct('rx_hop_group',
                         )
 
 radio_config_groups_s = {
-    "global": global_group_s,
-    "frr_ctl": frr_ctl_group_s,
-    "preamble": preamble_group_s,
-    "sync": sync_group_s,
-    "pkt": pkt_group_s,
-    "modem": modem_group_s,
-    "modem_chflt": modem_chflt_group_s,
-    "pa": pa_group_s,
-    "synth": synth_group_s,
-    "match": match_group_s,
-    "freq_control": freq_control_group_s,
-    "rx_hop": rx_hop_group_s
+    "GLOBAL": global_group_s,
+    "INT_CTL": int_ctl_group_s,
+    "FRR_CTL": frr_ctl_group_s,
+    "PREAMBLE": preamble_group_s,
+    "SYNC": sync_group_s,
+    "PKT": pkt_group_s,
+    "MODEM": modem_group_s,
+    "MODEM_CHFLT": modem_chflt_group_s,
+    "PA": pa_group_s,
+    "SYNTH": synth_group_s,
+    "MATCH": match_group_s,
+    "FREQ_CONTROL": freq_control_group_s,
+    "RX_HOP": rx_hop_group_s
 }
