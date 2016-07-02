@@ -20,6 +20,8 @@ GPIO_CTS               = 16
 GPIO_NIRQ              = 22
 GPIO_SDN               = 18
 
+MAX_RADIO_RSP          = 16
+
 #################################################################
 #
 # Enumerations
@@ -175,6 +177,32 @@ config_frr_cmd_s = Struct('config_frr_cmd_s',
                       )
 
 #
+fast_frr_rsp_s = Struct('fast_frr_rsp_s',
+                       Si446xNextStates_t(Byte('state')),
+                       BitStruct('ph_pend',
+                                 Flag('FILTER_MATCH_PEND'),
+                                 Flag('FILTER_MISS_PEND'),
+                                 Flag('PACKET_SENT_PEND'),
+                                 Flag('PACKET_RX_PEND'),
+                                 Flag('CRC_ERROR_PEND'),
+                                 Padding(1),
+                                 Flag('TX_FIFO_ALMOST_EMPTY_PEND'),
+                                 Flag('RX_FIFO_ALMOST_FULL_PEND'),
+                             ),
+                       BitStruct('modem_pend',
+                                 Padding(1),
+                                 Flag('POSTAMBLE_DETECT_PEND'),
+                                 Flag('INVALID_SYNC_PEND'),
+                                 Flag('RSSI_JUMP_PEND'),
+                                 Flag('RSSI_PEND'),
+                                 Flag('INVALID_PREAMBLE_PEND'),
+                                 Flag('PREAMBLE_DETECT_PEND'),
+                                 Flag('SYNC_DETECT_PEND'),
+                             ),
+                       Byte('rssi'),
+                   )
+
+#
 fifo_info_cmd_s = Struct('fifo_info_cmd_s',
                          Si446xCmds_t(UBInt8("cmd")),
                          BitStruct('state',
@@ -196,7 +224,6 @@ get_clear_int_cmd_s = Struct('get_clear_int_cmd_s',
                             Embedded(group_s),
                         )
 
-
 #
 get_clear_int_rsp_s = Struct('get_clear_int_rsp_s',
                          )
@@ -208,8 +235,9 @@ get_property_cmd_s = Struct('get_property_cmd_s',
 #
 get_property_rsp_s = Struct('get_property_rsp_s',
                             Byte('cts'),
-                            Field('data', lambda ctx: 16)
-                       )
+                            GreedyRange(Byte('data'))
+#                            Field('data', lambda ctx: 16)
+                        )
 
 #
 int_status_rsp_s = Struct('int_status_rsp_s',
@@ -449,7 +477,7 @@ frr_ctl_group_s = Struct('frr_ctl_group',
                           Si446xFrrCtlMode_t(Byte('d_mode')),
                         )
 
-preamble_group_s = Struct('_group',
+preamble_group_s = Struct('preamble_group',
                         Byte('tx_length'),
                         Byte('config_std_1'),
                         Byte('config_nstd'),
@@ -460,7 +488,7 @@ preamble_group_s = Struct('_group',
                         UBInt32('postamble_pattern'),
                         )
 
-sync_group_s = Struct('_group',
+sync_group_s = Struct('sync_group',
                         Byte('config'),
                         UBInt32('bits'),
                         )
@@ -481,8 +509,8 @@ pkt_group_s = Struct('pkt_group',
                      Byte('len_adjust'),
                      Byte('tx_threshold'),
                      Byte('rx_threshold'),
-                     Array(5, pkt_field_s),
-                     Array(5, pkt_field_s),
+                     Rename('tx', Array(5, pkt_field_s)),
+                     Rename('rx', Array(5, pkt_field_s)),
                     )
 
 modem_group_s = Struct('modem_group',
@@ -593,7 +621,7 @@ rx_hop_group_s = Struct('rx_hop_group',
                         Array(64, Byte('table_entry')),
                         )
 
-radio_config_groups_s = {
+radio_config_groups = {
     "GLOBAL": global_group_s,
     "INT_CTL": int_ctl_group_s,
     "FRR_CTL": frr_ctl_group_s,
@@ -608,3 +636,5 @@ radio_config_groups_s = {
     "FREQ_CONTROL": freq_control_group_s,
     "RX_HOP": rx_hop_group_s
 }
+
+radio_config_group_ids = Si446xPropGroups_t(Byte('rcp_ids'))

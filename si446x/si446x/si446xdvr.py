@@ -20,36 +20,35 @@ def step_fsm(fsm, ev):
     fsm.receive(ev)
 
 
-def process_interrupts(fsm, ints):
-    print(ints)
-    got_ints = False
-    if (ints.modem_pend.INVALID_SYNC_PEND):
+def process_interrupts(fsm, frr):
+    print(frr.encode('hex'))
+    pend = fast_frr_rsp_s.parse(frr)
+    print(fsm.state, (fsm.state != 'S_RX_ACTIVE'), pend)
+    got_ints = ''
+    if ((pend.modem_pend.INVALID_SYNC_PEND) and (fsm.state != 'S_RX_ACTIVE')):
         step_fsm(fsm, Events.E_INVALID_SYNC)
-        got_ints = True
-#    if (ints.modem_pend.INVALID_PREAMBLE_PEND):
-#        step_fsm(fsm, Events.E_INVALID_SYNC)
-#        got_ints = True
-    if (ints.modem_pend.PREAMBLE_DETECT_PEND):
+        got_ints += 'E_INVALID_SYNC '
+    if ((pend.modem_pend.PREAMBLE_DETECT_PEND) and (fsm.state != 'S_RX_ACTIVE')):
         step_fsm(fsm, Events.E_PREAMBLE_DETECT)
-        got_ints = True
-    if (ints.modem_pend.SYNC_DETECT_PEND):
+        got_ints += 'E_PREAMBLE_DETECT '
+    if ((pend.modem_pend.SYNC_DETECT_PEND) and (fsm.state != 'S_RX_ACTIVE')):
         step_fsm(fsm, Events.E_SYNC_DETECT)
-        got_ints = True
-    if (ints.ph_pend.CRC_ERROR_PEND):
+        got_ints += 'E_SYNC_DETECT '
+    if (pend.ph_pend.CRC_ERROR_PEND):
         step_fsm(fsm, Events.E_CRC_ERROR)
-        got_ints = True
-    if (ints.ph_pend.PACKET_RX_PEND):
+        got_ints += 'E_CRC_ERROR '
+    if (pend.ph_pend.PACKET_RX_PEND):
         step_fsm(fsm, Events.E_PACKET_RX)
-        got_ints = True
-    if (ints.ph_pend.PACKET_SENT_PEND):
+        got_ints += 'E_PACKET_RX '
+    if (pend.ph_pend.PACKET_SENT_PEND):
         step_fsm(fsm, Events.E_PACKET_SENT)
-        got_ints = True
-    if (ints.ph_pend.RX_FIFO_ALMOST_FULL_PEND):
+        got_ints += 'E_PACKET_SENT '
+    if (pend.ph_pend.RX_FIFO_ALMOST_FULL_PEND):
         step_fsm(fsm, Events.E_RX_THRESH)
-        got_ints = True
-    if (ints.ph_pend.TX_FIFO_ALMOST_EMPTY_PEND):
+        got_ints += 'E_RX_THRESH '
+    if (pend.ph_pend.TX_FIFO_ALMOST_EMPTY_PEND):
         step_fsm(fsm, Events.E_TX_THRESH)
-        got_ints = True
+        got_ints += 'E_TX_THRESH '
     print('got_ints',got_ints)
     return got_ints
 
@@ -80,11 +79,17 @@ def cycle():
     for i in range(2000):
         #print(radio.get_interrupts())
         if (flag):
-            while (process_interrupts(si446xDriver, radio.get_clear_interrupts())):
-                pass
+            j = 10
+            while (True):
+                frr =  radio.fast_all()
+                if (not process_interrupts(si446xDriver, frr)): break
+                radio.clear_interrupts()
+                if (j <= 0): break
+                j -= 1
             flag=False
         sleep(.01)
-    si446xDriver.receive(Events.E_TURNOFF)
+        if ((i % 100) == 0): print(radio.fast_all().encode('hex'))
+    step_fsm(si446xDriver, Events.E_TURNOFF)
 #    si446xDriver.receive(Events.E_WAIT_DONE)
 
 

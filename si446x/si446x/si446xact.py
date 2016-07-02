@@ -39,10 +39,10 @@ def _trace(where, ev):
 class FsmActionHandlers(object):
     def __init__(self, radio):
         self.radio = radio
-        ioc = {
+        self.ioc = {
             'unshuts': 0,
         }
-        rx = {
+        self.rx = {
             'packets': 0,
             'errors': 0,
             'rssi': 0,
@@ -51,7 +51,7 @@ class FsmActionHandlers(object):
             'sync_errors': 0,
             'buffer': '',
         }
-        tx = {
+        self.tx = {
             'packets': 0,
             'errors': 0,
             'offset' :0,
@@ -153,6 +153,9 @@ def config(me, ev):
             if (not s): break
             me.radio.send_config(s)
             x += len(s) + 1
+    # special override - enable specific interrupt sources
+    me.radio.set_property('INT_CTL', 4, 0, '\x03\x3b\x23\x00')
+    #me.radio.dump_radio()
 #
 def no_op(me, ev):
     pass
@@ -172,25 +175,26 @@ def ready(me, ev):
     me.radio.set_channel(me.radio.get_channel())
     me.radio.clear_interrupts()
     me.radio.dump_radio()
-    me.radio.enble_interrupt()
+    me.radio.dump_display()
+    me.radio.enable_interrupts()
     rx_on(me, ev)
 #
 def rx_cmp(me, ev):
     #zzz stop alarm
     pkt_len = me.radio.get_packet_info() + 1 # add 1 for length field
     rx_len, fifo_free = me.radio.fifo_info()
-    rx['buffer'] += me.radio.read_rx_fifo(rx_len)
-    rx['offset'] += rx_len
+    me.rx['buffer'] += me.radio.read_rx_fifo(rx_len)
+    me.rx['offset'] += rx_len
     if (me.rx['offset'] < pkt_len):
         print('rx_cmp: error in packet length')
     #zzz send receive event notification
-    print rx['offset'], rx['buffer'].encode('hex')
-    rx['packets'] += 1
+    print me.rx['offset'], me.rx['buffer'].encode('hex')
+    me.rx['packets'] += 1
     rx_on(me, ev)
 #
 def rx_cnt_crc(me, ev):
     #zzz stop_alarm
-    rx['crc_errors'] += 1
+    me.rx['crc_errors'] += 1
     me.radio.fifo_info(rx_flush=True)
     me.radio.change_state('SLEEP', 100) # ms *debugging
     clear_interrupts()
@@ -198,8 +202,8 @@ def rx_cnt_crc(me, ev):
 #
 def rx_drain_ff(me, ev):
     rx_len, tx_free = me.radio.fifo_info()
-    rx['buffer'] += me.radio.read_rx_fifo(rx_len)
-    rx['offset'] += rx_len
+    me.rx['buffer'] += me.radio.read_rx_fifo(rx_len)
+    me.rx['offset'] += rx_len
 #
 def rx_on(me, ev):
     #zzz stop alarm
@@ -209,13 +213,13 @@ def rx_on(me, ev):
 #
 def rx_start(me, ev):
     #zzz start alarm
-    rx['rssi'] = me.radio.fast_latched_rssi()
+    me.rx['rssi'] = me.radio.fast_latched_rssi()
     #zzz set packet rssi field
-    rx['buffer'] = ''
-    rx['offset'] = 0
+    me.rx['buffer'] = ''
+    me.rx['offset'] = 0
 #
 def rx_timeout(me, ev):
-    rx['timeouts'] += 1
+    me.rx['timeouts'] += 1
     me.radio.start_rx(0)
 #
 def standby(me, ev):
@@ -233,7 +237,7 @@ def tx_cmp(me, ev):
 #
 def tx_fill_ff(me, ev):
     pkt_len = len(me.tx['buffer'])
-    start_offset = tx['offset']
+    start_offset = me.tx['offset']
     remaining_len = pkt_len - start_offset
     if (remaining_len > 0):
         rx_len, tx_free = me.radio.fifo_info(tx_flush=True)
@@ -261,5 +265,6 @@ def tx_timeout(me, ev):
 def unshut(me, ev):
     start_timer(si446xdef.POWER_ON_WAIT_TIME)
     me.radio.unshutdown()
+    me.ioc['unshuts'] + 1
     #zzz clear flags, buffers, statistics
     return

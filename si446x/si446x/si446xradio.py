@@ -1,4 +1,4 @@
-from time import sleep
+from time import sleep, localtime
 
 from construct import *
 
@@ -22,7 +22,7 @@ from si446xcfg import get_config_wds, get_config_local
 # _spi_send_command
 #
 def _spi_send_command(spi, pkt):
-    #print 'spi_send: ' + pkt.encode('hex')
+    print 'spi_send: ' + pkt.encode('hex')
     _get_cts_wait(100)
     if (not _get_cts()):
         print("spi_send_command: don't have cts")
@@ -41,9 +41,10 @@ def _spi_read_response(spi, rlen):
     try:
         #write 'READ_CMD_BUFF' and read back cts as well as
         #response bytes
-        r = spi.xfer2([0x44] + 16 * [0])
+        r = spi.xfer2([0x44] + MAX_RADIO_RSP * [0])
+        #print r
         rsp = ''.join([chr(item) for item in r[1:rlen+2]])
-        #print rsp.encode('hex')
+        print 'spi_read_response: ' + rsp.encode('hex')
     except IOError as e:
         print("spi_read_response", e)
     return rsp
@@ -51,7 +52,7 @@ def _spi_read_response(spi, rlen):
 # _get_cts
 #
 def _get_cts():
-    print('.')
+    #print('.')
     if (gpio):
         return (GPIO.input(GPIO_CTS))
     else:
@@ -113,6 +114,7 @@ class Si446xRadio(object):
         self.spi = spidev.SpiDev()
         self.channel = 0
         self.callback = callback
+        self.dump_strings = {}
         try:
             self.spi.open(0, device_num)  # port=0, device(CS)=device_num
         except IOError as e:
@@ -129,7 +131,7 @@ class Si446xRadio(object):
         request = change_state_cmd_s.parse('\x00' * change_state_cmd_s.sizeof())
         request.cmd = 'CHANGE_STATE'
         request.state = state
-        print request
+        #print request
         cmd = change_state_cmd_s.build(request)
         _spi_send_command(self.spi, cmd)
         _get_cts_wait(wait)
@@ -144,14 +146,19 @@ class Si446xRadio(object):
     #end def
 
 
+    # clear_interrupts() - Clear radio chip pending interrupts
     #
-    #
-    #
-    # clr_cs - Clear radio chip select. [deprecated]
-    #
-    #def clr_cs(self):
-    #    pass
-
+    def clear_interrupts(self, clr_flags=None):
+        request = read_cmd_s.parse('\x00' * read_cmd_s.sizeof())
+        request.cmd='GET_INT_STATUS'
+        #print request
+        if (not clr_flags):  # default is to clear all interrupts
+            clr_flags = clr_pend_int_s.parse('\xff' * clr_pend_int_s.sizeof())
+        cmd = read_cmd_s.build(request) + clr_pend_int_s.build(clr_flags)
+        #print cmd.encode('hex')
+        _spi_send_command(self.spi, cmd)
+        pass
+    #end def
 
     # config_frr - Configure the Fast Response Registers to the expected values
     #
@@ -182,7 +189,7 @@ class Si446xRadio(object):
         request.b_mode='INT_PH_PEND'
         request.c_mode='INT_MODEM_PEND'
         request.d_mode='LATCHED_RSSI'
-        print request
+        #print request
         cmd = config_frr_cmd_s.build(request)
         _spi_send_command(self.spi, cmd)
     #end def
@@ -197,19 +204,35 @@ class Si446xRadio(object):
     #end def
 
 
+    # dump_radio - Dump all of the current radio chip configuration
     #
-    #
-    #
+    def dump_display(self):
+        for k, v in self.dump_strings.iteritems():
+            print(k, v, radio_config_groups[k].parse(v))
+
     # dump_radio - Dump all of the current radio chip configuration
     #
     def dump_radio(self):
-        pass
+        for gp_n, gp_s in radio_config_groups.iteritems():
+            i = 0
+            s = ''
+            while (True):
+                r = gp_s.sizeof() - i
+                x = r if (r < MAX_RADIO_RSP) else MAX_RADIO_RSP
+                p = self.get_property(gp_n, i, x)
+                #print p
+                s += p
+                i += x
+                if (i >= gp_s.sizeof()):
+                    break
+            self.dump_strings[gp_n] = s
+            self.dump_time = localtime()
     #end def
 
 
-    # enableInterrupt - Enable radio chip interrupt
+    # enable_interrupts - Enable radio chip interrupts
     #
-    def enble_interrupt(self):
+    def enable_interrupts(self):
         if (gpio):
             GPIO.add_event_detect(GPIO_NIRQ,
                                   GPIO.FALLING,
@@ -267,14 +290,14 @@ class Si446xRadio(object):
         request.cmd='FIFO_INFO'
         request.state.rx_reset=rx_flush
         request.state.tx_reset=tx_flush
-        print request
+        #print request
         cmd = fifo_info_cmd_s.build(request)
         _spi_send_command(self.spi, cmd)
         rsp = _spi_read_response(self.spi,
                                 fifo_info_rsp_s.sizeof())
         if (rsp):
             response = fifo_info_rsp_s.parse(rsp)
-            print response
+            #print response
             return [response.rx_fifo_count, response.tx_fifo_space]
         return None
     #end def
@@ -306,68 +329,11 @@ class Si446xRadio(object):
     #end def
 
 
-    # get_packet_info - 
-    #
-    def get_packet_info(self):
-        request = packet_info_cmd_s.parse('\x00' * packet_info_cmd_s.sizeof())
-        request.cmd='PACKET_INFO'
-        request.field_num='NO_OVERRIDE'
-        print request
-        cmd = packet_info_cmd_s.build(request)
-        _spi_send_command(self.spi, cmd)
-        rsp = _spi_read_response(self.spi,
-                                packet_info_rsp_s.sizeof())
-        if (rsp):
-            response = packet_info_rsp_s.parse(rsp)
-            print response
-            return response.length
-        return None
-    #end def
-
-
-    # get_property - Read one or more contiguous radio chip properties
-    #
-    #
-    def get_property(self, group, prop, len):
-        request = get_property_cmd_s.parse('\x00' * get_property_cmd_s.sizeof())
-        request.cmd='GET_PROPERTY'
-        request.group=group
-        request.num_props=len
-        request.start_prop=prop
-        print request
-        cmd = get_property_cmd_s.build(request)
-        _spi_send_command(self.spi, cmd)
-        rsp = _spi_read_response(self.spi,
-                                  get_property_rsp_s.sizeof())
-        if (rsp):
-            response = get_property_rsp_s.parse(rsp)
-            print response
-            return response.data
-        return None
-    #end def
-
-
-    # clear_interrupts() - Clear radio chip pending interrupts
-    #
-    def clear_interrupts(self, clr_flags=None):
-        request = read_cmd_s.parse('\x00' * read_cmd_s.sizeof())
-        request.cmd='GET_INT_STATUS'
-        print request
-        if (not clr_flags):  # default is to clear all interrupts
-            clr_flags = clr_pend_int_s.parse('\xff' * clr_pend_int_s.sizeof())
-        cmd = read_cmd_s.build(request) + clr_pend_int_s.build(clr_flags)
-        print cmd.encode('hex')
-        _spi_send_command(self.spi, cmd)
-        pass
-    #end def
-
-    # get_clear_interrupts() - Clear radio chip pending interrupts
-    #                           and return current interrupt conditions
     #
     def get_clear_interrupts(self, clr_flags=None):
         request = read_cmd_s.parse('\x00' * read_cmd_s.sizeof())
         request.cmd='GET_INT_STATUS'
-        print request
+        #print request
         if (not clr_flags):  # default is to clear all interrupts
             clr_flags =  clr_pend_int_s.parse('\xff' * clr_pend_int_s.sizeof())
         cmd = read_cmd_s.build(request) + clr_pend_int_s.build(clr_flags)
@@ -386,7 +352,7 @@ class Si446xRadio(object):
     def get_interrupts(self):
         request = read_cmd_s.parse('\x00' * read_cmd_s.sizeof())
         request.cmd='GET_INT_STATUS'
-        print request
+        #print request
         cmd = read_cmd_s.build(request)
         _spi_send_command(self.spi, cmd)
         rsp = _spi_read_response(self.spi,
@@ -397,6 +363,48 @@ class Si446xRadio(object):
         return None
     #end def
 
+    # get_packet_info - 
+    #
+    def get_packet_info(self):
+        request = packet_info_cmd_s.parse('\x00' * packet_info_cmd_s.sizeof())
+        request.cmd='PACKET_INFO'
+        request.field_num='NO_OVERRIDE'
+        #print request
+        cmd = packet_info_cmd_s.build(request)
+        _spi_send_command(self.spi, cmd)
+        rsp = _spi_read_response(self.spi,
+                                packet_info_rsp_s.sizeof())
+        if (rsp):
+            response = packet_info_rsp_s.parse(rsp)
+            #print response
+            return response.length
+        return None
+    #end def
+
+
+    # get_property - Read one or more contiguous radio chip properties
+    #
+    #
+    def get_property(self, group, prop, len):
+        request = get_property_cmd_s.parse('\x00' * get_property_cmd_s.sizeof())
+        request.cmd='GET_PROPERTY'
+        request.group=group
+        request.num_props=len
+        request.start_prop=prop
+        #print request
+        cmd = get_property_cmd_s.build(request)
+        _spi_send_command(self.spi, cmd)
+        rsp = _spi_read_response(self.spi,17)
+#                                  get_property_rsp_s.sizeof())
+        if (rsp):
+            response = get_property_rsp_s.parse(rsp)
+            #print response
+            return str(bytearray(response.data))
+        return None
+    #end def
+
+    # get_clear_interrupts() - Clear radio chip pending interrupts
+    #                           and return current interrupt conditions
     #  power_up - Turn radio chip power on.
     #
     def power_up(self):
@@ -408,7 +416,7 @@ class Si446xRadio(object):
         request.boot_options.func=1
         request.xtal_options.txcO=3
         request.xo_freq=4000000
-        print request
+        #print request
         cmd = power_up_cmd_s.build(request)
         _spi_send_command(self.spi, cmd)
     #end def
@@ -423,7 +431,7 @@ class Si446xRadio(object):
         rsp = _spi_read_response(self.spi, read_cmd_buff_rsp_s.sizeof())
         if (rsp):
             response = read_cmd_buff_rsp_s.parse(rsp)
-            print response
+            #print response
     #end def
 
 
@@ -432,23 +440,23 @@ class Si446xRadio(object):
     def read_silicon_info(self):
         request = read_cmd_s.parse('\x00' * read_cmd_s.sizeof())
         request.cmd='PART_INFO'
-        print request
+        #print request
         cmd = read_cmd_s.build(request)
         _spi_send_command(self.spi, cmd)
         rsp = _spi_read_response(self.spi,
                                   read_part_info_rsp_s.sizeof())
         if (rsp):
             response = read_part_info_rsp_s.parse(rsp)
-            print response
+            #print response
         request.cmd='FUNC_INFO'
-        print request
+        #print request
         cmd = read_cmd_s.build(request)
         _spi_send_command(self.spi, cmd)
         rsp = _spi_read_response(self.spi,
                                   read_func_info_rsp_s.sizeof())
         if (rsp):
             response = read_func_info_rsp_s.parse(rsp)
-            print response
+            #print response
     #end def
 
 
@@ -481,11 +489,14 @@ class Si446xRadio(object):
     #
     # need to add command header
     #
-    def set_property(self, props):
+    def set_property(self, pg, pn, ps, pd):
         request = set_property_cmd_s.parse('\x00' * set_property_cmd_s.sizeof())
         request.cmd='SET_PROPERTY'
-        print request
-        cmd = set_property_cmd_s.build(request) + props
+        request.group=pg
+        request.num_props=pn
+        request.start_prop=ps
+        print(request, pg, pn, ps, pd)
+        cmd = set_property_cmd_s.build(request) + pd
         _spi_send_command(self.spi, cmd)
     #end def
 
@@ -511,7 +522,7 @@ class Si446xRadio(object):
         request.condition.start='IMMEDIATE'
         # all next_state fields left set to default nochange
         request.rx_len=len
-        print request
+        #print request
         cmd = start_rx_cmd_s.build(request)
         _spi_send_command(self.spi, cmd)
     #end def
@@ -522,7 +533,7 @@ class Si446xRadio(object):
     def start_rx_short():
         request = read_cmd_s.parse('\x00' * read_cmd_s.sizeof())
         request.cmd='START_RX'
-        print request
+        #print request
         cmd = read_cmd_s.build(request)
         _spi_send_command(self.spi, cmd)
     #end def
@@ -538,7 +549,7 @@ class Si446xRadio(object):
         request.condition.retransmit='NO'
         request.condition.start='IMMEDIATE'
         request.tx_len=len
-        print request
+        #print request
         cmd = start_tx_cmd_s.build(request)
         _spi_send_command(self.spi, cmd)
     #end def
