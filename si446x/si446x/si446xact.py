@@ -1,5 +1,6 @@
 
 import spidev
+
 # to_send = [0x01, 0x02, 0x03]
 # spi.xfer(to_send)
 # Perform an SPI transaction with chip-select should be held active between blocks.
@@ -29,7 +30,8 @@ def fail(s):
     pass
 
 def _trace(where, ev):
-    print(ev, where)
+    #print('trace', ev, where)
+    pass
 
 
 ##########################################################################
@@ -49,14 +51,15 @@ class FsmActionHandlers(object):
             'offset' :0,
             'timeouts': 0,
             'sync_errors': 0,
-            'buffer': '',
+            'crc_errors': 0,
+            'buffer': [],
         }
         self.tx = {
             'packets': 0,
             'errors': 0,
             'offset' :0,
             'timeouts': 0,
-            'buffer': '',
+            'buffer': [],
         }
 
     def output_A_CLEAR_SYNC(self, ev):
@@ -142,8 +145,6 @@ def clear_sync(me, ev):
 
 #
 def config(me, ev):
-    me.radio.read_silicon_info()
-    me.radio.read_cmd_buff()
     me.radio.config_frr()  # assign sources to the fast registers
     list_of_lists = me.radio.get_config_lists()
     for l in list_of_lists:
@@ -155,10 +156,12 @@ def config(me, ev):
             x += len(s) + 1
     # special override - enable specific interrupt sources
     me.radio.set_property('INT_CTL', 4, 0, '\x03\x3b\x23\x00')
-    #me.radio.dump_radio()
+    me.radio.dump_radio()
+
 #
 def no_op(me, ev):
     pass
+
 #
 def pwr_dn(me, ev):
     #zzz stop_alarm
@@ -181,15 +184,15 @@ def ready(me, ev):
 #
 def rx_cmp(me, ev):
     #zzz stop alarm
+    rx_drain_ff(me, ev)
     pkt_len = me.radio.get_packet_info() + 1 # add 1 for length field
-    rx_len, fifo_free = me.radio.fifo_info()
-    me.rx['buffer'] += me.radio.read_rx_fifo(rx_len)
-    me.rx['offset'] += rx_len
-    if (me.rx['offset'] < pkt_len):
-        print('rx_cmp: error in packet length')
+    if (me.rx['offset'] != pkt_len):
+        print('rx_cmp: error in packet length', me.rx['offset'], pkt_len)
     #zzz send receive event notification
-    print me.rx['offset'], me.rx['buffer'].encode('hex')
+    #print('rx_cmp: ', pkt_len, me.rx['offset'], me.rx['buffer'].encode('hex'))
     me.rx['packets'] += 1
+    me.radio.change_state('READY', 1)
+    print('#')
     rx_on(me, ev)
 #
 def rx_cnt_crc(me, ev):
@@ -197,13 +200,19 @@ def rx_cnt_crc(me, ev):
     me.rx['crc_errors'] += 1
     me.radio.fifo_info(rx_flush=True)
     me.radio.change_state('SLEEP', 100) # ms *debugging
-    clear_interrupts()
+    me.radio.clear_interrupts()
     rx_on(me, ev)
 #
 def rx_drain_ff(me, ev):
-    rx_len, tx_free = me.radio.fifo_info()
-    me.rx['buffer'] += me.radio.read_rx_fifo(rx_len)
-    me.rx['offset'] += rx_len
+    for i in range(10):
+        rx_len, tx_free = me.radio.fifo_info()
+        if (rx_len):
+            me.rx['buffer'] += me.radio.read_rx_fifo(rx_len)
+            me.rx['offset'] += rx_len
+        else:
+            if (ord(me.radio.fast_ph_pend()) & 0x10):
+                break
+            sleep(0)
 #
 def rx_on(me, ev):
     #zzz stop alarm
@@ -215,7 +224,7 @@ def rx_start(me, ev):
     #zzz start alarm
     me.rx['rssi'] = me.radio.fast_latched_rssi()
     #zzz set packet rssi field
-    me.rx['buffer'] = ''
+    me.rx['buffer'] = []
     me.rx['offset'] = 0
 #
 def rx_timeout(me, ev):

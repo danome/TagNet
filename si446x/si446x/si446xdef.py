@@ -14,6 +14,8 @@ POWER_ON_WAIT_TIME     = 500          # milliseconds
 POWER_UP_WAIT_TIME     = 100          # milliseconds
 
 TX_FIFO_MAX            = 64
+TX_FIFO_EMPTY          = 0
+RX_FIFO_MAX            = 64
 RX_FIFO_EMPTY          = 0
 
 GPIO_CTS               = 16
@@ -119,7 +121,6 @@ group_s = Struct('group_s',
 change_state_cmd_s = Struct('change_state_cmd_s',
                             Si446xCmds_t(UBInt8("cmd")),
                             Si446xNextStates_t(Byte("state")),
-                            Byte('state'),
                         )
 
 #
@@ -129,7 +130,7 @@ change_state_rsp_s = Struct('change_state_rsp_s',
 
 #
 clr_pend_int_s = Struct('clr_pend_int',
-                          BitStruct('ph',
+                          BitStruct('ph_pend',
                                     Flag('FILTER_MATCH_PEND_CLR'),
                                     Flag('FILTER_MISS_PEND_CLR'),
                                     Flag('PACKET_SENT_PEND_CLR'),
@@ -139,7 +140,7 @@ clr_pend_int_s = Struct('clr_pend_int',
                                     Flag('TX_FIFO_ALMOST_EMPTY_PEND_CLR'),
                                     Flag('RX_FIFO_ALMOST_FULL_PEND_CLR'),
                                     ),
-                          BitStruct('modem',
+                          BitStruct('modem_pend',
                                     Padding(1),
                                     Flag('POSTAMBLE_DETECT_PEND_CLR'),
                                     Flag('INVALID_SYNC_PEND_CLR'),
@@ -149,7 +150,7 @@ clr_pend_int_s = Struct('clr_pend_int',
                                     Flag('PREAMBLE_DETECT_PEND_CLR'),
                                     Flag('SYNC_DETECT_PEND_CLR'),
                                     ),
-                          BitStruct('chip',
+                          BitStruct('chip_pend',
                                     Padding(1),
                                     Flag('CAL_PEND_CLR'),
                                     Flag('FIFO_UNDERFLOW_OVERFLOW_ERROR_PEND_CLR'),

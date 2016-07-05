@@ -22,7 +22,7 @@ from si446xcfg import get_config_wds, get_config_local
 # _spi_send_command
 #
 def _spi_send_command(spi, pkt):
-    print 'spi_send: ' + pkt.encode('hex')
+#    print('spi_send_command: ', pkt.encode('hex'))
     _get_cts_wait(100)
     if (not _get_cts()):
         print("spi_send_command: don't have cts")
@@ -37,14 +37,14 @@ def _spi_read_response(spi, rlen):
     _get_cts_wait(100)
     rsp = ''
     if (not _get_cts()):
-        print("spi_read don't have cts")
+        print("spi_read_response: don't have cts")
     try:
         #write 'READ_CMD_BUFF' and read back cts as well as
         #response bytes
         r = spi.xfer2([0x44] + MAX_RADIO_RSP * [0])
         #print r
         rsp = ''.join([chr(item) for item in r[1:rlen+2]])
-        print 'spi_read_response: ' + rsp.encode('hex')
+        #print 'spi_read_response: ' + rsp.encode('hex')
     except IOError as e:
         print("spi_read_response", e)
     return rsp
@@ -71,18 +71,22 @@ def _get_cts_wait(t):
 # _spi_read_fifo
 #
 def _spi_read_fifo(spi, rlen):
-    if (rlen > TX_FIFO_MAX):
+    if (rlen > RX_FIFO_MAX):
         print("read_fifo_too_long", rlen)
     r = spi.xfer2([0x77] + rlen * [0])
-    rsp = ''.join([chr(item) for item in r[1:rlen+1]])
-    return rsp
+    return r[1:]
+#    rsp = ''.join([chr(item) for item in r[1:rlen+1]])
+    #print(rlen, rsp.encode('hex'))
+#    return rsp
 
 # _spi_write_fifo
 #
 def _spi_write_fifo(spi, buf):
     if (len(buf) > TX_FIFO_MAX):
         print("write_fifo_too_long", buf)
-    r = spi.xfer2([0x66] + list(bytearray(buf)))
+    r = spi.xfer2([0x66] + buf)
+#    r = spi.xfer2([0x66] + list(bytearray(buf)))
+    #print(len(buf), buf.encode('hex'))
 
 # _spi_read_frr
 #
@@ -111,15 +115,17 @@ class Si446xRadio(object):
             GPIO.setup(GPIO_CTS,GPIO.IN)   #  [CTSn]
             GPIO.setup(GPIO_NIRQ,GPIO.IN)   #  [IRQ]
             GPIO.setup(GPIO_SDN,GPIO.OUT)  #  [sdn]
-        self.spi = spidev.SpiDev()
         self.channel = 0
         self.callback = callback
         self.dump_strings = {}
         try:
+            self.spi = spidev.SpiDev()
             self.spi.open(0, device_num)  # port=0, device(CS)=device_num
+            #self.spi.max_speed_hz=60000
+            print('spi max speed',self.spi.max_speed_hz)
+            # spi device driver controls chip select
         except IOError as e:
             print("Si446xRadio.__init__", e)
-        # spi device driver handles enabling chip select
     #end def
 
 
@@ -148,16 +154,16 @@ class Si446xRadio(object):
 
     # clear_interrupts() - Clear radio chip pending interrupts
     #
+    # default (nothing in clr_flags) then clear all interrupts
+    #
     def clear_interrupts(self, clr_flags=None):
         request = read_cmd_s.parse('\x00' * read_cmd_s.sizeof())
         request.cmd='GET_INT_STATUS'
         #print request
-        if (not clr_flags):  # default is to clear all interrupts
-            clr_flags = clr_pend_int_s.parse('\xff' * clr_pend_int_s.sizeof())
-        cmd = read_cmd_s.build(request) + clr_pend_int_s.build(clr_flags)
-        #print cmd.encode('hex')
+        cf = clr_pend_int_s.build(clr_flags) if (clr_flags) else ''
+        cmd = read_cmd_s.build(request) + cf
+        #print('clear_ints', cmd.encode('hex'), clr_flags)
         _spi_send_command(self.spi, cmd)
-        pass
     #end def
 
     # config_frr - Configure the Fast Response Registers to the expected values
@@ -297,7 +303,7 @@ class Si446xRadio(object):
                                 fifo_info_rsp_s.sizeof())
         if (rsp):
             response = fifo_info_rsp_s.parse(rsp)
-            #print response
+            #print('fifo_info:',rx_flush, tx_flush, response.rx_fifo_count, response.tx_fifo_space)
             return [response.rx_fifo_count, response.tx_fifo_space]
         return None
     #end def
@@ -328,21 +334,14 @@ class Si446xRadio(object):
         return rsp
     #end def
 
-
+    # get_clear_interrupts - status and clear are done in one operation
     #
     def get_clear_interrupts(self, clr_flags=None):
-        request = read_cmd_s.parse('\x00' * read_cmd_s.sizeof())
-        request.cmd='GET_INT_STATUS'
-        #print request
-        if (not clr_flags):  # default is to clear all interrupts
-            clr_flags =  clr_pend_int_s.parse('\xff' * clr_pend_int_s.sizeof())
-        cmd = read_cmd_s.build(request) + clr_pend_int_s.build(clr_flags)
-        _spi_send_command(self.spi, cmd)
+        self.clear_interrupts(clr_flags)
         rsp = _spi_read_response(self.spi,
                                   int_status_rsp_s.sizeof())
         if (rsp):
-            response = int_status_rsp_s.parse(rsp)
-            return response
+            return (int_status_rsp_s.parse(rsp))
         return None
     #end def
 
@@ -353,13 +352,16 @@ class Si446xRadio(object):
         request = read_cmd_s.parse('\x00' * read_cmd_s.sizeof())
         request.cmd='GET_INT_STATUS'
         #print request
-        cmd = read_cmd_s.build(request)
+        # don't clear any interrupts (set all flags to 1)
+        cf = clr_pend_int_s.parse('\xff' * clr_pend_int_s.sizeof())
+        clr_flags = clr_pend_int_s.build(cf)
+        cmd = read_cmd_s.build(request) + clr_flags
+        #print('get_ints',cmd.encode('hex'))
         _spi_send_command(self.spi, cmd)
         rsp = _spi_read_response(self.spi,
                                  int_status_rsp_s.sizeof())
         if (rsp):
-            response = int_status_rsp_s.parse(rsp)
-        return response
+            return (int_status_rsp_s.parse(rsp))
         return None
     #end def
 
