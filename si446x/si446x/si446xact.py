@@ -189,11 +189,12 @@ def rx_cmp(me, ev):
     rx_drain_ff(me, ev)
     pkt_len = me.radio.get_packet_info() + 1 # add 1 for length field
     if (me.rx['offset'] != pkt_len):
-        print('rx_cmp: error in packet length', me.rx['offset'], pkt_len)
+        print(me.radio.fifo_info())
+        print('e', me.rx['offset'], pkt_len)
     #zzz send receive event notification
     #print('rx_cmp: ', pkt_len, me.rx['offset'], me.rx['buffer'].encode('hex'))
     me.rx['packets'] += 1
-    me.radio.change_state('READY', 1)
+    #me.radio.change_state('READY', 1)
     print('#')
     rx_on(me, ev)
 #
@@ -206,15 +207,16 @@ def rx_cnt_crc(me, ev):
     rx_on(me, ev)
 #
 def rx_drain_ff(me, ev):
-    for i in range(10):
+    for i in range(1):
         rx_len, tx_free = me.radio.fifo_info()
         if (rx_len):
+            print(rx_len)
             me.rx['buffer'] += me.radio.read_rx_fifo(rx_len)
             me.rx['offset'] += rx_len
         else:
             if (ord(me.radio.fast_ph_pend()) & 0x10):
                 break
-            sleep(0)
+#            sleep(0)
 #
 def rx_on(me, ev):
     #zzz stop alarm
