@@ -491,13 +491,13 @@ class Si446xRadio(object):
     #
     # need to add command header
     #
-    def set_property(self, pg, pn, ps, pd):
+    def set_property(self, pg, ps, pd):
         request = set_property_cmd_s.parse('\x00' * set_property_cmd_s.sizeof())
         request.cmd='SET_PROPERTY'
         request.group=pg
-        request.num_props=pn
+        request.num_props=len(pd)
         request.start_prop=ps
-        print(request, pg, pn, ps, pd)
+        print(request, pg, ps, pd.encode('hex'))
         cmd = set_property_cmd_s.build(request) + pd
         _spi_send_command(self.spi, cmd)
     #end def

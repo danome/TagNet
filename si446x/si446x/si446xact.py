@@ -155,7 +155,9 @@ def config(me, ev):
             me.radio.send_config(s)
             x += len(s) + 1
     # special override - enable specific interrupt sources
-    me.radio.set_property('INT_CTL', 4, 0, '\x03\x3b\x23\x00')
+    me.radio.set_property('INT_CTL', 0, '\x03\x3b\x23\x00')
+    # special override - lower rx fifo threshold
+    me.radio.set_property('PKT', 0x0c, '\x10')
     me.radio.dump_radio()
 
 #
