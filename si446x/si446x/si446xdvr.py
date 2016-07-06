@@ -91,7 +91,7 @@ def cycle():
     step_fsm(si446xDriver, radio, Events.E_WAIT_DONE)
     step_fsm(si446xDriver, radio, Events.E_WAIT_DONE)
     step_fsm(si446xDriver, radio, Events.E_CONFIG_DONE)
-    for i in range(2000):
+    for i in range(20000):
         #print(radio.get_interrupts())
         if (flag):
             #flag=False
@@ -108,7 +108,7 @@ def cycle():
                 if (j <= 0):
                     radio.clear_interrupts()
                     break
-        sleep(.01)
+        sleep(.001)
         #if ((i % 100) == 0): print(radio.fast_all().encode('hex'), 'driver')
     step_fsm(si446xDriver, radio, Events.E_TURNOFF)
 #    si446xDriver.receive(Events.E_WAIT_DONE)
