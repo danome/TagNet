@@ -121,7 +121,7 @@ class Si446xRadio(object):
         try:
             self.spi = spidev.SpiDev()
             self.spi.open(0, device_num)  # port=0, device(CS)=device_num
-            #self.spi.max_speed_hz=60000
+            #self.spi.max_speed_hz=600000
             print('spi max speed',self.spi.max_speed_hz)
             # spi device driver controls chip select
         except IOError as e:
