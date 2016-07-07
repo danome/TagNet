@@ -39,7 +39,8 @@ def _trace(where, ev):
 # FsmActionHandlers - The method handlers for actions in the Finite State Machine
 #
 class FsmActionHandlers(object):
-    def __init__(self, radio):
+    def __init__(self, radio, dbus):
+        self.dbus = dbus
         self.radio = radio
         self.ioc = {
             'unshuts': 0,
@@ -59,6 +60,7 @@ class FsmActionHandlers(object):
             'errors': 0,
             'offset' :0,
             'timeouts': 0,
+            'power': 0,
             'buffer': [],
         }
 
@@ -276,7 +278,7 @@ def tx_timeout(me, ev):
     rx_on(me, ev)
 #
 def unshut(me, ev):
-    start_timer(si446xdef.POWER_ON_WAIT_TIME)
+    me.dbus.start_timer(si446xdef.POWER_ON_WAIT_TIME)
     me.radio.unshutdown()
     me.ioc['unshuts'] + 1
     #zzz clear flags, buffers, statistics
