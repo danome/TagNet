@@ -1,5 +1,10 @@
+from time import sleep
 
 import spidev
+
+from twisted.internet.error import AlreadyCalled, AlreadyCancelled
+
+import si446xdef
 
 # to_send = [0x01, 0x02, 0x03]
 # spi.xfer(to_send)
@@ -10,10 +15,6 @@ def BytesToHex(Bytes):
     return ''.join(["0x%02X " % x for x in Bytes]).strip()
 #end def
 
-import si446xdef
-#from si446xradio import Si446xRadio
-
-from time import sleep
 
 ##########################################################################
 #
@@ -27,9 +28,9 @@ def stop_timer(actions):
         return
     try:
         actions.timer.cancel()
-    except twisted.internet.error.AlreadyCalled:
+    except AlreadyCalled:
         pass
-    except twisted.internet.error.AlreadyCancelled:
+    except AlreadyCancelled:
         pass
     actions.timer = None
 
@@ -167,13 +168,18 @@ def config(actions, ev):
             if (not s): break
             actions.radio.send_config(s)
             x += len(s) + 1
-    ### local instance overrides
+    #
+    ## local instance overrides
+    #
     # enable specific interrupt sources
     actions.radio.set_property('INT_CTL', 0, '\x03\x3b\x23\x00')
     # lower rx fifo threshold
     actions.radio.set_property('PKT', 0x0c, '\x10')
-    # remember all of the current radio settings
+    #
+    ##
+    #
     actions.radio.dump_radio()
+    actions.dbus.config_done()
 #
 def no_op(actions, ev):
     pass
@@ -182,6 +188,7 @@ def pwr_dn(actions, ev):
     stop_timer(actions)
     actions.radio.disable_interrupt()
     actions.radio.shutdown()
+    actions.dbus.signal_new_status()
 #
 def pwr_up(actions, ev):
     # check ctsn and fail if not true (negative logic)
@@ -197,27 +204,25 @@ def ready(actions, ev):
     actions.radio.dump_display()
     actions.radio.enable_interrupts()
     rx_on(actions, ev)
+    actions.dbus.signal_new_status()
 #
 def rx_cmp(actions, ev):
     stop_timer(actions)
     rx_drain_ff(actions, ev)
     pkt_len = actions.radio.get_packet_info() + 1 # add 1 for length field
-    if (actions.rx['offset'] != pkt_len):
-        print(actions.radio.fifo_info())
-        print('e', actions.rx['offset'], pkt_len)
-    #zzz send receive event notification
-    #print('rx_cmp: ', pkt_len, actions.rx['offset'], actions.rx['buffer'].encode('hex'))
-    actions.rx['packets'] += 1
-    #actions.radio.change_state('READY', 1)
-    print('#')
-    actions.dbus.signal_receive()
+    if (actions.rx['offset'] == pkt_len):
+        actions.rx['packets'] += 1
+        actions.dbus.signal_receive()
+    else:
+        actions.rx['errors'] += 1
+        print('rx_e', actions.rx['offset'], pkt_len)
     rx_on(actions, ev)
 #
 def rx_cnt_crc(actions, ev):
     stop_timer(actions)
     actions.rx['crc_errors'] += 1
     actions.radio.fifo_info(rx_flush=True)
-    actions.radio.change_state('SLEEP', 100) # ms *debugging
+    actions.radio.change_state('SLEEP', 100)  # wait up to (ms) for change
     actions.radio.clear_interrupts()
     rx_on(actions, ev)
 #
@@ -225,13 +230,12 @@ def rx_drain_ff(actions, ev):
     for i in range(1):
         rx_len, tx_free = actions.radio.fifo_info()
         if (rx_len):
-            print(rx_len)
+            #print(rx_len)
             actions.rx['buffer'] += actions.radio.read_rx_fifo(rx_len)
             actions.rx['offset'] += rx_len
         else:
             if (ord(actions.radio.fast_ph_pend()) & 0x10):
                 break
-#            sleep(0)
 #
 def rx_on(actions, ev):
     stop_timer(actions)
@@ -242,7 +246,6 @@ def rx_on(actions, ev):
 def rx_start(actions, ev):
     start_timer(actions, si446xdef.RX_WAIT_TIME)
     actions.rx['rssi'] = actions.radio.fast_latched_rssi()
-    #zzz set packet rssi field
     actions.rx['buffer'] = []
     actions.rx['offset'] = 0
 #
@@ -252,13 +255,14 @@ def rx_timeout(actions, ev):
 #
 def standby(actions, ev):
     stop_timer(actions)
-    actions.radio.change_state('SLEEP', 100) # ms
+    actions.radio.change_state('SLEEP', 100) # wait up to (ms) for change
+    actions.dbus.signal_new_status()
 #
 def tx_cmp(actions, ev):
     stop_timer(actions)
     actions.tx['packets'] += 1
     rx_len, tx_free = actions.radio.fifo_info()
-    if (tx_free != TX_FIFO_MAX):
+    if (tx_free != si446xdef.TX_FIFO_MAX):
         print('tx_cmp: fifo not empty, missed data')
     actions.dbus.signal_send_cmp('ok')
     rx_on(actions, ev)
@@ -269,8 +273,8 @@ def tx_fill_ff(actions, ev):
     remaining_len = pkt_len - start_offset
     if (remaining_len > 0):
         rx_len, tx_free = actions.radio.fifo_info(tx_flush=True)
-        if (tx_free == TX_FIFO_MAX):
-            print('tx_fill_ff: fifo empty, too late')
+        if (tx_free == si446xdef.TX_FIFO_MAX):
+            print('tx_fill_ff: fifo empty, too late', rx_len, tx_free)
         actions.tx['offset'] += remaining_len if (remaining_len < tx_free) else tx_free
         segment = actions.tx['buffer'][start_offset:actions.tx['offset']]
         actions.radio.write_tx_fifo(segment)
@@ -278,14 +282,13 @@ def tx_fill_ff(actions, ev):
 def tx_start(actions, ev):
     pkt_len = len(actions.tx['buffer'])
     rx_len, tx_free = actions.radio.fifo_info(tx_flush=True)
-    if (tx_free != TX_FIFO_MAX):
-        print('tx_start: should be fifo empty')
+    if (tx_free != si446xdef.TX_FIFO_MAX):
+        print('tx_start: fifo should be empty', rx_len, tx_free)
     actions.tx['offset'] = pkt_len if (pkt_len < tx_free) else tx_free
-    segment = radio['buffer'][0:actions.tx['offset']]
+    segment = actions.tx['buffer'][0:actions.tx['offset']]
     actions.radio.write_tx_fifo(segment)
-    start_tx(pkt_len)
+    actions.radio.start_tx(pkt_len)
     start_timer(actions, si446xdef.TX_WAIT_TIME)
-
 #
 def tx_timeout(actions, ev):
     actions.tx['timeouts'] += 1

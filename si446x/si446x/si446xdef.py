@@ -10,8 +10,10 @@ except NameError:
 #
 # Constants
 #
-POWER_ON_WAIT_TIME     = 500          # milliseconds
-POWER_UP_WAIT_TIME     = 100          # milliseconds
+POWER_ON_WAIT_TIME     = 0.010           # seconds
+POWER_UP_WAIT_TIME     = 0.020
+TX_WAIT_TIME           = 0.100
+RX_WAIT_TIME           = 0.100
 
 TX_FIFO_MAX            = 64
 TX_FIFO_EMPTY          = 0

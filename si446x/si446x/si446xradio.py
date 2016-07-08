@@ -110,11 +110,6 @@ def _gpio_callback(channel):
 class Si446xRadio(object):
     #
     def __init__(self, device_num=0, callback=_gpio_callback):
-        if (gpio):
-            GPIO.setmode(GPIO.BOARD)
-            GPIO.setup(GPIO_CTS,GPIO.IN)   #  [CTSn]
-            GPIO.setup(GPIO_NIRQ,GPIO.IN)   #  [IRQ]
-            GPIO.setup(GPIO_SDN,GPIO.OUT)  #  [sdn]
         self.channel = 0
         self.callback = callback
         self.dump_strings = {}
@@ -522,9 +517,8 @@ class Si446xRadio(object):
         request.cmd='START_RX'
         request.channel = self.channel if (channel == 255) else channel
         request.condition.start='IMMEDIATE'
-        # all next_state fields left set to default nochange
+        # all next_state fields left set to default (nochange)
         request.rx_len=len
-        #print request
         cmd = start_rx_cmd_s.build(request)
         _spi_send_command(self.spi, cmd)
     #end def
@@ -532,7 +526,7 @@ class Si446xRadio(object):
 
     # start_rx_short - Transition the radio chip to the receive enabled state
     #
-    def start_rx_short():
+    def start_rx_short(self):
         request = read_cmd_s.parse('\x00' * read_cmd_s.sizeof())
         request.cmd='START_RX'
         #print request
@@ -543,10 +537,10 @@ class Si446xRadio(object):
 
     # start_tx
     #Transition the radio chip to the transmit state.
-    def start_tx(self, len, channel):
+    def start_tx(self, len, channel=255):
         request = start_tx_cmd_s.parse('\x00' * start_tx_cmd_s.sizeof())
         request.cmd='START_TX'
-        request.channel=channel
+        request.channel = self.channel if (channel == 255) else channel
         request.condition.txcomplete_state='READY'
         request.condition.retransmit='NO'
         request.condition.start='IMMEDIATE'
@@ -566,7 +560,7 @@ class Si446xRadio(object):
 
     # trace_radio_pend - Trace the radio pending status, using fast registers
     #
-    def trace_radio_pend():
+    def trace_radio_pend(self):
         pass
     #end def
 
@@ -579,15 +573,18 @@ class Si446xRadio(object):
         # set GPIO pin 18 (GPIO23) connected to si446x.sdn
         print('clear GPIO pin %i (SI446x sdn enable)'%GPIO_SDN)
         if (gpio):
-            GPIO.output(GPIO_SDN,1)             # make sure it is already shut down
+            GPIO.setmode(GPIO.BOARD)
+            GPIO.setup(GPIO_CTS,GPIO.IN)    #  [CTSn]
+            GPIO.setup(GPIO_NIRQ,GPIO.IN)   #  [IRQ]
+            GPIO.setup(GPIO_SDN,GPIO.OUT)   #  [sdn]
+            GPIO.output(GPIO_SDN,1)         # make sure it is already shut down
             sleep(.1)
             GPIO.output(GPIO_SDN,0)
             sleep(.1)
     #end def
-
     # write_tx_fifo - Write data into the radio chip transmit fifo
     #
-    def write_tx_fifo(dat):
+    def write_tx_fifo(self, dat):
         _spi_write_fifo(self.spi, dat)
     #end def
 

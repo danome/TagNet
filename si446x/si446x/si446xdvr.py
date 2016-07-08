@@ -29,10 +29,12 @@ OBJECT_PATH = '/org/tagnet/si446x/0/0'   # object name includes device id/port n
 class Si446xDbus (objects.DBusObject):
     iface = DBusInterface( 'org.tagnet.si446x',
                            Method('control', arguments='s', returns='s'),
-                           Method('send', arguments='su', returns='s'),
+                           Method('send', arguments='ayu', returns='s'),
+                           Method('status', returns='s'),
+                           Method('clear_status', returns='s'),
                            Method('cca', returns='u'),
-                           Signal('receive', 'su'),
-                           Signal('status', 's'),
+                           Signal('receive', 'ayu'),
+                           Signal('new_status', 's'),
                            Signal('send_cmp', 's'),
                          )
     dbusInterfaces = [iface]
@@ -63,6 +65,8 @@ class Si446xDbus (objects.DBusObject):
             if (self.fsm['machine'].state == States.S_SDN):
                 return 'ealready'
             self.control_event = Events.E_TURNOFF
+            self.fsm['actions'].tx['buffer'] = None
+            self.fsm['actions'].rx['buffer'] = None
         elif (action == 'STANDBY'):
             if (self.fsm['machine'].state == States.S_STANDBY):
                 return 'ealready'
@@ -74,7 +78,7 @@ class Si446xDbus (objects.DBusObject):
 
     def dbus_send(self, buf, power):
         if (self.fsm['actions'].tx['buffer']):
-            return 'busy'
+            return 'busy {}'.format(self.fsm['machine'].state)
         if (self.fsm['machine'].state is not States.S_RX_ON):
             return 'error {}'.format(self.fsm['machine'].state)
         self.fsm['actions'].tx['buffer'] = buf
@@ -85,18 +89,42 @@ class Si446xDbus (objects.DBusObject):
     def dbus_cca(self):
         return self.fsm['actions'].rx['rssi']
     
+    def dbus_status(self):
+        s = '{}, {}, unshuts {}'.format(
+            self.status,
+            self.fsm['machine'].state,
+            self.fsm['actions'].ioc['unshuts'],)
+        s += '\n'
+        for r in ['packets','errors','timeouts','sync_errors','crc_errors','rssi']:
+            s += '{} {}, '.format(r, self.fsm['actions'].rx[r])
+        s += '\n'
+        for r in ['packets','errors','timeouts','power']:
+            s += '{} {}, '.format(r, self.fsm['actions'].tx[r])
+        return s
+
+    def dbus_clear_status(self):
+        self.fsm['actions'].ioc['unshuts'] = 0
+        for r in [ 'packets', 'errors', 'timeouts', 'sync_errors','crc_errors']:
+            self.fsm['actions'].rx[r] = 0
+        for r in [ 'packets', 'errors', 'timeouts']:
+            self.fsm['actions'].tx[r] = 0
+        return self.dbus_status()
+
     def signal_receive(self):
-        self.emitSignal('receive', self.fsm['actions'].rx['buffer'], self.fsm['actions'].rx['rssi'])
+        r = self.fsm['actions'].rx['buffer']
+        self.emitSignal('receive', bytearray(r), self.fsm['actions'].rx['rssi'])
         self.fsm['actions'].rx['buffer'] = None
     
-    def signal_status(self):
-        if (self.fsm['machine'].state is States.S_SDN):
+    def signal_new_status(self):
+        if (self.fsm['machine'].state == States.S_SDN):
             self.status = 'OFF'
-        elif (fsm['machine'].state is States.S_STANDBY):
+        elif (self.fsm['machine'].state == States.S_STANDBY):
             self.status = 'STANDBY'
         else:
             self.status = 'ON'
-        self.emitSignal('status', self.status)
+        s = '{}, {}'.format(self.status, self.fsm['machine'].state)
+        print ('new_status',s)
+        self.emitSignal('new_status', s)
         self.control_event = None
 
     def signal_send_cmp(self, condition):
@@ -106,10 +134,10 @@ class Si446xDbus (objects.DBusObject):
     ### Asynchronous Event Handlers
     
     def interrupt_cb(self, channel):
-        interrupt_handler(self.fsm['machine'], self.radio)
+        interrupt_handler(self.fsm, self.radio)
 
     def async_interrupt(self, channel):
-        reactor.callfromthread(self.interrupt_cb, self, channel)
+        reactor.callFromThread(self.interrupt_cb, channel)
 
     def config_cb(self):
         step_fsm(self.fsm, self.radio, Events.E_CONFIG_DONE)
@@ -221,7 +249,7 @@ def onConnected(conn):
     def onReady(_):
         s = ' Si446x radio driver [ {}, {} ] is ready for business'
         print(s.format(BUS_NAME, OBJECT_PATH))
-        dbus.signal_status()
+        dbus.signal_new_status()
 
     dn.addCallback(onReady)
     return dn
