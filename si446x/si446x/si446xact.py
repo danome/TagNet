@@ -19,9 +19,19 @@ from time import sleep
 #
 # utility routines
 #
-def start_timer(timeout):
-    sleep(float(timeout/1000))
-    pass
+def start_timer(actions, delay):
+    actions.timer = actions.dbus.start_timer(delay)
+
+def stop_timer(actions):
+    if (not actions.timer):
+        return
+    try:
+        actions.timer.cancel()
+    except twisted.internet.error.AlreadyCalled:
+        pass
+    except twisted.internet.error.AlreadyCancelled:
+        pass
+    actions.timer = None
 
 def fail(s):
     print("FAIL: ", s)
@@ -38,10 +48,12 @@ def _trace(where, ev):
 #
 # FsmActionHandlers - The method handlers for actions in the Finite State Machine
 #
-class FsmActionHandlers(object):
+class Si446xFsmActionHandlers(object):
+    
     def __init__(self, radio, dbus):
         self.dbus = dbus
         self.radio = radio
+        self.timer = None
         self.ioc = {
             'unshuts': 0,
         }
@@ -140,146 +152,149 @@ class FsmActionHandlers(object):
 #
 
 #
-def clear_sync(me, ev):
-    me.radio.fifo_info(rx_flush=True)
-    me.rx['sync_errors'] += 1
-    rx_on(me, ev)
-
+def clear_sync(actions, ev):
+    actions.radio.fifo_info(rx_flush=True)
+    actions.rx['sync_errors'] += 1
+    rx_on(actions, ev)
 #
-def config(me, ev):
-    me.radio.config_frr()  # assign sources to the fast registers
-    list_of_lists = me.radio.get_config_lists()
+def config(actions, ev):
+    actions.radio.config_frr()  # assign sources to the fast registers
+    list_of_lists = actions.radio.get_config_lists()
     for l in list_of_lists:
         x = 0
         while (True):
             s = l(x)
             if (not s): break
-            me.radio.send_config(s)
+            actions.radio.send_config(s)
             x += len(s) + 1
-    # special override - enable specific interrupt sources
-    me.radio.set_property('INT_CTL', 0, '\x03\x3b\x23\x00')
-    # special override - lower rx fifo threshold
-    me.radio.set_property('PKT', 0x0c, '\x10')
-    me.radio.dump_radio()
-
+    ### local instance overrides
+    # enable specific interrupt sources
+    actions.radio.set_property('INT_CTL', 0, '\x03\x3b\x23\x00')
+    # lower rx fifo threshold
+    actions.radio.set_property('PKT', 0x0c, '\x10')
+    # remember all of the current radio settings
+    actions.radio.dump_radio()
 #
-def no_op(me, ev):
+def no_op(actions, ev):
     pass
-
 #
-def pwr_dn(me, ev):
-    #zzz stop_alarm
-    me.radio.disable_interrupt()
-    me.radio.shutdown()
+def pwr_dn(actions, ev):
+    stop_timer(actions)
+    actions.radio.disable_interrupt()
+    actions.radio.shutdown()
 #
-def pwr_up(me, ev):
+def pwr_up(actions, ev):
     # check ctsn and fail if not true (negative logic)
-    if (not me.radio.get_cts()):  fail('power up failed to get cts acknowledgement')
-    start_timer(si446xdef.POWER_UP_WAIT_TIME)
-    me.radio.power_up()
+    if (not actions.radio.get_cts()):
+        fail('power up failed to get cts acknowledgement')
+    start_timer(actions, si446xdef.POWER_UP_WAIT_TIME)
+    actions.radio.power_up()
 #
-def ready(me, ev):
-    me.radio.set_channel(me.radio.get_channel())
-    me.radio.clear_interrupts()
-    me.radio.dump_radio()
-    me.radio.dump_display()
-    me.radio.enable_interrupts()
-    rx_on(me, ev)
+def ready(actions, ev):
+    actions.radio.set_channel(actions.radio.get_channel())
+    actions.radio.clear_interrupts()
+    actions.radio.dump_radio()
+    actions.radio.dump_display()
+    actions.radio.enable_interrupts()
+    rx_on(actions, ev)
 #
-def rx_cmp(me, ev):
-    #zzz stop alarm
-    rx_drain_ff(me, ev)
-    pkt_len = me.radio.get_packet_info() + 1 # add 1 for length field
-    if (me.rx['offset'] != pkt_len):
-        print(me.radio.fifo_info())
-        print('e', me.rx['offset'], pkt_len)
+def rx_cmp(actions, ev):
+    stop_timer(actions)
+    rx_drain_ff(actions, ev)
+    pkt_len = actions.radio.get_packet_info() + 1 # add 1 for length field
+    if (actions.rx['offset'] != pkt_len):
+        print(actions.radio.fifo_info())
+        print('e', actions.rx['offset'], pkt_len)
     #zzz send receive event notification
-    #print('rx_cmp: ', pkt_len, me.rx['offset'], me.rx['buffer'].encode('hex'))
-    me.rx['packets'] += 1
-    #me.radio.change_state('READY', 1)
+    #print('rx_cmp: ', pkt_len, actions.rx['offset'], actions.rx['buffer'].encode('hex'))
+    actions.rx['packets'] += 1
+    #actions.radio.change_state('READY', 1)
     print('#')
-    rx_on(me, ev)
+    actions.dbus.signal_receive()
+    rx_on(actions, ev)
 #
-def rx_cnt_crc(me, ev):
-    #zzz stop_alarm
-    me.rx['crc_errors'] += 1
-    me.radio.fifo_info(rx_flush=True)
-    me.radio.change_state('SLEEP', 100) # ms *debugging
-    me.radio.clear_interrupts()
-    rx_on(me, ev)
+def rx_cnt_crc(actions, ev):
+    stop_timer(actions)
+    actions.rx['crc_errors'] += 1
+    actions.radio.fifo_info(rx_flush=True)
+    actions.radio.change_state('SLEEP', 100) # ms *debugging
+    actions.radio.clear_interrupts()
+    rx_on(actions, ev)
 #
-def rx_drain_ff(me, ev):
+def rx_drain_ff(actions, ev):
     for i in range(1):
-        rx_len, tx_free = me.radio.fifo_info()
+        rx_len, tx_free = actions.radio.fifo_info()
         if (rx_len):
             print(rx_len)
-            me.rx['buffer'] += me.radio.read_rx_fifo(rx_len)
-            me.rx['offset'] += rx_len
+            actions.rx['buffer'] += actions.radio.read_rx_fifo(rx_len)
+            actions.rx['offset'] += rx_len
         else:
-            if (ord(me.radio.fast_ph_pend()) & 0x10):
+            if (ord(actions.radio.fast_ph_pend()) & 0x10):
                 break
 #            sleep(0)
 #
-def rx_on(me, ev):
-    #zzz stop alarm
-    me.radio.fifo_info(rx_flush=True, tx_flush=True)
-    me.radio.clear_interrupts()
-    me.radio.start_rx(0)
+def rx_on(actions, ev):
+    stop_timer(actions)
+    actions.radio.fifo_info(rx_flush=True, tx_flush=True)
+    actions.radio.clear_interrupts()
+    actions.radio.start_rx(0)
 #
-def rx_start(me, ev):
-    #zzz start alarm
-    me.rx['rssi'] = me.radio.fast_latched_rssi()
+def rx_start(actions, ev):
+    start_timer(actions, si446xdef.RX_WAIT_TIME)
+    actions.rx['rssi'] = actions.radio.fast_latched_rssi()
     #zzz set packet rssi field
-    me.rx['buffer'] = []
-    me.rx['offset'] = 0
+    actions.rx['buffer'] = []
+    actions.rx['offset'] = 0
 #
-def rx_timeout(me, ev):
-    me.rx['timeouts'] += 1
-    me.radio.start_rx(0)
+def rx_timeout(actions, ev):
+    actions.rx['timeouts'] += 1
+    actions.radio.start_rx(0)
 #
-def standby(me, ev):
-    #zzz stop_alarm
-    me.radio.change_state('SLEEP', 100) # ms
+def standby(actions, ev):
+    stop_timer(actions)
+    actions.radio.change_state('SLEEP', 100) # ms
 #
-def tx_cmp(me, ev):
-    #zzz stop_alarm
-    me.tx['packets'] += 1
-    rx_len, tx_free = me.radio.fifo_info()
+def tx_cmp(actions, ev):
+    stop_timer(actions)
+    actions.tx['packets'] += 1
+    rx_len, tx_free = actions.radio.fifo_info()
     if (tx_free != TX_FIFO_MAX):
         print('tx_cmp: fifo not empty, missed data')
-    #zzz report completion
-    rx_on(me, ev)
+    actions.dbus.signal_send_cmp('ok')
+    rx_on(actions, ev)
 #
-def tx_fill_ff(me, ev):
-    pkt_len = len(me.tx['buffer'])
-    start_offset = me.tx['offset']
+def tx_fill_ff(actions, ev):
+    pkt_len = len(actions.tx['buffer'])
+    start_offset = actions.tx['offset']
     remaining_len = pkt_len - start_offset
     if (remaining_len > 0):
-        rx_len, tx_free = me.radio.fifo_info(tx_flush=True)
+        rx_len, tx_free = actions.radio.fifo_info(tx_flush=True)
         if (tx_free == TX_FIFO_MAX):
             print('tx_fill_ff: fifo empty, too late')
-        me.tx['offset'] += remaining_len if (remaining_len < tx_free) else tx_free
-        segment = me.tx['buffer'][start_offset:me.tx['offset']]
-        me.radio.write_tx_fifo(segment)
+        actions.tx['offset'] += remaining_len if (remaining_len < tx_free) else tx_free
+        segment = actions.tx['buffer'][start_offset:actions.tx['offset']]
+        actions.radio.write_tx_fifo(segment)
 #
-def tx_start(me, ev):
-    pkt_len = len(me.tx['buffer'])
-    rx_len, tx_free = me.radio.fifo_info(tx_flush=True)
+def tx_start(actions, ev):
+    pkt_len = len(actions.tx['buffer'])
+    rx_len, tx_free = actions.radio.fifo_info(tx_flush=True)
     if (tx_free != TX_FIFO_MAX):
         print('tx_start: should be fifo empty')
-    me.tx['offset'] = pkt_len if (pkt_len < tx_free) else tx_free
-    segment = radio['buffer'][0:me.tx['offset']]
-    me.radio.write_tx_fifo(segment)
+    actions.tx['offset'] = pkt_len if (pkt_len < tx_free) else tx_free
+    segment = radio['buffer'][0:actions.tx['offset']]
+    actions.radio.write_tx_fifo(segment)
     start_tx(pkt_len)
-    #zzz start alarm
+    start_timer(actions, si446xdef.TX_WAIT_TIME)
+
 #
-def tx_timeout(me, ev):
-    me.tx['timeouts'] += 1
-    rx_on(me, ev)
+def tx_timeout(actions, ev):
+    actions.tx['timeouts'] += 1
+    actions.dbus.signal_send_cmp('timeout') # no retries
+    rx_on(actions, ev)
 #
-def unshut(me, ev):
-    me.dbus.start_timer(si446xdef.POWER_ON_WAIT_TIME)
-    me.radio.unshutdown()
-    me.ioc['unshuts'] + 1
+def unshut(actions, ev):
+    start_timer(actions, si446xdef.POWER_ON_WAIT_TIME)
+    actions.radio.unshutdown()
+    actions.ioc['unshuts'] + 1
     #zzz clear flags, buffers, statistics
     return
