@@ -60,20 +60,20 @@ class Si446xFsmActionHandlers(object):
         }
         self.rx = {
             'packets': 0,
-            'errors': 0,
-            'rssi': 0,
-            'offset' :0,
             'timeouts': 0,
+            'len_errors': 0,
             'sync_errors': 0,
             'crc_errors': 0,
+            'rssi': 0,
+            'offset' :0,
             'buffer': [],
         }
         self.tx = {
             'packets': 0,
-            'errors': 0,
-            'offset' :0,
             'timeouts': 0,
+            'errors': 0,
             'power': 0,
+            'offset' :0,
             'buffer': [],
         }
 
@@ -214,7 +214,7 @@ def rx_cmp(actions, ev):
         actions.rx['packets'] += 1
         actions.dbus.signal_receive()
     else:
-        actions.rx['errors'] += 1
+        actions.rx['len_errors'] += 1
         print('rx_e', actions.rx['offset'], pkt_len)
     rx_on(actions, ev)
 #
@@ -234,7 +234,7 @@ def rx_drain_ff(actions, ev):
             actions.rx['buffer'] += actions.radio.read_rx_fifo(rx_len)
             actions.rx['offset'] += rx_len
         else:
-            if (ord(actions.radio.fast_ph_pend()) & 0x10):
+            if (actions.radio.fast_ph_pend() & 0x10):
                 break
 #
 def rx_on(actions, ev):

@@ -1,4 +1,5 @@
 from time import sleep, localtime
+import binascii
 
 from construct import *
 
@@ -220,7 +221,8 @@ class Si446xRadio(object):
             while (True):
                 r = gp_s.sizeof() - i
                 x = r if (r < MAX_RADIO_RSP) else MAX_RADIO_RSP
-                p = self.get_property(gp_n, i, x)
+#                p = self.get_property(gp_n, i, x)
+                p = self.get_property(radio_config_group_ids.parse(gp_n), i, x)
                 #print p
                 s += p
                 i += x
@@ -254,7 +256,7 @@ class Si446xRadio(object):
     #command uint8_t()
     #.
     def fast_device_state(self):
-        return _spi_read_frr(self.spi, 0, 1)
+        return ord(_spi_read_frr(self.spi, 0, 1))
     #end def
 
 
@@ -264,21 +266,21 @@ class Si446xRadio(object):
     # beginning of receiving a packet, and latches this value.
     #
     def fast_latched_rssi(self):
-        return _spi_read_frr(self.spi, 3, 1)
+        return ord( _spi_read_frr(self.spi, 3, 1))
     #end def
 
 
     # fast_modem_pend - get modem pending interrupt flags from fast read register
     #
     def fast_modem_pend(self):
-        return _spi_read_frr(self.spi, 2, 1)
+        return ord(_spi_read_frr(self.spi, 2, 1))
     #end def
 
 
     # fast_modem_pend - get modem pending interrupt flags from fast read register
     #
     def fast_ph_pend(self):
-        return _spi_read_frr(self.spi, 1, 1)
+        return ord(_spi_read_frr(self.spi, 1, 1))
     #end def
 
 

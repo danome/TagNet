@@ -94,25 +94,26 @@ class Si446xDbus (objects.DBusObject):
             self.status,
             self.fsm['machine'].state,
             self.fsm['actions'].ioc['unshuts'],)
-        s += '\n'
-        for r in ['packets','errors','timeouts','sync_errors','crc_errors','rssi']:
+        s += '\nRX: '
+        for r in ['packets','len_errors','timeouts','sync_errors','crc_errors','rssi']:
             s += '{} {}, '.format(r, self.fsm['actions'].rx[r])
-        s += '\n'
+        s += '\nTX: '
         for r in ['packets','errors','timeouts','power']:
             s += '{} {}, '.format(r, self.fsm['actions'].tx[r])
         return s
 
     def dbus_clear_status(self):
         self.fsm['actions'].ioc['unshuts'] = 0
-        for r in [ 'packets', 'errors', 'timeouts', 'sync_errors','crc_errors']:
+        s =  self.dbus_status()
+        for r in [ 'packets', 'len_errors', 'timeouts', 'sync_errors','crc_errors']:
             self.fsm['actions'].rx[r] = 0
         for r in [ 'packets', 'errors', 'timeouts']:
             self.fsm['actions'].tx[r] = 0
-        return self.dbus_status()
+        return s
 
     def signal_receive(self):
         r = self.fsm['actions'].rx['buffer']
-        self.emitSignal('receive', bytearray(r), self.fsm['actions'].rx['rssi'])
+        self.emitSignal('receive', bytearray(r), int(self.fsm['actions'].rx['rssi']))
         self.fsm['actions'].rx['buffer'] = None
     
     def signal_new_status(self):

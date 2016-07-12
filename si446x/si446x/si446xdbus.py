@@ -77,8 +77,11 @@ def onConnected(conn):
     dn.addCallback(onReady)
     return dn
 
-if __name__ == '__main__':
+def reactor_loop:
     dc = client.connect(reactor)
     dc.addCallback(onConnected)
     dc.addErrback(onErr)
-    reactor.run()
+    reactor.run()    
+
+if __name__ == '__main__':
+    reactor_loop()
