@@ -2,41 +2,50 @@ from si446xdef import *
 from construct import *
 import time
 
-def Si446xFrrCtlMode_t(subcon):
-    return Enum(subcon,
-                RADIO_CMD              = 0,
-                RADIO_RSP              = 1,
-                RADIO_GROUP            = 2,
-           )
+import inspect
+
+def spi(t, cmd, s_name):
+    t.add('RADIO_CMD', cmd, s_name)
+
+def f1(t):
+    request = change_state_cmd_s.parse('\x00' * change_state_cmd_s.sizeof())
+    request.cmd = 'CHANGE_STATE'
+    cmd = change_state_cmd_s.build(request)
+    spi(t, cmd, change_state_cmd_s.name)
+
+def f0():
+    t = Trace(10)
+    f1(t)
+    t.display()
 
 class Trace:
     def __init__(self, size):
         self.rb = RingBuffer(size)
-    def add(self, where, form, data):
-        self.rb.append([time.time(), where, form, data])
-    def display(self):
-        for t,where,form,data in self.rb.get():
-            if (where = 'RADIO_CMD'):
-                c =radio_config_commands[form][0]
-                if (c):
-                    s = c.parse(data)
-                else:
-                    s = c.encode('hex')
-            elif (where = 'RADIO_RSP'):
-                c =radio_config_commands[form][0]
-                if (c):
-                    s = c.parse(data)
-                else:
-                    s = c.encode('hex')
-            elif (where = 'RADIO_GROUP'):
-                c =radio_config_groups[form][0]
-                if (c):
-                    s = c.parse(data)
-                else:
-                    s = c.encode('hex')
+        self.size = size
+    def add(self, where, data, s_name=None, level=1):
+        where_id = radio_trace_ids.build(where)
+        _,_,ln_1,fn_1,_,_ = inspect.stack()[level]
+        _,filename,ln_2,fn_2,_,_ = inspect.stack()[level+1]
+        sig = '{}:{}, {}:{} ({})'.format(ln_2,fn_2,ln_1,fn_1,filename)
+        self.rb.append([time.time(), where_id, sig, s_name, data])
+    def display(self, count=0):
+        count = count if (count) else self.size
+        for t,where_id,sig,s_name,data in self.rb.get():
+            count -= 1
+            if (count <= 0):
+                break
+            where = radio_trace_ids.parse(where_id)
+            if ((where == 'RADIO_CMD') or
+                (where == 'RADIO_RSP') or
+                (where == 'RADIO_FRR') or
+                (where == 'RADIO_GROUP')):
+                try:
+                    s = eval(s_name).parse(data)
+                except:
+                    s = s_name + data.encode('hex')
             else:
-                s = data.encode('hex')
-            print '({}) {}: {}'.format(t,where,s)
+                s = data
+            print '({}) {} <{}> {}'.format(t,where,sig,s)
     def fetch(self, num):
         pass
 
@@ -68,4 +77,15 @@ class RingBuffer:
         def get(self):
             return self.data[self.cur:]+self.data[:self.cur]
 
+def save():
+    (frame,filename,line_number,function_name, lines, 
+     index) = inspect.getouterframes(inspect.currentframe())[1]
+    s = '{}:{}({}){},{}'.format(filename, line_number, function_name, lines, index)
+    print(s)
+    frame,filename,line_number,function_name,lines,index = inspect.stack()[1]
+    print(frame,filename,line_number,function_name,lines,index)
+    frame,filename,line_number,function_name,lines,index = inspect.stack()[2]
+    print(frame,filename,line_number,function_name,lines,index)
 
+if __name__=='__main__':
+    f0()

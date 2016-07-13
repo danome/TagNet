@@ -449,12 +449,11 @@ start_tx_cmd_s = Struct('start_tx_cmd_s',
                         UBInt16('tx_len'),
                     )
 
-
 #################################################################
 #
 # Radio Property Group definitions
 #
-global_group_s = Struct('global_group',
+global_group_s = Struct('global_group_s',
                         Byte('xo_tune'),
                         Byte('clk_cfg'),
                         Byte('low_batt_thresh'),
@@ -466,21 +465,21 @@ global_group_s = Struct('global_group',
                         Byte('wut_cal'),
                     )
 
-int_ctl_group_s = Struct('int_ctl_group',
+int_ctl_group_s = Struct('int_ctl_group_s',
                         Byte('enable'),
                         Byte('ph_enable'),
                         Byte('modem_enable'),
                         Byte('chip_enable'),
                         )
 
-frr_ctl_group_s = Struct('frr_ctl_group',
+frr_ctl_group_s = Struct('frr_ctl_group_s',
                           Si446xFrrCtlMode_t(Byte('a_mode')),
                           Si446xFrrCtlMode_t(Byte('b_mode')),
                           Si446xFrrCtlMode_t(Byte('c_mode')),
                           Si446xFrrCtlMode_t(Byte('d_mode')),
                         )
 
-preamble_group_s = Struct('preamble_group',
+preamble_group_s = Struct('preamble_group_s',
                         Byte('tx_length'),
                         Byte('config_std_1'),
                         Byte('config_nstd'),
@@ -491,17 +490,17 @@ preamble_group_s = Struct('preamble_group',
                         UBInt32('postamble_pattern'),
                         )
 
-sync_group_s = Struct('sync_group',
+sync_group_s = Struct('sync_group_s',
                         Byte('config'),
                         UBInt32('bits'),
                         )
 
-pkt_field_s = Struct('pkt_field',
+pkt_field_s = Struct('pkt_field_s',
                         UBInt16('length'),
                         Byte('config'),
                         Byte('crc_config'),
                     )
-pkt_group_s = Struct('pkt_group',
+pkt_group_s = Struct('pkt_group_s',
                      Byte('crc_config'),
                      UBInt16('wht_poly'),
                      UBInt16('wht_seed'),
@@ -525,7 +524,7 @@ pkt_group_s = Struct('pkt_group',
                      Rename('rx5', pkt_field_s),
                     )
 
-modem_group_s = Struct('modem_group',
+modem_group_s = Struct('modem_group_s',
                        Byte('mod_type'),
                        Byte('map_control'),
                        Byte('dsm_ctrl'),
@@ -581,12 +580,12 @@ modem_group_s = Struct('modem_group',
                        Byte('clkgen_band'),
                        )
 
-modem_chflt_group_s = Struct('modem_chflt_group',
+modem_chflt_group_s = Struct('modem_chflt_group_s',
                         Field('chflt_rx1_chflt_coe', 18),
                         Field('chflt_rx2_chflt_coe', 18),
                         )
 
-pa_group_s = Struct('pa_group',
+pa_group_s = Struct('pa_group_s',
                         Byte('mode'),
                         Byte('pwr_lvl'),
                         Byte('bias_clkduty'),
@@ -595,7 +594,7 @@ pa_group_s = Struct('pa_group',
                         Byte('ramp_down_delay'),
                         )
 
-synth_group_s = Struct('synth_group',
+synth_group_s = Struct('synth_group_s',
                        Byte('pfdcp_cpff'),
                        Byte('pfdcp_cpint'),
                        Byte('vco_kv'),
@@ -606,12 +605,12 @@ synth_group_s = Struct('synth_group',
                        Byte('vco_kvcal'),
                        )
 
-match_field_s = Struct('match_field',
+match_field_s = Struct('match_field_s',
                        Byte('value'),
                        Byte('mask'),
                        Byte('ctrl'),
                        )
-match_group_s = Struct('match_group',
+match_group_s = Struct('match_group_s',
                        Array(4, match_field_s),
 #                       Rename("m1", match_field_s),
 #                       Rename("m2", match_field_s),
@@ -619,7 +618,7 @@ match_group_s = Struct('match_group',
 #                       Rename("m4", match_field_s),
                        )
 
-freq_control_group_s = Struct('freq_control_group',
+freq_control_group_s = Struct('freq_control_group_s',
                         Byte('inte'),
                         Field('frac', 3),
                         UBInt16('channel_step_size'),
@@ -627,7 +626,7 @@ freq_control_group_s = Struct('freq_control_group',
                         Byte('vcocnt_rx_adj'),
                         )
 
-rx_hop_group_s = Struct('rx_hop_group',
+rx_hop_group_s = Struct('rx_hop_group_s',
                         Byte('control'),
                         Byte('table_size'),
                         Array(64, Byte('table_entry')),
@@ -684,3 +683,17 @@ radio_config_commands = {
     radio_config_cmd_ids.build('GET_CHIP_STATUS'): (None, None),    
 }
 
+def Si446xTraceIds_t(subcon):
+    return Enum(subcon,
+                RADIO_ERROR            = 0,
+                RADIO_CMD              = 1,
+                RADIO_RSP              = 2,
+                RADIO_GROUP            = 3,
+                RADIO_RX_FIFO          = 4,
+                RADIO_TX_FIFO          = 5,
+                RADIO_FRR              = 6,
+                RADIO_FSM              = 7,
+                RADIO_INT              = 8,
+           )
+
+radio_trace_ids = Si446xTraceIds_t(Byte('radio_trace_ids'))
