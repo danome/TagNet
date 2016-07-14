@@ -26,10 +26,7 @@ import si446xtrace
 BUS_NAME = 'org.tagnet.si446x'
 OBJECT_PATH = '/org/tagnet/si446x/0/0'   # object name includes device id/port numbers
 
-# class Si446xDbus - driver is controlled by this dbus interface
-#
-class Si446xDbus (objects.DBusObject):
-    iface = DBusInterface( 'org.tagnet.si446x',
+si446x_dbus_interface = DBusInterface( 'org.tagnet.si446x',
                            Method('control', arguments='s', returns='s'),
                            Method('send', arguments='ayu', returns='s'),
                            Method('status', returns='s'),
@@ -40,7 +37,11 @@ class Si446xDbus (objects.DBusObject):
                            Signal('new_status', 's'),
                            Signal('send_cmp', 's'),
                          )
-    dbusInterfaces = [iface]
+
+# class Si446xDbus - driver is controlled by this dbus interface
+#
+class Si446xDbus (objects.DBusObject):
+    dbusInterfaces = [si446x_dbus_interface]
     
     def __init__(self, objectPath, trace=None):
         objects.DBusObject.__init__(self, objectPath)
