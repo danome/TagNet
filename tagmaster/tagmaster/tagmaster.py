@@ -10,8 +10,8 @@ from txdbus.interface import DBusInterface, Signal
 from si446x.si446xdvr import si446x_dbus_interface
 
 
-def onReceiveSignal( tickCount ):
-    print 'Got tick signal: ', tickCount
+def onReceiveSignal( ab, pwr ):
+    print 'Got {}: {}'.format(len(ab), pwr)
 
 @defer.inlineCallbacks
 def main():
@@ -23,7 +23,7 @@ def main():
                                           '/org/tagnet/si446x/0/0',
                                           si446x_dbus_interface )
 
-        robj.notifyOnSignal( 'send', onReceiveSignal )
+        robj.notifyOnSignal( 'receive', onReceiveSignal )
 
     except error.DBusException, e:
         print 'DBus Error:', e

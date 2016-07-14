@@ -2,14 +2,32 @@ from twisted.internet import reactor, defer
 
 from txdbus import client, error
 
+from construct import *
+
 from si446x.si446xdvr import si446x_dbus_interface
 
+msg_header_s = Struct('msg_header_s',
+                    Byte('length'),
+                    Byte('sequence'),
+                    UBInt16('address'),
+                    Enum(Byte('test_mode'),
+                         DISABLED = 0,
+                         RUN  = 1,
+                         PEND = 2,
+                         PING = 3,
+                         PONG = 4,
+                         REP  = 5,
+                         )
+                    )
+
+msg = bytearray(('\x00' * msg_header_s.sizeof()) + 'hello world')
+pwr = 32
 
 @defer.inlineCallbacks
 def send_again(robj):
-    e = yield robj.callRemote('send', [3,2,1,0], 32)
-    print 'sent packet', e
-    reactor.callLater(1, send_again, robj)
+    e = yield robj.callRemote('send', msg, pwr)
+    print 'send packet', e
+    reactor.callLater(2, send_again, robj)
 
 @defer.inlineCallbacks
 def main():
@@ -27,6 +45,9 @@ def main():
         print 'send Failed. org.example is not available'
 
 #    reactor.stop()
+
+
+msg[0] = len(msg)-1
 
 reactor.callWhenRunning(main)
 reactor.run()
