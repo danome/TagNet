@@ -5,6 +5,7 @@ from __future__ import print_function
 from time import sleep
 import binascii
 import os
+import platform
 
 from twisted.python.constants import Names, NamedConstant
 from twisted.internet import reactor
@@ -93,7 +94,8 @@ class Si446xDbus (objects.DBusObject):
         return self.fsm['actions'].rx['rssi']
     
     def dbus_status(self):
-        s = '{}, {}, unshuts {}'.format(
+        s = '[{}] {}, {}, unshuts {}'.format(
+            platform.node(),
             self.status,
             self.fsm['machine'].state,
             self.fsm['actions'].ioc['unshuts'],)

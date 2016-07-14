@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-VERSION     = '1.0.00'
+VERSION     = '0.0.01'
 DESCRIPTION = 'template description'
 
 try:
@@ -16,14 +16,14 @@ setup(
     license          = "MIT",
     long_description ="""\
 template description""",
-    url              = 'https://github.com/dmaltbie/template',
+    url              = 'https://github.com/dmaltbie/Tagenet/template',
     author           = 'Dan Maltbie',
     author_email     = 'dmaltbie@daloma.org',
     install_requires = ['twisted>=10.1', 'six'],
     provides         = ['template'],
     packages         = ['template',
                         'template.test'],
-    keywords         = ['template', 'twisted'],
+    keywords         = ['template', 'twisted', 'dbus'],
     classifiers      = ['Development Status :: 4 - Beta',
                         'Framework :: Twisted',
                         'Intended Audience :: Developers',

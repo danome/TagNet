@@ -7,7 +7,7 @@ v1.0, July 2016
 Introduction
 ------------
 
-TagNet
+<TEMPLATE>
 
 *License*: [MIT](http://www.opensource.org/licenses/mit-license.php)
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-VERSION     = '1.0.00'
+VERSION     = '0.0.02'
 DESCRIPTION = 'Packet level driver for Si446x radio chip'
 
 try:
@@ -23,7 +23,7 @@ setup(
     license          = "MIT",
     long_description ="""\
 Packet level driver for Si446x radio chip""",
-    url              = 'https://github.com/dmaltbie/tagsi446x',
+    url              = 'https://github.com/dmaltbie/Tagnet/si446x',
     author           = 'Dan Maltbie',
     author_email     = 'dmaltbie@daloma.org',
     install_requires = ['twisted>=10.1', 'six'],
