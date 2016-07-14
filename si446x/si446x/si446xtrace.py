@@ -4,37 +4,30 @@ import time
 
 import inspect
 
-def spi(t, cmd, s_name):
-    t.add('RADIO_CMD', cmd, s_name)
-
-def f1(t):
-    request = change_state_cmd_s.parse('\x00' * change_state_cmd_s.sizeof())
-    request.cmd = 'CHANGE_STATE'
-    cmd = change_state_cmd_s.build(request)
-    spi(t, cmd, change_state_cmd_s.name)
-
-def f0():
-    t = Trace(10)
-    f1(t)
-    t.display()
-
 class Trace:
     def __init__(self, size):
         self.rb = RingBuffer(size)
         self.size = size
+
     def add(self, where, data, s_name=None, level=1):
         where_id = radio_trace_ids.build(where)
+        sig = ''
+        if (level>1):
+            _,_,ln_2,fn_2,_,_ = inspect.stack()[level+1]
+            sig += '{}:{} -> '.format(fn_2,ln_2)
         _,_,ln_1,fn_1,_,_ = inspect.stack()[level]
-        _,filename,ln_2,fn_2,_,_ = inspect.stack()[level+1]
-        sig = '{}:{}, {}:{} ({})'.format(ln_2,fn_2,ln_1,fn_1,filename)
+        sig += '{}:{}'.format(fn_1,ln_1)
         self.rb.append([time.time(), where_id, sig, s_name, data])
-    def display(self, count=0):
+
+    def display(self, filter=None, count=0, begin=None, mark=None, span=0):
         count = count if (count) else self.size
+        last_t = 0
         for t,where_id,sig,s_name,data in self.rb.get():
-            count -= 1
-            if (count <= 0):
-                break
             where = radio_trace_ids.parse(where_id)
+            if (filter and (where not in filter)):
+                continue
+            if ((begin) and (begin > t)):
+                continue
             if ((where == 'RADIO_CMD') or
                 (where == 'RADIO_RSP') or
                 (where == 'RADIO_FRR') or
@@ -45,9 +38,17 @@ class Trace:
                     s = s_name + data.encode('hex')
             else:
                 s = data
-            print '({}) {} <{}> {}'.format(t,where,sig,s)
+            delta = t-last_t if (last_t) else 0
+            print '@@@@@@@ ({:^20.6f} {:.6f}) {} <{}>'.format(t,delta,where,sig)
+            print s
+            last_t = t
+            count -= 1
+            if (count <= 0):
+                break
+
     def fetch(self, num):
         pass
+#end class
 
 class RingBuffer:
     def __init__(self,size_max):
@@ -76,16 +77,23 @@ class RingBuffer:
             return self.data[self.cur]
         def get(self):
             return self.data[self.cur:]+self.data[:self.cur]
+#end class
 
-def save():
-    (frame,filename,line_number,function_name, lines, 
-     index) = inspect.getouterframes(inspect.currentframe())[1]
-    s = '{}:{}({}){},{}'.format(filename, line_number, function_name, lines, index)
-    print(s)
-    frame,filename,line_number,function_name,lines,index = inspect.stack()[1]
-    print(frame,filename,line_number,function_name,lines,index)
-    frame,filename,line_number,function_name,lines,index = inspect.stack()[2]
-    print(frame,filename,line_number,function_name,lines,index)
+# test
+#
+def spi(t, cmd, s_name):
+    t.add('RADIO_CMD', cmd, s_name)
+
+def f1(t):
+    request = change_state_cmd_s.parse('\x00' * change_state_cmd_s.sizeof())
+    request.cmd = 'CHANGE_STATE'
+    cmd = change_state_cmd_s.build(request)
+    spi(t, cmd, change_state_cmd_s.name)
+
+def f0():
+    t = Trace(10)
+    f1(t)
+    t.display()
 
 if __name__=='__main__':
     f0()

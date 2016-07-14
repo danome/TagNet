@@ -40,8 +40,9 @@ def fail(s):
         x = 1
     pass
 
-def _trace(where, ev):
-    #print('trace', ev, where)
+def _trace(trace, where, ev):
+    s = '{} {}'.format(where, ev)
+    trace.add('RADIO_ACTION', s, level=2)
     pass
 
 
@@ -78,71 +79,71 @@ class Si446xFsmActionHandlers(object):
         }
 
     def output_A_CLEAR_SYNC(self, ev):
-        _trace("clear sync", ev)
+        _trace(self.radio.trace, "clear sync", ev)
         clear_sync(self, ev)
 
     def output_A_CONFIG(self, ev):
-        _trace("config", ev)
+        _trace(self.radio.trace, "config", ev)
         config(self, ev)
 
     def output_A_NOP (self, ev):
-        _trace("nop", ev)
+        _trace(self.radio.trace, "nop", ev)
         no_op(self, ev)
 
     def output_A_PWR_DN(self, ev):
-        _trace("power down", ev)
+        _trace(self.radio.trace, "power down", ev)
         pwr_dn(self, ev)
 
     def output_A_PWR_UP(self, ev):
-        _trace("power up", ev)
+        _trace(self.radio.trace, "power up", ev)
         pwr_up(self, ev)
 
     def output_A_READY (self, ev):
-        _trace("ready", ev)
+        _trace(self.radio.trace, "ready", ev)
         ready(self, ev)
 
     def output_A_RX_CMP(self, ev):
-        _trace("rx complete", ev)
+        _trace(self.radio.trace, "rx complete", ev)
         rx_cmp(self, ev)
 
     def output_A_RX_CNT_CRC(self, ev):
-        _trace("rx count crc error", ev)
+        _trace(self.radio.trace, "rx count crc error", ev)
         rx_cnt_crc(self, ev)
 
     def output_A_RX_DRAIN_FF(self, ev):
-        _trace("drain rx fifo", ev)
+        _trace(self.radio.trace, "drain rx fifo", ev)
         rx_drain_ff(self, ev)
         
     def output_A_RX_START(self, ev):
-        _trace("rx start", ev)
+        _trace(self.radio.trace, "rx start", ev)
         rx_start(self, ev)
         
     def output_A_RX_TIMEOUT(self, ev):
-        _trace("rx timeout", ev)
+        _trace(self.radio.trace, "rx timeout", ev)
         rx_timeout(self, ev)
         
     def output_A_STANDBY(self, ev):
-        _trace("standby", ev)
+        _trace(self.radio.trace, "standby", ev)
         standby(self, ev)
         
     def output_A_TX_CMP(self, ev):
-        _trace("tx complete", ev)
+        _trace(self.radio.trace, "tx complete", ev)
         tx_cmp(self, ev)
         
     def output_A_TX_FILL_FF(self, ev):
-        _trace("tx fill fifo", ev)
+        _trace(self.radio.trace, "tx fill fifo", ev)
         tx_fill_ff(self, ev)
         
     def output_A_TX_START(self, ev):
-        _trace("tx start", ev)
+        _trace(self.radio.trace, "tx start", ev)
         tx_start(self, ev)
         
     def output_A_TX_TIMEOUT(self, ev):
-        _trace("tx timeout", ev)
+        _trace(self.radio.trace, "tx timeout", ev)
         tx_timeout(self, ev)
         
     def output_A_UNSHUT(self, ev):
-        _trace("unshutdown", ev)
+        _trace(self.radio.trace, "unshutdown", ev)
         unshut(self, ev)
 #end class
 
@@ -215,7 +216,8 @@ def rx_cmp(actions, ev):
         actions.dbus.signal_receive()
     else:
         actions.rx['len_errors'] += 1
-        print('rx_e', actions.rx['offset'], pkt_len)
+        s = 'rx len err:{} / {}'.format(actions.rx['offset'], pkt_len)
+        actions.radio.trace.add('RADIO_ACTION', s)
     rx_on(actions, ev)
 #
 def rx_cnt_crc(actions, ev):

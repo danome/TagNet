@@ -694,6 +694,8 @@ def Si446xTraceIds_t(subcon):
                 RADIO_FRR              = 6,
                 RADIO_FSM              = 7,
                 RADIO_INT              = 8,
+                RADIO_DUMP             = 9,
+                RADIO_ACTION           = 10,
            )
 
 radio_trace_ids = Si446xTraceIds_t(Byte('radio_trace_ids'))

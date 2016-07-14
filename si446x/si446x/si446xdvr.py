@@ -32,7 +32,7 @@ class Si446xDbus (objects.DBusObject):
                            Method('control', arguments='s', returns='s'),
                            Method('send', arguments='ayu', returns='s'),
                            Method('status', returns='s'),
-                           Method('dump_trace', returns='s'),
+                           Method('dump_trace', arguments='sudsu', returns='s'),
                            Method('clear_status', returns='s'),
                            Method('cca', returns='u'),
                            Signal('receive', 'ayu'),
@@ -105,8 +105,8 @@ class Si446xDbus (objects.DBusObject):
             s += '{} {}, '.format(r, self.fsm['actions'].tx[r])
         return s
 
-    def dbus_dump_trace(self):
-        self.trace.display()
+    def dbus_dump_trace(self, f, n, t, m, s):
+        self.trace.display(filter=f, count=n, begin=t, mark=m, span=s)
         return 'ok'
     
     def dbus_clear_status(self):
@@ -142,11 +142,11 @@ class Si446xDbus (objects.DBusObject):
     ### Asynchronous Event Handlers
     
     def interrupt_cb(self, channel):
-        self.trace('RADIO_INT', 'sync')
+        self.trace.add('RADIO_INT', 'sync')
         interrupt_handler(self.fsm, self.radio)
 
     def async_interrupt(self, channel):
-        self.trace('RADIO_INT', 'async')
+        self.trace.add('RADIO_INT', 'async')
         reactor.callFromThread(self.interrupt_cb, channel)
 
     def config_cb(self):
@@ -213,7 +213,7 @@ def process_interrupts(fsm, radio, pend):
 # get interrupts from radio device and process until nothing is pending
 #
 def interrupt_handler(fsm, radio):
-    pending_ints = radio.get_interrupts()
+    pending_ints = radio.get_clear_interrupts()
     for n in range(5):
         #print(radio.fast_all().encode('hex'), "d-int", fsm['machine'].state)
         clr_flags = process_interrupts(fsm, radio, pending_ints)
@@ -231,7 +231,9 @@ def interrupt_handler(fsm, radio):
 # and trace event information can be logged
 #
 def step_fsm(fsm, radio, ev):
-    s = ev.name + fsm['machine'].state.name + radio.fast_all().encode('hex')
+    s = '{} / {} frr:{}'.format(ev.name,
+                  fsm['machine'].state.name,
+                  radio.fast_all().encode('hex'))
     fsm['trace'].add('RADIO_FSM', s)
     fsm['machine'].receive(ev)
     #print(radio.fast_all().encode('hex'), 'step', fsm['machine'].state, ev)
@@ -240,7 +242,7 @@ def step_fsm(fsm, radio, ev):
 # MAIN Initialization
 #
 def onConnected(conn):
-    trace =  si446xtrace.Trace(100)
+    trace =  si446xtrace.Trace(10000)
     dbus = Si446xDbus(OBJECT_PATH, trace=trace)
     radio = Si446xRadio(device=0, callback=dbus.async_interrupt, trace=trace)
     print('init radio done')
@@ -307,10 +309,11 @@ def cycle():
     step_fsm(fsm, radio, Events.E_WAIT_DONE)
     step_fsm(fsm, radio, Events.E_WAIT_DONE)
     step_fsm(fsm, radio, Events.E_CONFIG_DONE)
+    trace.display()
     for i in range(20000):
         interrupt_handler(fsm, radio)
         sleep(.001)
-        if ((i % 100) == 0): trace.display(count=10)
+        if ((i % 1000) == 0): trace.display(count=10)
     step_fsm(fsm, radio, Events.E_TURNOFF)
 
 

@@ -204,7 +204,8 @@ class Si446xRadio(object):
     #
     def dump_display(self):
         for k, v in self.dump_strings.iteritems():
-            print(k, v, radio_config_groups[k].parse(v))
+            s = '{}, {}'.format(k, radio_config_groups[k].parse(v))
+            self.trace.add('RADIO_DUMP', s)
 
     # dump_radio - Dump all of the current radio chip configuration
     #
@@ -460,7 +461,7 @@ class Si446xRadio(object):
         request.group=pg
         request.num_props=len(pd)
         request.start_prop=ps
-        print(request, pg, ps, pd.encode('hex'))
+        #print(request, pg, ps, pd.encode('hex'))
         cmd = set_property_cmd_s.build(request) + pd
         self.spi.command(cmd, set_property_cmd_s.name)
     #end def
