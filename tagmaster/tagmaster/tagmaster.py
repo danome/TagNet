@@ -9,47 +9,30 @@ from txdbus.interface import DBusInterface, Signal
 
 from si446x.si446xdvr import si446x_dbus_interface
 
+count = 0
+robj = None
 
-def onReceiveSignal( ab, pwr ):
-    print 'Got {}: {}'.format(len(ab), pwr)
+@defer.inlineCallbacks
+def onReceiveSignal( msg, pwr ):
+    global robj, count
+    print 'Got {}: {}'.format(len(msg), pwr)
+    e = yield robj.callRemote('send', msg, pwr)
+    print 'respond ({}) {}'.format(count, e)
+    count += 1
 
 @defer.inlineCallbacks
 def main():
-
+    global robj, count
     try:
         cli   = yield client.connect(reactor)
 
         robj  = yield cli.getRemoteObject('org.tagnet.si446x',
                                           '/org/tagnet/si446x/0/0',
                                           si446x_dbus_interface )
-
         robj.notifyOnSignal( 'receive', onReceiveSignal )
-
     except error.DBusException, e:
         print 'DBus Error:', e
-
 
 reactor.callWhenRunning(main)
 reactor.run()
 
-#@@@@@@@
-
-from twisted.internet import reactor
-from txdbus import client
-
-            
-def on_receive( a, u ):
-    print 'Got receive signal: ',a,u 
-
-def onErr(err):
-    print 'Error: ', err.getErrorMessage()
-
-
-
-d = client.connect(reactor, 'session')
-
-d.addCallback( lambda cli: cli.getRemoteObject( 'org.tagnet.si446x', '/org/tagnet/si446x/0/0' ) )
-d.addCallback( lambda ro: ro.notifyOnSignal( 'receive', on_receive ) ) 
-d.addErrback( onErr )
-
-reactor.run()
