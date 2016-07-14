@@ -4,5 +4,6 @@
 _trial_temp*
 *\.pdf
 *\.html
+*\.egg-info
 dist
 MANIFEST
