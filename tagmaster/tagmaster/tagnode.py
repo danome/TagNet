@@ -30,11 +30,10 @@ robj = None
 def send_again(robj):
     global send_count, msg, pwr
     e = yield robj.callRemote('send', msg, pwr)
-    print 'send packet ({}) {}'.format(count, e)
+    print 'send packet ({}:{}) {}'.format(send_count, recv_count, e)
     send_count += 1
     reactor.callLater(2, send_again, robj)
 
-@defer.inlineCallbacks
 def onReceiveSignal( msg, pwr ):
     global robj, recv_count
     print 'response {}: {}'.format(len(msg), pwr)
