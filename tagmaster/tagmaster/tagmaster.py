@@ -12,12 +12,12 @@ from si446x.si446xdvr import si446x_dbus_interface
 count = 0
 robj = None
 
-@defer.inlineCallbacks
+#@defer.inlineCallbacks
 def onReceiveSignal( msg, pwr ):
     global robj, count
-    print 'Got {}: {}'.format(len(msg), pwr)
-    e = yield robj.callRemote('send', msg, pwr)
-    print 'respond ({}) {}'.format(count, e)
+    print 'Got {} ({}): {}, {}'.format(len(msg), count, msg, pwr)
+#    e = yield robj.callRemote('send', msg, pwr)
+#    print 'respond ({}) {}'.format(count, e)
     count += 1
 
 @defer.inlineCallbacks
@@ -29,6 +29,7 @@ def main():
         robj  = yield cli.getRemoteObject('org.tagnet.si446x',
                                           '/org/tagnet/si446x/0/0',
                                           si446x_dbus_interface )
+        print 'got remote object'
         robj.notifyOnSignal( 'receive', onReceiveSignal )
     except error.DBusException, e:
         print 'DBus Error:', e
