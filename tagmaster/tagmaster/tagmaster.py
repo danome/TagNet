@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-#!/usr/bin/env python
+import time
 
 from twisted.internet import reactor, defer
 
@@ -15,7 +15,8 @@ robj = None
 #@defer.inlineCallbacks
 def onReceiveSignal( msg, pwr ):
     global robj, count
-    print 'Got {} ({}): {}, {}'.format(len(msg), count, msg, pwr)
+    print '({:^20.6f})Got {} ({}): {}, {}'.format(time.time(),
+                                                 len(msg), count, msg, pwr)
 #    e = yield robj.callRemote('send', msg, pwr)
 #    print 'respond ({}) {}'.format(count, e)
     count += 1

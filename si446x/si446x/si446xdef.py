@@ -320,7 +320,7 @@ int_status_rsp_s = Struct('int_status_rsp_s',
                           )
 
 #
-packet_info_cmd_s = Struct('power_up_cmd_s',
+packet_info_cmd_s = Struct('packet_info_cmd_s',
                            Si446xCmds_t(UBInt8("cmd")),
                            BitStruct('field',
                                      Padding(2),
@@ -336,7 +336,7 @@ packet_info_cmd_s = Struct('power_up_cmd_s',
                        )
 
 #
-packet_info_rsp_s = Struct('power_up_rsp_s',
+packet_info_rsp_s = Struct('packet_info_rsp_s',
                            Byte('cts'),
                            UBInt16('length'),
                        )
@@ -629,10 +629,10 @@ freq_control_group_s = Struct('freq_control_group_s',
 rx_hop_group_s = Struct('rx_hop_group_s',
                         Byte('control'),
                         Byte('table_size'),
-                        Array(64, Byte('table_entry')),
+                        Field('table_entries', 64),
                         )
 
-radio_config_group_ids = Si446xPropGroups_t(Byte('rcp_ids'))
+radio_config_group_ids = Si446xPropGroups_t(Byte('radio_config_group_ids'))
 
 radio_config_groups = {
     radio_config_group_ids.build('GLOBAL'): global_group_s,
@@ -650,34 +650,21 @@ radio_config_groups = {
     radio_config_group_ids.build('RX_HOP'): rx_hop_group_s
 }
 
-radio_config_cmd_ids = Si446xCmds_t(Byte('rcc_ids'))
+radio_config_cmd_ids = Si446xCmds_t(Byte('radio_config_cmd_ids'))
 
 radio_config_commands = {
-    radio_config_cmd_ids.build('NOP'): (read_cmd_s, None),
-    radio_config_cmd_ids.build('POWER_UP'): (power_up_cmd_s, None),
     radio_config_cmd_ids.build('PART_INFO'): (read_cmd_s, read_part_info_rsp_s),
     radio_config_cmd_ids.build('FUNC_INFO'): (read_cmd_s, read_func_info_rsp_s),
-    radio_config_cmd_ids.build('SET_PROPERTY'): (set_property_cmd_s, None),
-    radio_config_cmd_ids.build('GET_PROPERTY'): (get_property_cmd_s, get_property_rsp_s),
     radio_config_cmd_ids.build('GPIO_PIN_CFG'): (None, None),
     radio_config_cmd_ids.build('FIFO_INFO'): (fifo_info_cmd_s, fifo_info_rsp_s),
     radio_config_cmd_ids.build('GET_INT_STATUS'): (clr_int_pend_cmd_s, int_status_rsp_s),
     radio_config_cmd_ids.build('REQUEST_DEVICE_STATE'): (None, None),
-    radio_config_cmd_ids.build('CHANGE_STATE'): (change_state_cmd_s, change_state_rsp_s),
-    radio_config_cmd_ids.build('READ_CMD_BUFF'): (None, None),
     radio_config_cmd_ids.build('FRR_A_READ'): (None, None),
     radio_config_cmd_ids.build('FRR_B_READ'): (None, None),
     radio_config_cmd_ids.build('FRR_C_READ'): (None, None),
     radio_config_cmd_ids.build('FRR_D_READ'): (None, None),
-    radio_config_cmd_ids.build('IRCAL'): (None, None),
-    radio_config_cmd_ids.build('IRCAL_MANUAL'): (None, None),
-    radio_config_cmd_ids.build('START_TX'): (start_tx_cmd_s, None),
-    radio_config_cmd_ids.build('WRITE_TX_FIFO'): (None, None),
     radio_config_cmd_ids.build('PACKET_INFO'): (packet_info_cmd_s, packet_info_rsp_s),
     radio_config_cmd_ids.build('GET_MODEM_STATUS'): (None, None),
-    radio_config_cmd_ids.build('START_RX'): (start_rx_cmd_s, None),
-    radio_config_cmd_ids.build('RX_HOP'): (None, None),
-    radio_config_cmd_ids.build('READ_RX_FIFO'): (None, None),
     radio_config_cmd_ids.build('GET_ADC_READING'): (None, None),
     radio_config_cmd_ids.build('GET_PH_STATUS'): (None, None),
     radio_config_cmd_ids.build('GET_CHIP_STATUS'): (None, None),    
@@ -696,6 +683,7 @@ def Si446xTraceIds_t(subcon):
                 RADIO_INT              = 8,
                 RADIO_DUMP             = 9,
                 RADIO_ACTION           = 10,
+                RADIO_IOC              = 11,
            )
 
 radio_trace_ids = Si446xTraceIds_t(Byte('radio_trace_ids'))

@@ -1,7 +1,19 @@
 #!/usr/bin/env python
 
-VERSION     = '0.0.02'
+VERSION     = '0.0.03'
 DESCRIPTION = 'Packet level driver for Si446x radio chip'
+
+import os, re
+def get_version():
+    VERSIONFILE = os.path.join('si446x', '__init__.py')
+    initfile_lines = open(VERSIONFILE, 'rt').readlines()
+    VSRE = r"^__version__ = ['\"]([^'\"]*)['\"]"
+    for line in initfile_lines:
+        print line
+        mo = re.search(VSRE, line, re.M)
+        if mo:
+            return mo.group(1)
+    raise RuntimeError('Unable to find version string in %s.' % (VERSIONFILE,))
 
 try:
     from setuptools import setup, Extension
@@ -18,7 +30,7 @@ config_strings = Extension('si446x/si446xcfg',
 
 setup(
     name             = 'si446x',
-    version          = VERSION,
+    version          = get_version(),
     description      = DESCRIPTION,
     license          = "MIT",
     long_description ="""\

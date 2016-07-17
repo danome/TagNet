@@ -225,7 +225,7 @@ def rx_cnt_crc(actions, ev):
     actions.rx['crc_errors'] += 1
     actions.radio.fifo_info(rx_flush=True)
     actions.radio.change_state('SLEEP', 100)  # wait up to (ms) for change
-    actions.radio.clear_interrupts()
+#    actions.radio.clear_interrupts()
     rx_on(actions, ev)
 #
 def rx_drain_ff(actions, ev):
@@ -241,8 +241,8 @@ def rx_drain_ff(actions, ev):
 #
 def rx_on(actions, ev):
     stop_timer(actions)
-    actions.radio.fifo_info(rx_flush=True, tx_flush=True)
-    actions.radio.clear_interrupts()
+#    actions.radio.fifo_info(rx_flush=True, tx_flush=True)
+#    actions.radio.clear_interrupts()
     actions.radio.start_rx(0)
 #
 def rx_start(actions, ev):

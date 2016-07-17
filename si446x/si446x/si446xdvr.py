@@ -27,15 +27,18 @@ BUS_NAME = 'org.tagnet.si446x'
 OBJECT_PATH = '/org/tagnet/si446x/0/0'   # object name includes device id/port numbers
 
 si446x_dbus_interface = DBusInterface( 'org.tagnet.si446x',
-                           Method('control', arguments='s', returns='s'),
-                           Method('send', arguments='ayu', returns='s'),
-                           Method('status', returns='s'),
-                           Method('dump_trace', arguments='sudsu', returns='s'),
-                           Method('clear_status', returns='s'),
-                           Method('cca', returns='u'),
-                           Signal('receive', 'ayu'),
-                           Signal('new_status', 's'),
-                           Signal('send_cmp', 's'),
+                            Method('cca', returns='u'),
+                            Method('clear_status', returns='s'),
+                            Method('control', arguments='s', returns='s'),
+                            Method('dump_radio', arguments='s', returns='s'),
+                            Method('dump_trace', arguments='sudsu', returns='s'),
+                            Method('send', arguments='ayu', returns='s'),
+                            Method('spi_send', arguments='ays', returns='s'),
+                            Method('spi_send_recv', arguments='ayuss', returns='ay'),
+                            Method('status', returns='s'),
+                            Signal('new_status', 's'),
+                            Signal('receive', 'ayu'),
+                            Signal('send_cmp', 's'),
                          )
 
 # class Si446xDbus - driver is controlled by this dbus interface
@@ -55,10 +58,13 @@ class Si446xDbus (objects.DBusObject):
         self.fsm = fsm
         self.radio = radio
 
-    ### DBus Interface Handlers
+    ### DBus Interface Methods
 
+    def dbus_cca(self):
+        return self.fsm['actions'].rx['rssi']
+    
     def dbus_control(self, action):
-        print('action', action)
+        self.radio.trace.add('RADIO_IOC', action)
         if (self.control_event):
             return 'dbus_control busy {}'.format(self.control_event)
         if (action == 'TURNON'):
@@ -81,6 +87,29 @@ class Si446xDbus (objects.DBusObject):
         step_fsm(self.fsm, self.radio, self.control_event)
         return 'ok {}'.format(self.fsm['machine'].state)
 
+    def dbus_dump_radio(self, s):
+        if (s == 'REFRESH'):
+            self.radio.dump_radio()
+        self.radio.read_silicon_info()
+        self.radio.spi.read_frr(0,4)
+        self.radio.get_interrupts()
+        self.radio.get_packet_info()
+        self.radio.dump_display()
+        return 'ok'
+    
+    def dbus_dump_trace(self, f, n, t, m, s):
+        self.trace.display(filter=f, count=n, begin=t, mark=m, span=s)
+        return 'ok'
+    
+    def dbus_clear_status(self):
+        self.fsm['actions'].ioc['unshuts'] = 0
+        s =  self.dbus_status()
+        for r in [ 'packets', 'len_errors', 'timeouts', 'sync_errors','crc_errors']:
+            self.fsm['actions'].rx[r] = 0
+        for r in [ 'packets', 'errors', 'timeouts']:
+            self.fsm['actions'].tx[r] = 0
+        return s
+
     def dbus_send(self, buf, power):
         if (self.fsm['actions'].tx['buffer']):
             return 'busy {}'.format(self.fsm['machine'].state)
@@ -91,9 +120,13 @@ class Si446xDbus (objects.DBusObject):
         step_fsm(self.fsm, self.radio, Events.E_TRANSMIT)
         return 'ok'
     
-    def dbus_cca(self):
-        return self.fsm['actions'].rx['rssi']
-    
+    def dbus_spi_send(self, pkt, form):
+        self.radio.spi.command(pkt, form)
+
+    def dbus_spi_send_recv(self, pkt, rlen, c_form, r_form):
+        self.radio.spi.command(pkt, c_form)
+        return bytearray(self.radio.spi.response(rlen, r_form)[0:rlen])
+
     def dbus_status(self):
         s = '[{}] {}, {}, unshuts {}'.format(
             platform.node(),
@@ -108,23 +141,7 @@ class Si446xDbus (objects.DBusObject):
             s += '{} {}, '.format(r, self.fsm['actions'].tx[r])
         return s
 
-    def dbus_dump_trace(self, f, n, t, m, s):
-        self.trace.display(filter=f, count=n, begin=t, mark=m, span=s)
-        return 'ok'
-    
-    def dbus_clear_status(self):
-        self.fsm['actions'].ioc['unshuts'] = 0
-        s =  self.dbus_status()
-        for r in [ 'packets', 'len_errors', 'timeouts', 'sync_errors','crc_errors']:
-            self.fsm['actions'].rx[r] = 0
-        for r in [ 'packets', 'errors', 'timeouts']:
-            self.fsm['actions'].tx[r] = 0
-        return s
-
-    def signal_receive(self):
-        r = self.fsm['actions'].rx['buffer']
-        self.emitSignal('receive', bytearray(r), int(self.fsm['actions'].rx['rssi']))
-        self.fsm['actions'].rx['buffer'] = None
+    ### DBus Signals
     
     def signal_new_status(self):
         if (self.fsm['machine'].state == States.S_SDN):
@@ -138,6 +155,11 @@ class Si446xDbus (objects.DBusObject):
         self.emitSignal('new_status', s)
         self.control_event = None
 
+    def signal_receive(self):
+        r = self.fsm['actions'].rx['buffer']
+        self.emitSignal('receive', bytearray(r), int(self.fsm['actions'].rx['rssi']))
+        self.fsm['actions'].rx['buffer'] = None
+    
     def signal_send_cmp(self, condition):
         self.emitSignal('send_cmp', condition)
         self.fsm['actions'].tx['buffer'] = None
@@ -163,14 +185,16 @@ class Si446xDbus (objects.DBusObject):
 
     def start_timer(self, delay): # seconds (float)
         return reactor.callLater(delay, self.timeout_cb)
+#end class
 
-
-# process_interrupts - for each interrupt source process the fsm event transition
-#
-# return list of cleared pending flags, or None if no flags cleared
-# note that logic seems backwards, a zero (false) means to clear the pending flag
-#
 def process_interrupts(fsm, radio, pend):
+    """
+    process_interrupts - for each interrupt source process the event transition
+
+    return list of cleared pending flags, or None if no flags cleared
+    note that logic seems backwards, but a zero (false) means to clear the 
+    pending flag (set to one if you don't want to clear the flag)
+    """
     clr_flags = clr_pend_int_s.parse('\xff' * clr_pend_int_s.sizeof())
     got_ints = False
     if ((pend.modem_pend.INVALID_SYNC_PEND) and (fsm['machine'].state is States.S_RX_ON)):
@@ -209,13 +233,15 @@ def process_interrupts(fsm, radio, pend):
         return clr_flags
     else:
         None
+#end def
 
 
-# interrupt_handler - process interrupts until no more exist
-#
-# get interrupts from radio device and process until nothing is pending
-#
 def interrupt_handler(fsm, radio):
+    """
+    interrupt_handler - process interrupts until no more exist
+
+    get interrupts from radio device and process until nothing is pending
+    """
     pending_ints = radio.get_clear_interrupts()
     for n in range(5):
         #print(radio.fast_all().encode('hex'), "d-int", fsm['machine'].state)
@@ -228,12 +254,13 @@ def interrupt_handler(fsm, radio):
     radio.clear_interrupts()
 
 
-# step_fsm - invoke event driven state transition and corresponding action
-#
-# Use this routine rather than calling fsm.receive() is so that timing
-# and trace event information can be logged
-#
 def step_fsm(fsm, radio, ev):
+    """
+    step_fsm - invoke event driven state transition and corresponding action
+
+    Use this routine rather than calling fsm.receive() is so that timing
+    and trace event information can be logged
+    """
     s = '{} / {} frr:{}'.format(ev.name,
                   fsm['machine'].state.name,
                   radio.fast_all().encode('hex'))
@@ -269,6 +296,8 @@ def onConnected(conn):
         s = ' Si446x radio driver [ {}, {} ] is ready for business'
         print(s.format(BUS_NAME, OBJECT_PATH))
         dbus.signal_new_status()
+        # transition radio automatically out of off state
+        step_fsm(fsm,radio, Events.E_TURNON)
 
     dn.addCallback(onReady)
     return dn

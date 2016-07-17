@@ -107,12 +107,10 @@ class SpiInterface:
 # _gpio_callback
 #
 def _gpio_callback(channel):
-    print('Edge detected on channel %s'%channel)
+    print('si446xradio: Edge detected on channel %s'%channel)
 
 ##########################################################################
-#
-# class Si446xRadio - radio device access and control routines
-#
+
 class Si446xRadio(object):
     """ class for handling low level Radio device control"""
     def __init__(self, device=0, callback=_gpio_callback, trace=None):
@@ -124,11 +122,11 @@ class Si446xRadio(object):
         self.spi = SpiInterface(device, trace=self.trace)
     #end def
 
-    # change_state - force radio chip to change to specific state.
-    #
-    #  waits (ms) for acknowledgement that radio has processed the change
-    #
     def change_state(self, state,  wait=0):
+        """
+        change_state - force radio chip to change to specific state.
+        waits (ms) for acknowledgement that radio has processed the change
+        """
         request = change_state_cmd_s.parse('\x00' * change_state_cmd_s.sizeof())
         request.cmd = 'CHANGE_STATE'
         request.state = state
@@ -137,18 +135,19 @@ class Si446xRadio(object):
         _get_cts_wait(wait)
     #end def
 
-    # check_CCA - Perform Clear Channel Assessment.
-    #
     def check_CCA(self):
+        """
+        Perform Clear Channel Assessment.
+        """
         rssi = self.fast_latched_rssi()
         return True if (rssi < si446x_cca_threshold) else False
     #end def
 
-    # clear_interrupts() - Clear radio chip pending interrupts
-    #
-    # default (nothing in clr_flags) then clear all interrupts
-    #
     def clear_interrupts(self, clr_flags=None):
+        """
+        Clear radio chip pending interrupts  default (nothing in clr_flags)
+        then clear all interrupts
+        """
         request = read_cmd_s.parse('\x00' * read_cmd_s.sizeof())
         request.cmd='GET_INT_STATUS'
         #print request
@@ -158,26 +157,22 @@ class Si446xRadio(object):
         self.spi.command(cmd, read_cmd_s.name)
     #end def
 
-    # config_frr - Configure the Fast Response Registers to the expected values
-    #
-    # Configures the radio chip to return the specific values used by the Driver.
-    #
-    # const uint8_t si446x_frr_config[] = { 0x11, 0x02, 0x04, 0x00,
-    #				            0x09, 0x04, 0x06, 0x0a
-    #                                    };
-    # frr is set manually right after POWER_UP
-    #
-    #   A: device state
-    #   B: PH_PEND
-    #   C: MODEM_PEND
-    #   D: Latched_RSSI
-    #
-    # We use LR (Latched_RSSI) when receiving a packet.  The RSSI value is
-    # attached to the last RX packet.  The Latched_RSSI value may, depending on
-    # configuration, be associated with some number of bit times once RX is enabled
-    # or when SYNC is detected.
-    #
     def config_frr(self):
+        """
+        Configure the Fast Response Registers to the expected values by Driver
+        const uint8_t si446x_frr_config[] = { 0x11, 0x02, 0x04, 0x00,
+
+        frr is set manually right after POWER_UP
+        A: device state
+        B: PH_PEND
+        C: MODEM_PEND
+        D: Latched_RSSI
+
+        We use LR (Latched_RSSI) when receiving a packet.  The RSSI value is
+        attached to the last RX packet.  The Latched_RSSI value may, depending
+        on configuration, be associated with some number of bit times once RX 
+        is enabled or when SYNC is detected.
+        """
         request = config_frr_cmd_s.parse('\x00' * config_frr_cmd_s.sizeof())
         request.cmd='SET_PROPERTY'
         request.group='FRR_CTL'
@@ -192,44 +187,48 @@ class Si446xRadio(object):
         self.spi.command(cmd, config_frr_cmd_s.name)
     #end def
 
-    # disableInterrupt - Disable radio chip hardware interrupt
-    #
-    #
     def disable_interrupt(self):
+        """
+        Disable radio chip hardware interrupt
+        """
         if (gpio):
             GPIO.remove_event_detect(GPIO_NIRQ)
     #end def
 
-    # dump_radio - Dump all of the current radio chip configuration
-    #
     def dump_display(self):
+        """
+        Dump the memorized radio chip configuration to the trace buffer
+        """
         for k, v in self.dump_strings.iteritems():
-            s = '{}, {}'.format(k, radio_config_groups[k].parse(v))
+            s = '{}, {}'.format(radio_config_group_ids.parse(k),
+                                radio_config_groups[k].parse(v))
             self.trace.add('RADIO_DUMP', s)
+    #end def
 
-    # dump_radio - Dump all of the current radio chip configuration
-    #
     def dump_radio(self):
+        """
+        Dump all of the current radio chip configuration to memory
+        """
         for gp_n, gp_s in radio_config_groups.iteritems():
             i = 0
             s = ''
             while (True):
                 r = gp_s.sizeof() - i
                 x = r if (r < MAX_RADIO_RSP) else MAX_RADIO_RSP
-#                p = self.get_property(gp_n, i, x)
                 p = self.get_property(radio_config_group_ids.parse(gp_n), i, x)
-                #print p
                 s += p
                 i += x
                 if (i >= gp_s.sizeof()):
                     break
             self.dump_strings[gp_n] = s
             self.dump_time = localtime()
+        #dump gpio part_info, func_info, gpio_pin_cfg, fifo_info, int_status, device_state, frr, modem_status, ph_status, chip_status, adc_reading, 
     #end def
 
-    # enable_interrupts - Enable radio chip interrupts
-    #
     def enable_interrupts(self):
+        """
+        Enable radio chip interrupts
+        """
         if (gpio):
             GPIO.add_event_detect(GPIO_NIRQ,
                                   GPIO.FALLING,
@@ -237,46 +236,50 @@ class Si446xRadio(object):
                                   bouncetime=100)
     #end def
 
-    # fast_all - Read all four fast response registers
-    #
     def  fast_all(self):
+        """
+        Read all four fast response registers
+        """
         return self.spi.read_frr(0, 4)
     #end def
      
-    # fast_device_state - Get current state of the radio chip from fast read register
-    #
-    #command uint8_t()
-    #.
     def fast_device_state(self):
+        """
+        Get current state of the radio chip from fast read register
+        """
         return ord(self.spi.read_frr(0, 1))
     #end def
 
-    # fast_latched_rssi - get RSSI from fast read register 
-    #
-    # The radio chip measures the receive signal strength (RSSI) during the
-    # beginning of receiving a packet, and latches this value.
-    #
     def fast_latched_rssi(self):
+        """
+        get RSSI from fast read register
+
+        The radio chip measures the receive signal strength (RSSI) during the
+        beginning of receiving a packet, and latches this value.
+        """
         return ord( self.spi.read_frr(3, 1))
     #end def
 
-    # fast_modem_pend - get modem pending interrupt flags from fast read register
-    #
     def fast_modem_pend(self):
+        """
+        get modem pending interrupt flags from fast read register
+        """
         return ord(self.spi.read_frr(2, 1))
     #end def
 
-    # fast_modem_pend - get modem pending interrupt flags from fast read register
-    #
     def fast_ph_pend(self):
+        """
+        get modem pending interrupt flags from fast read register
+        """
         return ord(self.spi.read_frr(1, 1))
     #end def
 
-    # fifo_info - Get the current tx/rx fifo depths and optionally flush
-    #
-    # return a list of [rx_fifo_count, tx_fifo_space]
-    #
     def fifo_info(self, rx_flush=False, tx_flush=False):
+        """
+        Get the current tx/rx fifo depths and optionally flush
+
+        returns a list of [rx_fifo_count, tx_fifo_space]
+        """
         request = fifo_info_cmd_s.parse('\x00' * fifo_info_cmd_s.sizeof())
         request.cmd='FIFO_INFO'
         request.state.rx_reset=rx_flush
@@ -290,32 +293,36 @@ class Si446xRadio(object):
         return None
     #end def
 
-    # get_channel get current radio channel
-    #
     def get_channel(self):
+        """
+        get_channel get current radio channel
+        """
         return self.channel
     #end def
 
-    # get_config_lists - Get a list of configuration lists
-    #
-    # each list is consists of concatenated pascal strings, each presenting
-    # a command string for configuring radio chip properties
-    #
     def get_config_lists(self):
+        """
+        Get a list of configuration lists
+
+        each list is consists of concatenated pascal strings, each presenting
+        a command string for configuring radio chip properties
+        """
         return [get_config_wds, get_config_local]
     #end def
     
-    # get_cts - Get current readiness radio chip command processor
-    #
     def get_cts(self):
+        """
+        Get current readiness radio chip command processor
+        """
         # read CTS, return true if high
         rsp = _get_cts()
         return rsp
     #end def
 
-    # get_clear_interrupts - status and clear are done in one operation
-    #
     def get_clear_interrupts(self, clr_flags=None):
+        """
+        status and clear are done in one operation
+        """
         self.clear_interrupts(clr_flags)
         rsp = self.spi.response(int_status_rsp_s.sizeof(), int_status_rsp_s.name)
         if (rsp):
@@ -323,10 +330,12 @@ class Si446xRadio(object):
         return None
     #end def
 
-    # get_interrupts() - get current interrupt conditions
-    #                     doesn't clear any interrupts
-    #
     def get_interrupts(self):
+        """
+        get current interrupt conditions
+
+        doesn't clear any interrupts
+        """
         request = read_cmd_s.parse('\x00' * read_cmd_s.sizeof())
         request.cmd='GET_INT_STATUS'
         # don't clear any interrupts (set all flags to 1)
@@ -481,11 +490,13 @@ class Si446xRadio(object):
     #
     def start_rx(self, len, channel=255):
         request = start_rx_cmd_s.parse('\x00' * start_rx_cmd_s.sizeof())
-        request.cmd='START_RX'
+        request.cmd = 'START_RX'
         request.channel = self.channel if (channel == 255) else channel
-        request.condition.start='IMMEDIATE'
-        # all next_state fields left set to default (nochange)
-        request.rx_len=len
+        request.condition.start = 'IMMEDIATE'
+        request.next_state1 = 'NOCHANGE'  # rx timeout
+        request.next_state2 = 'READY'     # rx complete
+        request.next_state3 = 'READY'     # rx invalid (bad CRC)
+        request.rx_len= len
         cmd = start_rx_cmd_s.build(request)
         self.spi.command(cmd, start_rx_cmd_s.name)
     #end def
