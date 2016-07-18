@@ -482,8 +482,8 @@ class Si446xRadio(object):
         """
         Set radio transmission power level (0x7f = 20dBm)
         """
-        pkt = ''.join([chr(item) for item in [0x18, level, 0]])
-        self.set_property('PA', 0, pkt)
+#        pkt = ''.join([chr(item) for item in [0x18, level, 0]])
+        self.set_property('PA', 1, chr(level & 0x7f))
     #end def
 
     def shutdown(self):
