@@ -73,7 +73,7 @@ class Si446xFsmActionHandlers(object):
             'packets': 0,
             'timeouts': 0,
             'errors': 0,
-            'power': 0,
+            'power': 32,
             'offset' :0,
             'buffer': [],
         }
@@ -192,7 +192,9 @@ def pwr_dn(actions, ev):
     actions.dbus.signal_new_status()
 #
 def pwr_up(actions, ev):
-    # check ctsn and fail if not true (negative logic)
+    """
+    check ctsn and fail if not true (negative logic)
+    """
     if (not actions.radio.get_cts()):
         fail('power up failed to get cts acknowledgement')
     start_timer(actions, si446xdef.POWER_UP_WAIT_TIME)
@@ -290,6 +292,7 @@ def tx_start(actions, ev):
     segment = actions.tx['buffer'][0:actions.tx['offset']]
     actions.radio.write_tx_fifo(segment)
     actions.radio.start_tx(pkt_len)
+    actions.radio.set_power(actions.tx['power'])
     start_timer(actions, si446xdef.TX_WAIT_TIME)
 #
 def tx_timeout(actions, ev):

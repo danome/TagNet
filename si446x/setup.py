@@ -9,7 +9,6 @@ def get_version():
     initfile_lines = open(VERSIONFILE, 'rt').readlines()
     VSRE = r"^__version__ = ['\"]([^'\"]*)['\"]"
     for line in initfile_lines:
-        print line
         mo = re.search(VSRE, line, re.M)
         if mo:
             return mo.group(1)

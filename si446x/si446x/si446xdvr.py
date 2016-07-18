@@ -63,6 +63,15 @@ class Si446xDbus (objects.DBusObject):
     def dbus_cca(self):
         return self.fsm['actions'].rx['rssi']
     
+    def dbus_clear_status(self):
+        self.fsm['actions'].ioc['unshuts'] = 0
+        s =  self.dbus_status()
+        for r in [ 'packets', 'len_errors', 'timeouts', 'sync_errors','crc_errors']:
+            self.fsm['actions'].rx[r] = 0
+        for r in [ 'packets', 'errors', 'timeouts']:
+            self.fsm['actions'].tx[r] = 0
+        return s
+
     def dbus_control(self, action):
         self.radio.trace.add('RADIO_IOC', action)
         if (self.control_event):
@@ -101,15 +110,6 @@ class Si446xDbus (objects.DBusObject):
         self.trace.display(filter=f, count=n, begin=t, mark=m, span=s)
         return 'ok'
     
-    def dbus_clear_status(self):
-        self.fsm['actions'].ioc['unshuts'] = 0
-        s =  self.dbus_status()
-        for r in [ 'packets', 'len_errors', 'timeouts', 'sync_errors','crc_errors']:
-            self.fsm['actions'].rx[r] = 0
-        for r in [ 'packets', 'errors', 'timeouts']:
-            self.fsm['actions'].tx[r] = 0
-        return s
-
     def dbus_send(self, buf, power):
         if (self.fsm['actions'].tx['buffer']):
             return 'busy {}'.format(self.fsm['machine'].state)
@@ -117,6 +117,7 @@ class Si446xDbus (objects.DBusObject):
             return 'error {}'.format(self.fsm['machine'].state)
         self.fsm['actions'].tx['buffer'] = buf
         self.fsm['actions'].tx['power'] = power
+        self.fsm['actions'].tx['offset'] = 0
         step_fsm(self.fsm, self.radio, Events.E_TRANSMIT)
         return 'ok'
     

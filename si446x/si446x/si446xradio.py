@@ -321,7 +321,8 @@ class Si446xRadio(object):
 
     def get_clear_interrupts(self, clr_flags=None):
         """
-        status and clear are done in one operation
+        Clear radio chip pending interrupts and return current interrupt
+        conditions
         """
         self.clear_interrupts(clr_flags)
         rsp = self.spi.response(int_status_rsp_s.sizeof(), int_status_rsp_s.name)
@@ -349,9 +350,10 @@ class Si446xRadio(object):
         return None
     #end def
 
-    # get_packet_info - 
-    #
     def get_packet_info(self):
+        """
+        Get the length of the packet as received by the radio
+        """
         request = packet_info_cmd_s.parse('\x00' * packet_info_cmd_s.sizeof())
         request.cmd='PACKET_INFO'
         request.field_num='NO_OVERRIDE'
@@ -365,31 +367,28 @@ class Si446xRadio(object):
         return None
     #end def
 
-    # get_property - Read one or more contiguous radio chip properties
-    #
-    #
     def get_property(self, group, prop, len):
+        """
+        Read one or more contiguous radio chip properties
+        """
         request = get_property_cmd_s.parse('\x00' * get_property_cmd_s.sizeof())
         request.cmd='GET_PROPERTY'
         request.group=group
         request.num_props=len
         request.start_prop=prop
-        #print request
         cmd = get_property_cmd_s.build(request)
         self.spi.command(cmd, get_property_cmd_s.name)
         rsp = self.spi.response(17, get_property_rsp_s.name)
         if (rsp):
             response = get_property_rsp_s.parse(rsp)
-            #print response
-            return str(bytearray(response.data))
+            return str(bytearray(response.data)[:len])
         return None
     #end def
 
-    # get_clear_interrupts() - Clear radio chip pending interrupts
-    #                           and return current interrupt conditions
-    #  power_up - Turn radio chip power on.
-    #
     def power_up(self):
+        """
+        Turn radio chip power on.
+        """
         if (not _get_cts()):
             print("power_up: cts not ready")
         request = power_up_cmd_s.parse('\x00' * power_up_cmd_s.sizeof())
@@ -403,27 +402,30 @@ class Si446xRadio(object):
         self.spi.command(cmd,  power_up_cmd_s.name)
     #end def
 
-    #  read_cmd_buff - read Clear-to-send (CTS) status via polling command over SPI
-    #
-    #  pull nsel low. send command. read cts and cmd_buff.
-    #  if cts=0xff, then pull nsel high and repeat.
-    #
     def read_cmd_buff(self):
+        """
+        Read Clear-to-send (CTS) status via polling command over SPI
+
+        Pull nsel low. send command. read cts and cmd_buff. If cts=0xff, then 
+        pull nsel high and repeat.
+        """
         rsp = self.spi.response(read_cmd_buff_rsp_s.sizeof(), read_cmd_buff_rsp_s.name)
         if (rsp):
             response = read_cmd_buff_rsp_s.parse(rsp)
             #print response
     #end def
 
-    # read_silicon_id - read silicon manufacturing information
-    #
     def read_silicon_info(self):
+        """
+        Read silicon manufacturing information
+        """
         request = read_cmd_s.parse('\x00' * read_cmd_s.sizeof())
         request.cmd='PART_INFO'
         #print request
         cmd = read_cmd_s.build(request)
         self.spi.command(cmd, read_cmd_s.name)
-        rsp = self.spi.response(read_part_info_rsp_s.sizeof(), read_part_info_rsp_s.name)
+        rsp = self.spi.response(read_part_info_rsp_s.sizeof(),
+                                read_part_info_rsp_s.name)
         if (rsp):
             response = read_part_info_rsp_s.parse(rsp)
             #print response
@@ -431,40 +433,42 @@ class Si446xRadio(object):
         #print request
         cmd = read_cmd_s.build(request)
         self.spi.command(cmd, read_cmd_s.name)
-        rsp = self.spi.response(read_func_info_rsp_s.sizeof(), read_func_info_rsp_s.name)
+        rsp = self.spi.response(read_func_info_rsp_s.sizeof(),
+                                read_func_info_rsp_s.name)
         if (rsp):
             response = read_func_info_rsp_s.parse(rsp)
             #print response
     #end def
 
 
-    # read_rx_fifo - Read data from the radio chip receive fifo
-    #
-    # return bytestring
-    #
     def read_rx_fifo(self, len):
+        """
+        Read data from the radio chip receive fifo
+        returns bytestring
+        """
         return self.spi.read_fifo(len)
     #end def
 
-    # send_config - Send a config string to the radio chip
-    #
-    # already formatted into proper byte string with command and parameters
-    #
     def send_config(self, props):
+        """
+        Send a config string to the radio chip
+
+        Already formatted into proper byte string with command and parameters
+        """
         self.spi.command(props, set_property_cmd_s.name)
     #end def
 
-    # set_channel - set radio channel
-    #
     def set_channel(self, num):
+        """
+        Set radio channel
+        """
         self.channel = num
     #end def
-
-    # set_property - set one or more contiguous radio chip properties
-    #
-    # need to add command header
-    #
+    
     def set_property(self, pg, ps, pd):
+        """
+        Set one or more contiguous radio chip properties
+        """
         request = set_property_cmd_s.parse('\x00' * set_property_cmd_s.sizeof())
         request.cmd='SET_PROPERTY'
         request.group=pg
@@ -475,20 +479,28 @@ class Si446xRadio(object):
         self.spi.command(cmd, set_property_cmd_s.name)
     #end def
 
-    # shutdown - Power off the radio chip.
-    #
-    #  async command void    HW.si446x_shutdown()        { SI446X_SDN = 1; }
-    #
+    def set_power(self, level):
+        """
+        Set radio transmission power level (0x7f = 20dBm)
+        """
+        pkt = ''.join([chr(item) for item in [0x18, level, 0]])
+        self.set_property(self, 'PA', 0, pkt)
+    #end def
+
     def shutdown(self):
+        """
+        Power off the radio chip.
+        """
         print('set GPIO pin %i (SI446x sdn disable)'%GPIO_SDN)
         if (gpio):
             GPIO.output(GPIO_SDN,1)
             GPIO.cleanup()
     #end def
 
-    # start_rx() - Transition the radio chip to the receive enabled state
-    #
     def start_rx(self, len, channel=255):
+        """
+        Transition the radio chip to the receive enabled state
+        """
         request = start_rx_cmd_s.parse('\x00' * start_rx_cmd_s.sizeof())
         request.cmd = 'START_RX'
         request.channel = self.channel if (channel == 255) else channel
@@ -501,19 +513,20 @@ class Si446xRadio(object):
         self.spi.command(cmd, start_rx_cmd_s.name)
     #end def
 
-    # start_rx_short - Transition the radio chip to the receive enabled state
-    #
     def start_rx_short(self):
+        """
+        Transition the radio chip to the receive enabled state
+        """
         request = read_cmd_s.parse('\x00' * read_cmd_s.sizeof())
         request.cmd='START_RX'
-        #print request
         cmd = read_cmd_s.build(request)
         self.spi.command(cmd, read_cmd_s.name)
     #end def
 
-    # start_tx
-    #Transition the radio chip to the transmit state.
     def start_tx(self, len, channel=255):
+        """
+        Transition the radio chip to the transmit state.
+        """
         request = start_tx_cmd_s.parse('\x00' * start_tx_cmd_s.sizeof())
         request.cmd='START_TX'
         request.channel = self.channel if (channel == 255) else channel
@@ -521,29 +534,16 @@ class Si446xRadio(object):
         request.condition.retransmit='NO'
         request.condition.start='IMMEDIATE'
         request.tx_len=len
-        #print request
         cmd = start_tx_cmd_s.build(request)
         self.spi.command(cmd,  start_tx_cmd_s.name)
     #end def
 
-    # trace - add entry to global trace
-    #
-    def trace(self, where, what):
-        pass
-    #end def
-
-    # trace_radio_pend - Trace the radio pending status, using fast registers
-    #
-    def trace_radio_pend(self):
-        pass
-    #end def
-
-    # unshutdown - Power on the radio chip.
-    #
-    #  async command void    HW.si446x_unshutdown()      { SI446X_SDN = 0; }
-    #
     def unshutdown(self):
-        # set GPIO pin 18 (GPIO23) connected to si446x.sdn
+        """
+        Power on the radio chip.
+
+        Set GPIO pin 18 (GPIO23) connected to si446x.sdn
+        """
         print('clear GPIO pin %i (SI446x sdn enable)'%GPIO_SDN)
         if (gpio):
             GPIO.setmode(GPIO.BOARD)
@@ -555,9 +555,11 @@ class Si446xRadio(object):
             GPIO.output(GPIO_SDN,0)
             sleep(.1)
     #end def
-    # write_tx_fifo - Write data into the radio chip transmit fifo
-    #
+    
     def write_tx_fifo(self, dat):
+        """
+        Write data into the radio chip transmit fifo
+        """
         self.spi.write_fifo(dat)
     #end def
 
