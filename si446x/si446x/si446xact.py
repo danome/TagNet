@@ -291,8 +291,8 @@ def tx_start(actions, ev):
     actions.tx['offset'] = pkt_len if (pkt_len < tx_free) else tx_free
     segment = actions.tx['buffer'][0:actions.tx['offset']]
     actions.radio.write_tx_fifo(segment)
-    actions.radio.start_tx(pkt_len)
     actions.radio.set_power(actions.tx['power'])
+    actions.radio.start_tx(pkt_len)
     start_timer(actions, si446xdef.TX_WAIT_TIME)
 #
 def tx_timeout(actions, ev):

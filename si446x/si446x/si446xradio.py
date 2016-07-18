@@ -73,8 +73,8 @@ class SpiInterface:
         if (not _get_cts()):
             print("spi_read_response: don't have cts")
         try:
-            r = self.spi.xfer2([0x44] + MAX_RADIO_RSP * [0])
-            rsp = ''.join([chr(item) for item in r[1:rlen+2]])
+            r = self.spi.xfer2([0x44] + rlen * [0])
+            rsp = ''.join([chr(item) for item in r[1:]])
             form = form if (form) else self.form
             self.trace.add('RADIO_RSP', rsp, form, level=2)
         except IOError as e:
@@ -215,14 +215,13 @@ class Si446xRadio(object):
             while (True):
                 r = gp_s.sizeof() - i
                 x = r if (r < MAX_RADIO_RSP) else MAX_RADIO_RSP
-                p = self.get_property(radio_config_group_ids.parse(gp_n), i, x)
-                s += p
+                s += self.get_property(radio_config_group_ids.parse(gp_n), i, x)
                 i += x
                 if (i >= gp_s.sizeof()):
                     break
             self.dump_strings[gp_n] = s
             self.dump_time = localtime()
-        #dump gpio part_info, func_info, gpio_pin_cfg, fifo_info, int_status, device_state, frr, modem_status, ph_status, chip_status, adc_reading, 
+        #dump gpio, part_info, func_info, gpio_pin_cfg, fifo_info, int_status, device_state, frr, modem_status, ph_status, chip_status, adc_reading, 
     #end def
 
     def enable_interrupts(self):
@@ -484,7 +483,7 @@ class Si446xRadio(object):
         Set radio transmission power level (0x7f = 20dBm)
         """
         pkt = ''.join([chr(item) for item in [0x18, level, 0]])
-        self.set_property(self, 'PA', 0, pkt)
+        self.set_property('PA', 0, pkt)
     #end def
 
     def shutdown(self):
