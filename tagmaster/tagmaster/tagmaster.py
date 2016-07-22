@@ -20,6 +20,7 @@ def onReceiveSignal( msg, pwr ):
     this_t = time.time()
     print '({:^20.6f} {:.6f})Got {} ({}): {}, {}'.format(this_t, this_t-last_t,
                                                  len(msg), count, msg[:16], pwr)
+    last_t = this_t
 #    e = yield robj.callRemote('send', msg, pwr)
 #    print 'respond ({}) {}'.format(count, e)
     count += 1
