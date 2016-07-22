@@ -11,12 +11,15 @@ from si446x.si446xdvr import si446x_dbus_interface
 
 count = 0
 robj = None
+last_t=0
 
 #@defer.inlineCallbacks
 def onReceiveSignal( msg, pwr ):
-    global robj, count
-    print '({:^20.6f})Got {} ({}): {}, {}'.format(time.time(),
-                                                 len(msg), count, msg, pwr)
+    global robj, count, last_t
+    last_t = last_t if (last_t) else time.time()
+    this_t = time.time()
+    print '({:^20.6f} {:.6f})Got {} ({}): {}, {}'.format(this_t, this_t-last_t,
+                                                 len(msg), count, msg[:16], pwr)
 #    e = yield robj.callRemote('send', msg, pwr)
 #    print 'respond ({}) {}'.format(count, e)
     count += 1
