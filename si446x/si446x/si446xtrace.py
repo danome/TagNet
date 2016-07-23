@@ -19,83 +19,118 @@ class Trace:
         sig += '{}:{}'.format(fn_1,ln_1)
         self.rb.append([time.time(), where_id, sig, s_name, data])
 
+    def _format(self,t,where,sig,s_name,data):
+        if ((where == 'RADIO_CMD') or
+            (where == 'RADIO_RSP') or
+            (where == 'RADIO_DUMP') or
+            (where == 'RADIO_FRR') or
+            (where == 'RADIO_GROUP')):
+            s = ' {}: '.format(s_name)
+            try:
+                s += eval(s_name).parse(data).__repr__()
+            except:
+                s += data.encode('hex')
+        else:
+            s = data
+        last_d = t-self.last_t if (self.last_t) else 0
+        mark_d = t-self.mark_t if (self.mark_t) else 0
+        if (mark_d):
+            delta_s = ' {:.6f} {:.6f}'.format(last_d,mark_d)
+        else: 
+            delta_s = ' {:.6f}'.format(last_d)
+        f = '@@@@@@@ ({:^20.6f} {}) {} <{}>'.format(t,delta_s,where,sig)
+        return f + s
+
+
     def display(self, filter=None, count=0, begin=None, mark=None, span=0):
-        count = count if (count) else self.size
-        last_t = 0
-        mark_t = 0
+        self.last_t = 0
+        self.mark_t = 0
         span_d = 0
-        for t,where_id,sig,s_name,data in self.rb.peek(-1):
+        depth = -1
+        if (count < 0):
+            count = abs(count)
+            if (filter):
+                xb = RingBuffer(count)
+                n = 0
+                for t,where_id,sig,s_name,data in self.rb.get():
+                    where = radio_trace_ids.parse(where_id)
+                    if where in filter:
+                        xb.append(n)
+                    n += 1
+                depth = self.rb.len() - xb.last()
+            else:
+                depth = count if (count < self.rb.len()) else -1
+        elif (count == 0):
+            count = self.size
+#        print depth, count
+        for t,where_id,sig,s_name,data in self.rb.peek(depth):
             where = radio_trace_ids.parse(where_id)
             if (span_d):
                 span_d -= 1
             else:
                 if (filter):
-                    if (where not in filter):
-                        continue
+#                    print where, filter
+                    if (where in filter):
+                        if (span):
+                            span_d = span-1
                     else:
-                        span_d = span
+                        continue
                 if ((begin) and (begin > t)):
                     continue
                 if (where == mark):
-                    mark_t = t
-            if ((where == 'RADIO_CMD') or
-                (where == 'RADIO_RSP') or
-                (where == 'RADIO_FRR') or
-                (where == 'RADIO_GROUP')):
-                try:
-                    s = eval(s_name).parse(data)
-                except:
-                    s = s_name + data.encode('hex')
-            else:
-                s = data
-            last_d = t-last_t if (last_t) else 0
-            mark_d = t-mark_t if (mark_t) else 0
-            if (mark_d):
-                delta_s = ' {:.6f} {:.6f}'.format(last_d,mark_d)
-            else: 
-                delta_s = ' {:.6f}'.format(last_d)
-            f = '@@@@@@@ ({:^20.6f} {}) {} <{}>'
-            print f.format(t,delta_s,where,sig)
-            print s
-            last_t = t
-
-    def fetch(self, num):
-        pass
+                    self.mark_t = t
+                count -= 1
+            print self._format(t,where,sig,s_name,data)
+            self.last_t = t
+#            print self.last_t, count, span_d
+            if ((not span_d) and (count <= 0)):
+                break
 #end class
 
 class RingBuffer:
     def __init__(self,size_max):
         self.max = size_max
         self.data = []
+    def len(self):
+        return len(self.data)
     def append(self,x):
         """append an element at the end of the buffer"""
         self.data.append(x)
-        if len(self.data) == self.max:
+        if (self.len() == self.max):
             self.cur=0
             self.__class__ = self.RingBufferFull
     def peek(self,n):
         """ return the newest elements, oldest first"""
-        max = len(self.data)
-        if (n == -1):
-            x = 0
-        else:
-            x = 0 if ((n >= max) or (n == -1)) else max - n
-        return self.data[x:max]
+        n = 0 if ((n >= self.len()) or (n == -1)) else self.len() - n
+        return self.data[n:] if (self.data) else []
+    def last(self):
+        """return the oldest element"""
+        return self.data[0] if (self.data) else -1
     def get(self):
         """ return a list of elements from the oldest to the newest"""
         return self.data
     class RingBufferFull:
         def __init__(self,n):
             raise "you should use RingBuffer"
+        def len(self):
+            return len(self.data)
         def append(self,x): 
             self.data[self.cur]=x
             self.cur=(self.cur+1) % self.max
         def peek(self, n):
             """ return the newest elements, oldest first"""
-            n = self.max if ((n >= self.max) or (n == -1))  else n
-            x = self.cur - n if (n < self.cur) else 0
-            y = n - self.cur if (n - self.cur) > 0 else 0
-            return self.data[self.max-y:self.max]+self.data[x:self.cur]
+            n = self.max if ((n >= self.max) or (n == -1)) else n
+            x = 0 if (n > self.cur) else self.cur - n
+            if (n <= self.cur):
+                y = self.max
+            else:
+                nx = n - self.cur
+                y = self.cur if (nx > (self.max - self.cur)) else self.max - nx
+            return self.data[y:self.max]+self.data[x:self.cur]
+        def last(self):
+            """return the oldest element"""
+            n = self.cur if (self.cur < self.max) else 0 
+            return self.data[n]
         def get(self):
             return self.data[self.cur:]+self.data[:self.cur]
 #end class

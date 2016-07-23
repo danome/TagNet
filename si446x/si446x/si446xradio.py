@@ -114,7 +114,7 @@ def _gpio_callback(channel):
 class Si446xRadio(object):
     """ class for handling low level Radio device control"""
     def __init__(self, device=0, callback=_gpio_callback, trace=None):
-        print('init radio', device, callback, trace)
+        #print('init radio', device, callback, trace)
         self.trace = trace if (trace) else si446xtrace.Trace(100)
         self.channel = 0
         self.callback = callback
@@ -195,14 +195,12 @@ class Si446xRadio(object):
             GPIO.remove_event_detect(GPIO_NIRQ)
     #end def
 
-    def dump_display(self):
+    def trace_radio(self):
         """
-        Dump the memorized radio chip configuration to the trace buffer
+        Dump the saved radio chip configuration to the trace buffer
         """
         for k, v in self.dump_strings.iteritems():
-            s = '{}, {}'.format(radio_config_group_ids.parse(k),
-                                radio_config_groups[k].parse(v))
-            self.trace.add('RADIO_DUMP', s)
+            self.trace.add('RADIO_DUMP', v, radio_config_groups[k].name, level=2)
     #end def
 
     def dump_radio(self):
@@ -328,6 +326,13 @@ class Si446xRadio(object):
         if (rsp):
             return (int_status_rsp_s.parse(rsp))
         return None
+    #end def
+
+    def get_gpio(self):
+        """
+        Get current state and configuration of radio chip GPIO pins
+        """        
+        return rsp
     #end def
 
     def get_interrupts(self):

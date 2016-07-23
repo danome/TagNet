@@ -204,7 +204,7 @@ def ready(actions, ev):
     actions.radio.set_channel(actions.radio.get_channel())
     actions.radio.clear_interrupts()
     actions.radio.dump_radio()
-    actions.radio.dump_display()
+    actions.radio.trace_radio()
     actions.radio.enable_interrupts()
     rx_on(actions, ev)
     actions.dbus.signal_new_status()

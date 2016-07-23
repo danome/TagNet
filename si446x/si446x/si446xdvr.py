@@ -2,7 +2,7 @@
 #
 #
 from __future__ import print_function
-from time import sleep
+from time import sleep, time
 import binascii
 import os
 import platform
@@ -31,7 +31,7 @@ si446x_dbus_interface = DBusInterface( 'org.tagnet.si446x',
                             Method('clear_status', returns='s'),
                             Method('control', arguments='s', returns='s'),
                             Method('dump_radio', arguments='s', returns='s'),
-                            Method('dump_trace', arguments='sudsu', returns='s'),
+                            Method('dump_trace', arguments='sidsu', returns='s'),
                             Method('send', arguments='ayu', returns='s'),
                             Method('spi_send', arguments='ays', returns='s'),
                             Method('spi_send_recv', arguments='ayuss', returns='ay'),
@@ -93,8 +93,11 @@ class Si446xDbus (objects.DBusObject):
             self.control_event = Events.E_STANDBY
         else:
             return 'dbus_control error {}'.format(action)
-        step_fsm(self.fsm, self.radio, self.control_event)
-        return 'ok {}'.format(self.fsm['machine'].state)
+        if (self.control_event):
+            step_fsm(self.fsm, self.radio, self.control_event)
+            self.control_event =  None
+            return 'ok {}:{}'.format(self.fsm['machine'].state, self.control_event)
+        return 'user control {} failed'.format(action)
 
     def dbus_dump_radio(self, s):
         if (s == 'REFRESH'):
@@ -103,7 +106,7 @@ class Si446xDbus (objects.DBusObject):
         self.radio.spi.read_frr(0,4)
         self.radio.get_interrupts()
         self.radio.get_packet_info()
-        self.radio.dump_display()
+        self.radio.trace_radio()
         return 'ok'
     
     def dbus_dump_trace(self, f, n, t, m, s):
@@ -134,12 +137,13 @@ class Si446xDbus (objects.DBusObject):
             self.status,
             self.fsm['machine'].state,
             self.fsm['actions'].ioc['unshuts'],)
-        s += '\nRX: '
+        s += '\n RX: '
         for r in ['packets','len_errors','timeouts','sync_errors','crc_errors','rssi']:
             s += '{} {}, '.format(r, self.fsm['actions'].rx[r])
-        s += '\nTX: '
+        s += '\n TX: '
         for r in ['packets','errors','timeouts','power']:
             s += '{} {}, '.format(r, self.fsm['actions'].tx[r])
+        s += '\n time: {}'.format(time())
         return s
 
     ### DBus Signals
@@ -346,7 +350,7 @@ def cycle():
     for i in range(20000):
         interrupt_handler(fsm, radio)
         sleep(.001)
-        if ((i % 1000) == 0): trace.display(count=10)
+        if ((i % 1000) == 0): trace.display(count=-10)
     step_fsm(fsm, radio, Events.E_TURNOFF)
 
 
