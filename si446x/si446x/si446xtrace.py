@@ -1,6 +1,6 @@
 from si446xdef import *
 from construct import *
-import time
+from time import time, ctime
 
 import inspect
 
@@ -17,7 +17,7 @@ class Trace:
             sig += '{}:{} -> '.format(fn_2,ln_2)
         _,_,ln_1,fn_1,_,_ = inspect.stack()[level]
         sig += '{}:{}'.format(fn_1,ln_1)
-        self.rb.append([time.time(), where_id, sig, s_name, data])
+        self.rb.append([time(), where_id, sig, s_name, data])
 
     def _format(self,t,where,sig,s_name,data):
         if ((where == 'RADIO_CMD') or
@@ -38,7 +38,7 @@ class Trace:
             delta_s = ' {:.6f} {:.6f}'.format(last_d,mark_d)
         else: 
             delta_s = ' {:.6f}'.format(last_d)
-        f = '@@@@@@@ ({:^20.6f} {}) {} <{}>'.format(t,delta_s,where,sig)
+        f = '@@@@@@@ ({} {:.6f} {}) {} <{}>'.format(ctime(t),t%1,delta_s,where,sig)
         return f + s
 
 

@@ -195,14 +195,6 @@ class Si446xRadio(object):
             GPIO.remove_event_detect(GPIO_NIRQ)
     #end def
 
-    def trace_radio(self):
-        """
-        Dump the saved radio chip configuration to the trace buffer
-        """
-        for k, v in self.dump_strings.iteritems():
-            self.trace.add('RADIO_DUMP', v, radio_config_groups[k].name, level=2)
-    #end def
-
     def dump_radio(self):
         """
         Dump all of the current radio chip configuration to memory
@@ -297,6 +289,18 @@ class Si446xRadio(object):
         return self.channel
     #end def
 
+    def get_clear_interrupts(self, clr_flags=None):
+        """
+        Clear radio chip pending interrupts and return existing interrupt
+        conditions
+        """
+        self.clear_interrupts(clr_flags)
+        rsp = self.spi.response(int_status_rsp_s.sizeof(), int_status_rsp_s.name)
+        if (rsp):
+            return (int_status_rsp_s.parse(rsp))
+        return None
+    #end def
+
     def get_config_lists(self):
         """
         Get a list of configuration lists
@@ -316,23 +320,19 @@ class Si446xRadio(object):
         return rsp
     #end def
 
-    def get_clear_interrupts(self, clr_flags=None):
-        """
-        Clear radio chip pending interrupts and return current interrupt
-        conditions
-        """
-        self.clear_interrupts(clr_flags)
-        rsp = self.spi.response(int_status_rsp_s.sizeof(), int_status_rsp_s.name)
-        if (rsp):
-            return (int_status_rsp_s.parse(rsp))
-        return None
-    #end def
-
     def get_gpio(self):
         """
         Get current state and configuration of radio chip GPIO pins
         """        
-        return rsp
+        request = read_cmd_s.parse('\x00' * read_cmd_s.sizeof())
+        request.cmd='GPIO_PIN_CFG'
+        cmd = read_cmd_s.build(request)
+        self.spi.command(cmd, read_cmd_s.name)
+        rsp = self.spi.response(get_gpio_pin_cfg_rsp_s.sizeof(), get_gpio_pin_cfg_rsp_s.name)
+        if (rsp):
+            response = get_gpio_pin_cfg_rsp_s.parse(rsp)
+            return response
+        return None
     #end def
 
     def get_interrupts(self):
@@ -343,10 +343,7 @@ class Si446xRadio(object):
         """
         request = read_cmd_s.parse('\x00' * read_cmd_s.sizeof())
         request.cmd='GET_INT_STATUS'
-        # don't clear any interrupts (set all flags to 1)
-        cf = clr_pend_int_s.parse('\xff' * clr_pend_int_s.sizeof())
-        clr_flags = clr_pend_int_s.build(cf)
-        cmd = read_cmd_s.build(request) + clr_flags
+        cmd = read_cmd_s.build(request)
         self.spi.command(cmd, read_cmd_s.name)
         rsp = self.spi.response(int_status_rsp_s.sizeof(), int_status_rsp_s.name)
         if (rsp):
@@ -366,7 +363,6 @@ class Si446xRadio(object):
         rsp = self.spi.response(packet_info_rsp_s.sizeof(), packet_info_rsp_s.name)
         if (rsp):
             response = packet_info_rsp_s.parse(rsp)
-            #print response
             return response.length
         return None
     #end def
@@ -453,6 +449,13 @@ class Si446xRadio(object):
         return self.spi.read_fifo(len)
     #end def
 
+    def set_channel(self, num):
+        """
+        Set radio channel
+        """
+        self.channel = num
+    #end def
+    
     def send_config(self, props):
         """
         Send a config string to the radio chip
@@ -462,13 +465,6 @@ class Si446xRadio(object):
         self.spi.command(props, set_property_cmd_s.name)
     #end def
 
-    def set_channel(self, num):
-        """
-        Set radio channel
-        """
-        self.channel = num
-    #end def
-    
     def set_property(self, pg, ps, pd):
         """
         Set one or more contiguous radio chip properties
@@ -540,6 +536,14 @@ class Si446xRadio(object):
         request.tx_len=len
         cmd = start_tx_cmd_s.build(request)
         self.spi.command(cmd,  start_tx_cmd_s.name)
+    #end def
+
+    def trace_radio(self):
+        """
+        Dump the saved radio chip configuration to the trace buffer
+        """
+        for k, v in self.dump_strings.iteritems():
+            self.trace.add('RADIO_DUMP', v, radio_config_groups[k].name, level=2)
     #end def
 
     def unshutdown(self):

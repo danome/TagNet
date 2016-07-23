@@ -105,7 +105,7 @@ class Si446xDbus (objects.DBusObject):
         self.radio.read_silicon_info()
         self.radio.spi.read_frr(0,4)
         self.radio.get_interrupts()
-        self.radio.get_packet_info()
+        self.radio.get_gpio()
         self.radio.trace_radio()
         return 'ok'
     
@@ -257,6 +257,7 @@ def interrupt_handler(fsm, radio):
         #print('ints',radio.fast_all().encode('hex'))
     # got here if something seems stuck, clear all interrupts
     radio.clear_interrupts()
+    radio.trace.add('RADIO_ERR', 'interrupts stuck: {}'.format(pending_ints.encode('hex')))
 
 
 def step_fsm(fsm, radio, ev):
@@ -266,13 +267,14 @@ def step_fsm(fsm, radio, ev):
     Use this routine rather than calling fsm.receive() is so that timing
     and trace event information can be logged
     """
+    frr = radio.fast_all()
     s = '{} / {} frr:{}'.format(ev.name,
                   fsm['machine'].state.name,
-                  radio.fast_all().encode('hex'))
+                  frr.encode('hex'))
     fsm['trace'].add('RADIO_FSM', s)
     fsm['machine'].receive(ev)
-    #print(radio.fast_all().encode('hex'), 'step', fsm['machine'].state, ev)
-
+    #if (frr[1] or frr[2]):
+    #    reactor.calllater(0, interrupt_handler, fsm, radio)
 
 # MAIN Initialization
 #
