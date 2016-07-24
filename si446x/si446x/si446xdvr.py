@@ -31,7 +31,7 @@ si446x_dbus_interface = DBusInterface( 'org.tagnet.si446x',
                             Method('clear_status', returns='s'),
                             Method('control', arguments='s', returns='s'),
                             Method('dump_radio', arguments='s', returns='s'),
-                            Method('dump_trace', arguments='sidsu', returns='s'),
+                            Method('dump_trace', arguments='sissu', returns='s'),
                             Method('send', arguments='ayu', returns='s'),
                             Method('spi_send', arguments='ays', returns='s'),
                             Method('spi_send_recv', arguments='ayuss', returns='ay'),
@@ -70,7 +70,7 @@ class Si446xDbus (objects.DBusObject):
             self.fsm['actions'].rx[r] = 0
         for r in [ 'packets', 'errors', 'timeouts']:
             self.fsm['actions'].tx[r] = 0
-        return s
+        return s + self.radio.trace.format_time(time())
 
     def dbus_control(self, action):
         self.radio.trace.add('RADIO_IOC', action)
@@ -96,8 +96,9 @@ class Si446xDbus (objects.DBusObject):
         if (self.control_event):
             step_fsm(self.fsm, self.radio, self.control_event)
             self.control_event =  None
-            return 'ok {}:{}'.format(self.fsm['machine'].state, self.control_event)
-        return 'user control {} failed'.format(action)
+            return 'ok {} {}:{}'.format(self.radio.trace.format_time(time()),
+                                         self.fsm['machine'].state, self.control_event)
+        return 'user control {} failed {}'.format(action, self.radio.trace.format_time(time()))
 
     def dbus_dump_radio(self, s):
         if (s == 'REFRESH'):
@@ -107,11 +108,11 @@ class Si446xDbus (objects.DBusObject):
         self.radio.get_interrupts()
         self.radio.get_gpio()
         self.radio.trace_radio()
-        return 'ok'
+        return 'ok' + self.radio.trace.format_time(time())
     
     def dbus_dump_trace(self, f, n, t, m, s):
         self.trace.display(filter=f, count=n, begin=t, mark=m, span=s)
-        return 'ok'
+        return 'ok' + self.radio.trace.format_time(time())
     
     def dbus_send(self, buf, power):
         if (self.fsm['actions'].tx['buffer']):
@@ -122,7 +123,7 @@ class Si446xDbus (objects.DBusObject):
         self.fsm['actions'].tx['power'] = power
         self.fsm['actions'].tx['offset'] = 0
         step_fsm(self.fsm, self.radio, Events.E_TRANSMIT)
-        return 'ok'
+        return 'ok' + self.radio.trace.format_time(time())
     
     def dbus_spi_send(self, pkt, form):
         self.radio.spi.command(pkt, form)
@@ -143,8 +144,7 @@ class Si446xDbus (objects.DBusObject):
         s += '\n TX: '
         for r in ['packets','errors','timeouts','power']:
             s += '{} {}, '.format(r, self.fsm['actions'].tx[r])
-        s += '\n time: {}'.format(time())
-        return s
+        return s + self.radio.trace.format_time(time())
 
     ### DBus Signals
     
@@ -155,7 +155,8 @@ class Si446xDbus (objects.DBusObject):
             self.status = 'STANDBY'
         else:
             self.status = 'ON'
-        s = '{}, {}'.format(self.status, self.fsm['machine'].state)
+        s = '{}, {} {}'.format(self.status, self.fsm['machine'].state,
+                                 self.radio.trace.format_time(time()))
         print ('new_status',s)
         self.emitSignal('new_status', s)
         self.control_event = None

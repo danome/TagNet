@@ -1,13 +1,15 @@
 from si446xdef import *
 from construct import *
-from time import time, ctime
+from time import time, ctime, mktime, localtime, strptime, strftime
 
 import inspect
 
 class Trace:
-    def __init__(self, size):
+    def __init__(self, size, form='%Y.%m.%d %H:%M:%S'):
         self.rb = RingBuffer(size)
         self.size = size
+        self.index = 0
+        self.date_f=form
 
     def add(self, where, data, s_name=None, level=1):
         where_id = radio_trace_ids.build(where)
@@ -19,6 +21,12 @@ class Trace:
         sig += '{}:{}'.format(fn_1,ln_1)
         self.rb.append([time(), where_id, sig, s_name, data])
 
+    def format_time(self, t):
+        return strftime(self.date_f,localtime(t))+'.{:.6}'.format(str(t%1)[2:])
+
+    def parse_time(self, s):
+        return mktime(strptime(s[:-7],self.date_f))+float('.'+s[-6:])
+        
     def _format(self,t,where,sig,s_name,data):
         if ((where == 'RADIO_CMD') or
             (where == 'RADIO_RSP') or
@@ -38,15 +46,17 @@ class Trace:
             delta_s = ' {:.6f} {:.6f}'.format(last_d,mark_d)
         else: 
             delta_s = ' {:.6f}'.format(last_d)
-        f = '@@@@@@@ ({} {:.6f} {}) {} <{}>'.format(ctime(t),t%1,delta_s,where,sig)
+        tt = self.format_time(t)
+        self.index += 1
+        f = '@@{:^6}@@ ({} {:.6f} {}) {} <{}>'.format(self.index,tt,t%1,delta_s,where,sig)
         return f + s
-
 
     def display(self, filter=None, count=0, begin=None, mark=None, span=0):
         self.last_t = 0
         self.mark_t = 0
         span_d = 0
         depth = -1
+        begin_t =  self.parse_time(begin) if (begin) else 0
         if (count < 0):
             count = abs(count)
             if (filter):
@@ -62,20 +72,18 @@ class Trace:
                 depth = count if (count < self.rb.len()) else -1
         elif (count == 0):
             count = self.size
-#        print depth, count
         for t,where_id,sig,s_name,data in self.rb.peek(depth):
             where = radio_trace_ids.parse(where_id)
             if (span_d):
                 span_d -= 1
             else:
                 if (filter):
-#                    print where, filter
                     if (where in filter):
                         if (span):
                             span_d = span-1
                     else:
                         continue
-                if ((begin) and (begin > t)):
+                if ((begin) and (begin_t > t)):
                     continue
                 if (where == mark):
                     self.mark_t = t
