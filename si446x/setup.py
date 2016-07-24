@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-VERSION     = '0.0.03'
 DESCRIPTION = 'Packet level driver for Si446x radio chip'
 
 import os, re
