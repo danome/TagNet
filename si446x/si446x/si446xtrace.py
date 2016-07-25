@@ -1,8 +1,8 @@
 from si446xdef import *
 from construct import *
 from time import time, ctime, mktime, localtime, strptime, strftime
-
-import inspect
+import sys
+#import inspect
 
 class Trace:
     def __init__(self, size, form='%Y.%m.%d %H:%M:%S'):
@@ -10,17 +10,30 @@ class Trace:
         self.size = size
         self.index = 0
         self.date_f=form
-
+        self.disabled = False
+        
     def add(self, where, data, s_name=None, level=1):
+        if (self.disabled):
+            return
         where_id = radio_trace_ids.build(where)
         sig = ''
         if (level>1):
-            _,_,ln_2,fn_2,_,_ = inspect.stack()[level+1]
+#            _,_,ln_2,fn_2,_,_ = inspect.stack()[level+2]
+            ln_2 = sys._getframe(2).f_lineno
+            fn_2 = sys._getframe(2).f_code.co_name
             sig += '{}:{} -> '.format(fn_2,ln_2)
-        _,_,ln_1,fn_1,_,_ = inspect.stack()[level]
+#        _,_,ln_1,fn_1,_,_ = inspect.stack()[level+1]
+        ln_1 = sys._getframe(1).f_lineno
+        fn_1 = sys._getframe(1).f_code.co_name
         sig += '{}:{}'.format(fn_1,ln_1)
         self.rb.append([time(), where_id, sig, s_name, data])
 
+    def _disable(self):
+        self.disabled = True
+
+    def _enable(self):
+        self.disabled = False
+        
     def format_time(self, t):
         return strftime(self.date_f,localtime(t))+'.{:.6}'.format(str(t%1)[2:])
 
@@ -39,7 +52,7 @@ class Trace:
             except:
                 s += data.encode('hex')
         else:
-            s = data
+            s = ' ' + data
         last_d = t-self.last_t if (self.last_t) else 0
         mark_d = t-self.mark_t if (self.mark_t) else 0
         if (mark_d):
@@ -48,7 +61,7 @@ class Trace:
             delta_s = ' {:.6f}'.format(last_d)
         tt = self.format_time(t)
         self.index += 1
-        f = '@@{:^6}@@ ({} {:.6f} {}) {} <{}>'.format(self.index,tt,t%1,delta_s,where,sig)
+        f = '@-@{:^6}@-@ ({} {}) {} <{}>'.format(self.index,tt,delta_s,where,sig)
         return f + s
 
     def display(self, filter=None, count=0, begin=None, mark=None, span=0):

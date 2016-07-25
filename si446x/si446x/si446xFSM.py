@@ -58,6 +58,7 @@ table = table.addTransition(States.S_RX_ON, Events.E_INVALID_SYNC, [Actions.A_CL
 table = table.addTransition(States.S_RX_ACTIVE, Events.E_INVALID_SYNC, [Actions.A_CLEAR_SYNC], States.S_RX_ACTIVE)
 table = table.addTransition(States.S_RX_ACTIVE, Events.E_PACKET_RX, [Actions.A_RX_CMP], States.S_RX_ON)
 table = table.addTransition(States.S_SDN, Events.E_TURNON, [Actions.A_UNSHUT], States.S_POR_W)
+table = table.addTransition(States.S_SDN, Events.E_0NOP, [Actions.A_NOP], States.S_SDN)
 table = table.addTransition(States.S_STANDBY, Events.E_TURNON, [Actions.A_READY], States.S_RX_ON)
 table = table.addTransition(States.S_TX_ACTIVE, Events.E_PACKET_SENT, [Actions.A_TX_CMP], States.S_RX_ON)
 table = table.addTransition(States.S_RX_ON, Events.E_TRANSMIT, [Actions.A_TX_START], States.S_TX_ACTIVE)

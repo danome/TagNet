@@ -46,7 +46,7 @@ def _get_cts_wait(t):
 class SpiInterface:
     """class to access the Si446x over SPI interface"""
     def __init__(self, device, trace=None):
-        print('init spi', device, trace)
+        #print('init spi', device, trace)
         try:
             self.trace = trace if (trace) else si446xtrace.Trace(100)
             self.spi = spidev.SpiDev()

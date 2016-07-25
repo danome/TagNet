@@ -203,42 +203,63 @@ def process_interrupts(fsm, radio, pend):
     """
     clr_flags = clr_pend_int_s.parse('\xff' * clr_pend_int_s.sizeof())
     got_ints = False
-    if ((pend.modem_pend.INVALID_SYNC_PEND) and (fsm['machine'].state is States.S_RX_ON)):
-        step_fsm(fsm, radio, Events.E_INVALID_SYNC)
+    if (pend.modem_pend.INVALID_SYNC_PEND):
+        if (fsm['machine'].state is States.S_RX_ON):
+            step_fsm(fsm, radio, Events.E_INVALID_SYNC)
+        else:
+            radio.trace.add('RADIO_ERROR', 'Phantom INVALID_SYNC_PEND')
         clr_flags.modem_pend.INVALID_SYNC_PEND_CLR = False
         got_ints = True
-    if ((pend.modem_pend.PREAMBLE_DETECT_PEND) and (fsm['machine'].state is States.S_RX_ON)):
-        step_fsm(fsm, radio, Events.E_PREAMBLE_DETECT)
+    if (pend.modem_pend.PREAMBLE_DETECT_PEND):
+        if (fsm['machine'].state is States.S_RX_ON):
+            step_fsm(fsm, radio, Events.E_PREAMBLE_DETECT)
+        else:
+            radio.trace.add('RADIO_ERROR', 'Phantom PREAMBLE_DETECT_PEND')
         clr_flags.modem_pend.PREAMBLE_DETECT_PEND_CLR = False
         got_ints = True
-    if ((pend.modem_pend.SYNC_DETECT_PEND) and (fsm['machine'].state is States.S_RX_ON)):
-        step_fsm(fsm, radio, Events.E_SYNC_DETECT)
+    if (pend.modem_pend.SYNC_DETECT_PEND):
+        if (fsm['machine'].state is States.S_RX_ON):
+            step_fsm(fsm, radio, Events.E_SYNC_DETECT)
+        else:
+            radio.trace.add('RADIO_ERROR', 'Phantom SYNC_DETECT_PEND')
         clr_flags.modem_pend.SYNC_DETECT_PEND_CLR = False
         got_ints = True
-    if ((pend.ph_pend.CRC_ERROR_PEND) and (fsm['machine'].state is States.S_RX_ACTIVE)):
-        step_fsm(fsm, radio, Events.E_CRC_ERROR)
+    if (pend.ph_pend.CRC_ERROR_PEND):
+        if (fsm['machine'].state is States.S_RX_ACTIVE):
+            step_fsm(fsm, radio, Events.E_CRC_ERROR)
+        else:
+            radio.trace.add('RADIO_ERROR', 'Phantom CRC_ERROR_PEND')
         clr_flags.ph_pend.CRC_ERROR_PEND_CLR = False
         got_ints = True
-    if ((pend.ph_pend.PACKET_RX_PEND) and (fsm['machine'].state is States.S_RX_ACTIVE)):
-        step_fsm(fsm, radio, Events.E_PACKET_RX)
+    if (pend.ph_pend.PACKET_RX_PEND):
+        if (fsm['machine'].state is States.S_RX_ACTIVE):
+            step_fsm(fsm, radio, Events.E_PACKET_RX)
+        else:
+            radio.trace.add('RADIO_ERROR', 'Phantom PACKET_RX_PEND')
         clr_flags.ph_pend.PACKET_RX_PEND_CLR = False
         got_ints = True
     if (pend.ph_pend.PACKET_SENT_PEND):
         step_fsm(fsm, radio, Events.E_PACKET_SENT)
         clr_flags.ph_pend.PACKET_SENT_PEND_CLR = False
         got_ints = True
-    if ((pend.ph_pend.RX_FIFO_ALMOST_FULL_PEND) and (fsm['machine'].state is States.S_RX_ACTIVE)):
-        step_fsm(fsm, radio, Events.E_RX_THRESH)
+    if (pend.ph_pend.RX_FIFO_ALMOST_FULL_PEND):
+        if (fsm['machine'].state is States.S_RX_ACTIVE):
+            step_fsm(fsm, radio, Events.E_RX_THRESH)
+        else:
+            radio.trace.add('RADIO_ERROR', 'Phantom RX_FIFO_ALMOST_FULL_PEND')
         clr_flags.ph_pend.RX_FIFO_ALMOST_FULL_PEND_CLR = False
         got_ints = True
     if (pend.ph_pend.TX_FIFO_ALMOST_EMPTY_PEND):
-        step_fsm(fsm, radio, Events.E_TX_THRESH)
+        if (fsm['machine'].state is States.S_TX_ACTIVE):
+            step_fsm(fsm, radio, Events.E_TX_THRESH)
+        else:
+            radio.trace.add('RADIO_ERROR', 'Phantom TX_FIFO_ALMOST_EMPTY_PEND')
         clr_flags.ph_pend.TX_FIFO_ALMOST_EMPTY_PEND_CLR = False
         got_ints = True
     if (got_ints):
         return clr_flags
     else:
-        None
+        return None
 #end def
 
 
@@ -257,16 +278,16 @@ def interrupt_handler(fsm, radio):
         pending_ints = radio.get_clear_interrupts(clr_flags)
         #print('ints',radio.fast_all().encode('hex'))
     # got here if something seems stuck, clear all interrupts
-    radio.clear_interrupts()
-    radio.trace.add('RADIO_ERR', 'interrupts stuck: {}'.format(pending_ints.encode('hex')))
+    #radio.clear_interrupts()
+    radio.trace.add('RADIO_ERROR', 'interrupts stuck: {}'.format(pending_ints.encode('hex')))
 
 
 def step_fsm(fsm, radio, ev):
     """
-    step_fsm - invoke event driven state transition and corresponding action
+    Invoke event driven state transition and corresponding action
 
     Use this routine rather than calling fsm.receive() is so that timing
-    and trace event information can be logged
+    and trace event information can be logged.
     """
     frr = radio.fast_all()
     s = '{} / {} frr:{}'.format(ev.name,
@@ -277,9 +298,12 @@ def step_fsm(fsm, radio, ev):
     #if (frr[1] or frr[2]):
     #    reactor.calllater(0, interrupt_handler, fsm, radio)
 
-# MAIN Initialization
-#
-def onConnected(conn):
+def setup_driver():
+    """
+    Instantiate all of the driver components, including the following objects:
+    trace, dbus, radio, state machine actions, finite state machine.
+    Returns list of [fsm, radio, dbus] object references.
+    """
     trace =  si446xtrace.Trace(10000)
     dbus = Si446xDbus(OBJECT_PATH, trace=trace)
     radio = Si446xRadio(device=0, callback=dbus.async_interrupt, trace=trace)
@@ -297,15 +321,27 @@ def onConnected(conn):
     )
     fsm={'actions': actions, 'machine': machine, 'trace': trace}
     dbus.marry(fsm, radio)
+    return [fsm, radio, dbus]
+
+def start_driver(fsm, radio, dbus):
+    """
+    Signal current (off) status and turn on driver
+    """
+    s = ' Si446x radio driver [ {}, {} ] is ready for business'
+    print(s.format(BUS_NAME, OBJECT_PATH))
+    dbus.signal_new_status()
+    # transition radio automatically out of off state
+    step_fsm(fsm,radio, Events.E_TURNON)
+
+# MAIN Initialization
+#
+def onConnected(conn):
+    fsm, radio, dbus = setup_driver()
     conn.exportObject(dbus)
     dn = conn.requestBusName(BUS_NAME)
-
+    
     def onReady(_):
-        s = ' Si446x radio driver [ {}, {} ] is ready for business'
-        print(s.format(BUS_NAME, OBJECT_PATH))
-        dbus.signal_new_status()
-        # transition radio automatically out of off state
-        step_fsm(fsm,radio, Events.E_TURNON)
+        start_driver(fsm, radio, dbus)
 
     dn.addCallback(onReady)
     return dn
@@ -327,33 +363,30 @@ if __name__ == '__main__':
 ### extra
 #
 def cycle():
-    trace =  si446xtrace.Trace(100)
-    dbus = Si446xDbus(OBJECT_PATH, trace=trace)
-    radio = Si446xRadio(device=0, callback=dbus.async_interrupt, trace=trace)
-    print('init radio done')
-    actions = Si446xFsmActionHandlers(radio, dbus)
-    machine = constructFiniteStateMachine(
-        inputs=Events,
-        outputs=Actions,
-        states=States,
-        table=table,
-        initial=States.S_SDN,
-        richInputs=[],
-        inputContext={},
-        world=MethodSuffixOutputer(actions),
-    )
-    fsm={'actions': actions, 'machine': machine, 'trace': trace}
-    dbus.marry(fsm, radio)
+    fsm, radio, dbus = setup_driver()
+    start_driver(fsm, radio, dbus)
+    #radio.trace.display()
+    import timeit
+    sp= "from si446x import si446xdvr,si446xFSM,si446xact;fsm, radio, dbus=si446xdvr.setup_driver();a=fsm['actions'];radio.trace._disable()"
+    num = 1000
+    st="fsm['actions'].output_A_NOP(si446xFSM.Events.E_0NOP)"
+    print('{}:{} {}'.format(timeit.timeit(stmt=st,setup=sp,number=num),num,st))
+    st="a.output_A_NOP(si446xFSM.Events.E_0NOP)"
+    print('{}:{} {}'.format(timeit.timeit(stmt=st,setup=sp,number=num),num,st))
+    st="si446xact.no_op(fsm['actions'],si446xFSM.Events.E_0NOP)"
+    print('{}:{} {}'.format(timeit.timeit(stmt=st,setup=sp,number=num),num,st))
 
-    step_fsm(fsm, radio, Events.E_TURNON)
-    step_fsm(fsm, radio, Events.E_WAIT_DONE)
-    step_fsm(fsm, radio, Events.E_WAIT_DONE)
-    step_fsm(fsm, radio, Events.E_CONFIG_DONE)
-    trace.display()
-    for i in range(20000):
-        interrupt_handler(fsm, radio)
-        sleep(.001)
-        if ((i % 1000) == 0): trace.display(count=-10)
-    step_fsm(fsm, radio, Events.E_TURNOFF)
+    sp= "from si446x import si446xdvr,si446xFSM,si446xact;fsm, radio, dbus=si446xdvr.setup_driver();a=fsm['actions'];radio.trace._enable()"
+    st="fsm['actions'].output_A_NOP(si446xFSM.Events.E_0NOP)"
+    print('{}:{} {}'.format(timeit.timeit(stmt=st,setup=sp,number=num),num,st))
+    st="a.output_A_NOP(si446xFSM.Events.E_0NOP)"
+    print('{}:{} {}'.format(timeit.timeit(stmt=st,setup=sp,number=num),num,st))
+    st="si446xact.no_op(fsm['actions'],si446xFSM.Events.E_0NOP)"
+    print('{}:{} {}'.format(timeit.timeit(stmt=st,setup=sp,number=num),num,st))
 
+    #step_fsm(fsm, radio, Events.E_TURNOFF)
+    #interrupt_handler(fsm, radio)
+    #sleep(.001)
+    #if ((i % 1000) == 0): radio.trace.display(count=-10)
 
+    return [fsm, radio, dbus]
