@@ -21,7 +21,6 @@ import si446xtrace
 # _get_cts
 #
 def _get_cts():
-    #print('.')
     if (gpio):
         return (GPIO.input(GPIO_CTS))
     else:
@@ -46,58 +45,59 @@ def _get_cts_wait(t):
 class SpiInterface:
     """class to access the Si446x over SPI interface"""
     def __init__(self, device, trace=None):
-        #print('init spi', device, trace)
         try:
             self.trace = trace if (trace) else si446xtrace.Trace(100)
             self.spi = spidev.SpiDev()
             self.spi.open(0, device)  # port=0, device(CS)=device_num
             #self.spi.max_speed_hz=600000
-            print('spi max speed',self.spi.max_speed_hz)
+            self.trace.add('RADIO_CHIP',
+                           'spi max speed: {}'.format(self.spi.max_speed_hz),
+                           level=2)
         except IOError as e:
-            print("Si446xRadio.__init__", e)
+            self.trace.add('RADIO_INIT_ERROR', e, level=2)
 
     def command(self, pkt, form):
         _get_cts_wait(100)
         if (not _get_cts()):
-            print("spi_send_command: don't have cts")
+            self.trace.add('RADIO_CTS_ERROR', 'no cts [1]', level=2)
         try:
             self.form = form
             self.trace.add('RADIO_CMD', pkt, form, level=2)
             self.spi.xfer2(list(bytearray(pkt)))
         except IOError as e:
-            print("spi_send_command: ", e)
+            self.trace.add('RADIO_CMD_ERROR', e, level=2)
 
     def response(self, rlen, form):
         _get_cts_wait(100)
         rsp = ''
         if (not _get_cts()):
-            print("spi_read_response: don't have cts")
+            self.trace.add('RADIO_RSP_ERROR', 'no cts [2]', level=2)
         try:
             r = self.spi.xfer2([0x44] + rlen * [0])
             rsp = ''.join([chr(item) for item in r[1:]])
             form = form if (form) else self.form
             self.trace.add('RADIO_RSP', rsp, form, level=2)
         except IOError as e:
-            print("spi_read_response", e)
+            self.trace.add('RADIO_RSP_ERROR', e, level=2)
         return rsp
 
     def read_fifo(self, rlen):
         if (rlen > RX_FIFO_MAX):
-            print("read_fifo_too_long", rlen)
+            self.trace.add('RADIO_RX_TOO_LONG', 'len: {}'.format(rlen), level=2)
         r = self.spi.xfer2([0x77] + rlen * [0])
         self.trace.add('RADIO_RX_FIFO', str(rlen), None, level=2)
         return r[1:]
 
     def write_fifo(self, buf):
         if (len(buf) > TX_FIFO_MAX):
-            print("write_fifo_too_long", buf)
+            self.trace.add('RADIO_TX_TOO_LONG', 'len: {}'.format(len(buf)), level=2)
         self.trace.add('RADIO_TX_FIFO', str(len(buf)), None, level=2)
         r = self.spi.xfer2([0x66] + buf)
 
     def read_frr(self, off, len):
         index = [0,1,3,7]
         if (len > 4):
-            print("read_frr too long", off, len)        
+            self.trace.add('RADIO_FRR_TOO_LONG', 'len: {}, off: {}'.format(len,off), level=2)
         r = self.spi.xfer2([0x50 + index[off]] + len * [0])
         rsp = ''.join([chr(item) for item in r[1:len+1]])
         self.trace.add('RADIO_FRR', rsp, fast_frr_rsp_s.name, level=2)
@@ -114,7 +114,6 @@ def _gpio_callback(channel):
 class Si446xRadio(object):
     """ class for handling low level Radio device control"""
     def __init__(self, device=0, callback=_gpio_callback, trace=None):
-        #print('init radio', device, callback, trace)
         self.trace = trace if (trace) else si446xtrace.Trace(100)
         self.channel = 0
         self.callback = callback
@@ -150,10 +149,8 @@ class Si446xRadio(object):
         """
         request = read_cmd_s.parse('\x00' * read_cmd_s.sizeof())
         request.cmd='GET_INT_STATUS'
-        #print request
         cf = clr_pend_int_s.build(clr_flags) if (clr_flags) else ''
         cmd = read_cmd_s.build(request) + cf
-        #print('clear_ints', cmd.encode('hex'), clr_flags)
         self.spi.command(cmd, read_cmd_s.name)
     #end def
 
@@ -182,7 +179,6 @@ class Si446xRadio(object):
         request.b_mode='INT_PH_PEND'
         request.c_mode='INT_MODEM_PEND'
         request.d_mode='LATCHED_RSSI'
-        #print request
         cmd = config_frr_cmd_s.build(request)
         self.spi.command(cmd, config_frr_cmd_s.name)
     #end def
@@ -291,8 +287,9 @@ class Si446xRadio(object):
 
     def get_clear_interrupts(self, clr_flags=None):
         """
-        Clear radio chip pending interrupts and return existing interrupt
-        conditions
+        Clear radio chip pending interrupts
+
+        Return pending interrupt conditions (existing prior to clear).
         """
         self.clear_interrupts(clr_flags)
         rsp = self.spi.response(int_status_rsp_s.sizeof(), int_status_rsp_s.name)
@@ -390,14 +387,13 @@ class Si446xRadio(object):
         Turn radio chip power on.
         """
         if (not _get_cts()):
-            print("power_up: cts not ready")
+            self.trace.add('RADIO_CHIP', 'cts not ready', level=2)
         request = power_up_cmd_s.parse('\x00' * power_up_cmd_s.sizeof())
         request.cmd='POWER_UP'
         request.boot_options.patch=False
         request.boot_options.func=1
         request.xtal_options.txcO=3
         request.xo_freq=4000000
-        #print request
         cmd = power_up_cmd_s.build(request)
         self.spi.command(cmd,  power_up_cmd_s.name)
     #end def
@@ -412,7 +408,6 @@ class Si446xRadio(object):
         rsp = self.spi.response(read_cmd_buff_rsp_s.sizeof(), read_cmd_buff_rsp_s.name)
         if (rsp):
             response = read_cmd_buff_rsp_s.parse(rsp)
-            #print response
     #end def
 
     def read_silicon_info(self):
@@ -421,23 +416,19 @@ class Si446xRadio(object):
         """
         request = read_cmd_s.parse('\x00' * read_cmd_s.sizeof())
         request.cmd='PART_INFO'
-        #print request
         cmd = read_cmd_s.build(request)
         self.spi.command(cmd, read_cmd_s.name)
         rsp = self.spi.response(read_part_info_rsp_s.sizeof(),
                                 read_part_info_rsp_s.name)
         if (rsp):
             response = read_part_info_rsp_s.parse(rsp)
-            #print response
         request.cmd='FUNC_INFO'
-        #print request
         cmd = read_cmd_s.build(request)
         self.spi.command(cmd, read_cmd_s.name)
         rsp = self.spi.response(read_func_info_rsp_s.sizeof(),
                                 read_func_info_rsp_s.name)
         if (rsp):
             response = read_func_info_rsp_s.parse(rsp)
-            #print response
     #end def
 
 
@@ -474,7 +465,6 @@ class Si446xRadio(object):
         request.group=pg
         request.num_props=len(pd)
         request.start_prop=ps
-        #print(request, pg, ps, pd.encode('hex'))
         cmd = set_property_cmd_s.build(request) + pd
         self.spi.command(cmd, set_property_cmd_s.name)
     #end def
@@ -491,7 +481,9 @@ class Si446xRadio(object):
         """
         Power off the radio chip.
         """
-        print('set GPIO pin %i (SI446x sdn disable)'%GPIO_SDN)
+        self.trace.add('RADIO_CHIP',
+                       'set GPIO pin {} (SI446x sdn disable)'.format(GPIO_SDN)
+                       level=2)
         if (gpio):
             GPIO.output(GPIO_SDN,1)
             GPIO.cleanup()
@@ -552,7 +544,9 @@ class Si446xRadio(object):
 
         Set GPIO pin 18 (GPIO23) connected to si446x.sdn
         """
-        print('clear GPIO pin %i (SI446x sdn enable)'%GPIO_SDN)
+        self.trace.add('RADIO_GPIO',
+                       'clear GPIO pin {} (SI446x sdn enable)'.format(GPIO_SDN),
+                       level=2)
         if (gpio):
             GPIO.setmode(GPIO.BOARD)
             GPIO.setup(GPIO_CTS,GPIO.IN)    #  [CTSn]

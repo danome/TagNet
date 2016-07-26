@@ -108,11 +108,11 @@ class Si446xDbus (objects.DBusObject):
         self.radio.get_interrupts()
         self.radio.get_gpio()
         self.radio.trace_radio()
-        return 'ok' + self.radio.trace.format_time(time())
+        return 'ok ' + self.radio.trace.format_time(time())
     
     def dbus_dump_trace(self, f, n, t, m, s):
         self.trace.display(filter=f, count=n, begin=t, mark=m, span=s)
-        return 'ok' + self.radio.trace.format_time(time())
+        return 'ok ' + self.radio.trace.format_time(time())
     
     def dbus_send(self, buf, power):
         if (self.fsm['actions'].tx['buffer']):
@@ -123,10 +123,11 @@ class Si446xDbus (objects.DBusObject):
         self.fsm['actions'].tx['power'] = power
         self.fsm['actions'].tx['offset'] = 0
         step_fsm(self.fsm, self.radio, Events.E_TRANSMIT)
-        return 'ok' + self.radio.trace.format_time(time())
+        return 'ok ' + self.radio.trace.format_time(time())
     
     def dbus_spi_send(self, pkt, form):
         self.radio.spi.command(pkt, form)
+        return 'ok ' + self.radio.trace.format_time(time())
 
     def dbus_spi_send_recv(self, pkt, rlen, c_form, r_form):
         self.radio.spi.command(pkt, c_form)
@@ -256,6 +257,12 @@ def process_interrupts(fsm, radio, pend):
             radio.trace.add('RADIO_ERROR', 'Phantom TX_FIFO_ALMOST_EMPTY_PEND')
         clr_flags.ph_pend.TX_FIFO_ALMOST_EMPTY_PEND_CLR = False
         got_ints = True
+    if (pend.modem_pend.RSSI_PEND):
+        clr_flags.modem_pend.RSSI_PEND_CLR = False
+        got_ints = True
+    if (pend.modem_pend.INVALID_PREAMBLE_PEND):
+        clr_flags.modem_pend.INVALID_PREAMBLE_PEND_CLR = False
+        got_ints = True
     if (got_ints):
         return clr_flags
     else:
@@ -265,21 +272,20 @@ def process_interrupts(fsm, radio, pend):
 
 def interrupt_handler(fsm, radio):
     """
-    interrupt_handler - process interrupts until no more exist
+    Process interrupts until no more exist
 
-    get interrupts from radio device and process until nothing is pending
+    Get interrupts from radio device and process until nothing is pending.
     """
     pending_ints = radio.get_clear_interrupts()
     for n in range(5):
-        #print(radio.fast_all().encode('hex'), "d-int", fsm['machine'].state)
         clr_flags = process_interrupts(fsm, radio, pending_ints)
-        if (not clr_flags):
+        if (clr_flags is None):
             return
+        radio.trace.add('RADIO_INT', 'clearing interrupts: {}'.format(clr_flags.__repr__()))
         pending_ints = radio.get_clear_interrupts(clr_flags)
-        #print('ints',radio.fast_all().encode('hex'))
     # got here if something seems stuck, clear all interrupts
-    #radio.clear_interrupts()
-    radio.trace.add('RADIO_ERROR', 'interrupts stuck: {}'.format(pending_ints.encode('hex')))
+    radio.trace.add('RADIO_ERROR', 'interrupts stuck: {}'.format(pending_ints.__repr__()))
+    radio.get_gpio()
 
 
 def step_fsm(fsm, radio, ev):
@@ -300,8 +306,11 @@ def step_fsm(fsm, radio, ev):
 
 def setup_driver():
     """
-    Instantiate all of the driver components, including the following objects:
+    Instantiate all of the driver components
+
+    includes the following objects:
     trace, dbus, radio, state machine actions, finite state machine.
+
     Returns list of [fsm, radio, dbus] object references.
     """
     trace =  si446xtrace.Trace(10000)
