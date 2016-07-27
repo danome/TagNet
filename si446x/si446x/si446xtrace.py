@@ -16,16 +16,16 @@ class Trace:
         if (self.disabled):
             return
         where_id = radio_trace_ids.build(where)
-        sig = ''
-        if (level>1):
-#            _,_,ln_2,fn_2,_,_ = inspect.stack()[level+2]
-            ln_2 = sys._getframe(2).f_lineno
-            fn_2 = sys._getframe(2).f_code.co_name
-            sig += '{}:{} -> '.format(fn_2,ln_2)
-#        _,_,ln_1,fn_1,_,_ = inspect.stack()[level+1]
-        ln_1 = sys._getframe(1).f_lineno
-        fn_1 = sys._getframe(1).f_code.co_name
-        sig += '{}:{}'.format(fn_1,ln_1)
+        sig = ' '
+        stack = []
+        for x in range(level,0,-1):
+            try:
+                stack.append(
+                    (sys._getframe(x).f_code.co_name, sys._getframe(x).f_lineno))
+            except:
+                continue
+        for fn,ln in stack[-level:]:
+            sig += '{}:{} -> '.format(fn,ln)
         self.rb.append([time(), where_id, sig, s_name, data])
 
     def _disable(self):

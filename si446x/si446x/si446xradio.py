@@ -482,7 +482,7 @@ class Si446xRadio(object):
         Power off the radio chip.
         """
         self.trace.add('RADIO_CHIP',
-                       'set GPIO pin {} (SI446x sdn disable)'.format(GPIO_SDN)
+                       'set GPIO pin {} (SI446x sdn disable)'.format(GPIO_SDN),
                        level=2)
         if (gpio):
             GPIO.output(GPIO_SDN,1)
