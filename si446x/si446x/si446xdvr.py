@@ -26,7 +26,7 @@ import si446xtrace
 BUS_NAME = 'org.tagnet.si446x'
 OBJECT_PATH = '/org/tagnet/si446x/0/0'   # object name includes device id/port numbers
 
-si446x_dbus_interface = DBusInterface( 'org.tagnet.si446x',
+si446x_dbus_interface = DBusInterface( BUS_NAME,
                             Method('cca', returns='u'),
                             Method('clear_status', returns='s'),
                             Method('control', arguments='s', returns='s'),
@@ -44,10 +44,13 @@ si446x_dbus_interface = DBusInterface( 'org.tagnet.si446x',
 # class Si446xDbus - driver is controlled by this dbus interface
 #
 class Si446xDbus (objects.DBusObject):
+    """
+    provides the interface for accessing the SI446x Radio Chip Driver
+    """
     dbusInterfaces = [si446x_dbus_interface]
     
     def __init__(self, objectPath, trace=None):
-        objects.DBusObject.__init__(self, objectPath)
+        super(Si446xDbus,self).__init__(objectPath)
         self.uuid = binascii.hexlify(os.urandom(16))
         self.status = 'OFF'
         self.control_event = None
@@ -313,7 +316,7 @@ def setup_driver():
 
     Returns list of [fsm, radio, dbus] object references.
     """
-    trace =  si446xtrace.Trace(10000)
+    trace =  si446xtrace.Trace(1000)
     dbus = Si446xDbus(OBJECT_PATH, trace=trace)
     radio = Si446xRadio(device=0, callback=dbus.async_interrupt, trace=trace)
     print('init radio done')
