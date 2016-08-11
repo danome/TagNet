@@ -14,6 +14,8 @@ log.startLogging(sys.stdout)
 
 #from tagnet import tagnet_dbus_interface
 
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
 msg_header_s = Struct('msg_header_s',
                     Byte('length'),
                     Byte('sequence'),
@@ -30,6 +32,52 @@ msg_header_s = Struct('msg_header_s',
 
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
+# global list of tags within radio range
+#
+taglist = dict()
+
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+TAGNET_BUS_NAME = 'org.tagnet.tagnet'           # bus name for tagnet forwarder
+TAGNET_OBJECT_PATH = '/org/tagnet/tagnet'
+
+tagnet_dbus_interface = DBusInterface(TAGNET_BUS_NAME,
+                                      Method('tag_list', arguments='s', returns='ay' ),
+                                      Signal('tag_found', 'ay' ),  # report new tag
+                                      Signal('tag_lost', 'ay' ),   # report tag out of range
+                                      Signal('tag_events', 'ay' ), # report new tag events
+                                      Signal('tagnet_status', 'ay' ),
+                                      )
+
+class TagNetDbus(objects.DBusObject):
+    """
+    provides the interface for accessing the tagnet port
+    """
+    dbus_interfaces = [tagnet_dbus_interface]
+                 
+    def __init__(self, object_path, connection):
+        self.object_path = object_path
+        super(TagNetDbus, self).__init__(object_path)
+        self.obj_handler = objects.DBusObjectHandler(self)
+
+    def dbus_tag_list(self, arg):
+        print 'Received remote call. Argument: ', arg
+        return 'You sent (%s)' % arg
+
+    def tagnet_status(self):
+        self.emitSignal('tagnet_status', bytearray('ok'))
+
+    def tag_lost(self):
+        self.emitSignal('tag_lost', bytearray('ok'))
+
+    def tag_found(self):
+        self.emitSignal('tag_found', bytearray('ok'))
+
+    def tag_events(self):
+        self.emitSignal('tag_events', bytearray('ok'))
+
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
 from si446x import si446x_dbus_interface
 
 SI446X_BUS_NAME = 'org.tagnet.si446x'           # bus name for si446x device driver
@@ -37,8 +85,9 @@ SI446X_OBJECT_PATH = '/org/tagnet/si446x/0/0'   # object name includes device id
 
 POLL_DELAY = 5   # seconds
 
-class Si446xGetter(object):
-    def __init__(self, conn):
+class Si446xComponent(object):
+    def __init__(self, conn, report_changes):
+        self.report_changes = report_changes
         self.conn = conn
         self.poll_count = 0
         self.recv_count = 0
@@ -48,7 +97,7 @@ class Si446xGetter(object):
         self.pwr = 32
         self.last_t = None
         self.this_t = None
-        super(Si446xGetter, self).__init__()
+        super(Si446xComponent, self).__init__()
 
     def start(self, conn):
         print 'get remote si446x object:  {}  {}'.format(SI446X_BUS_NAME, SI446X_OBJECT_PATH)
@@ -82,56 +131,18 @@ class Si446xGetter(object):
 
     def on_receive(self, msg, pwr):
         print 'on_receive'
+        changes = []
+        self.report_changes(changes)
         self.this_t = time.time()
         self.last_t = self.last_t if (self.last_t) else time.time()
         self.last_t = self.this_t
 
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-TAGNET_BUS_NAME = 'org.tagnet.tagnet'           # bus name for tagnet forwarder
-TAGNET_OBJECT_PATH = '/org/tagnet/tagnet'
-
-tagnet_dbus_interface = DBusInterface(TAGNET_BUS_NAME,
-                                      Method('tag_list', arguments='s', returns='ay' ),
-                                      Signal('tag_found', 'ay' ),  # report new tag
-                                      Signal('tag_lost', 'ay' ),   # report tag out of range
-                                      Signal('tag_events', 'ay' ), # report new tag events
-                                      Signal('tagnet_status', 'ay' ),
-                                      )
-
-class TagNetDbus(objects.DBusObject):
-    """
-    provides the interface for accessing the tagnet port
-    """
-    dbus_interfaces = [tagnet_dbus_interface]
-                 
-    def __init__(self, object_path, connection):
-        self.object_path = object_path
-        super(TagNetDbus, self).__init__(object_path)
-        self.obj_handler = objects.DBusObjectHandler(self)
-        self.taglist = dict()
-
-    def dbus_tag_list(self, arg):
-        print 'Received remote call. Argument: ', arg
-        return 'You sent (%s)' % arg
-
-    def tagnet_status(self):
-        self.emitSignal('tagnet_status', bytearray('ok'))
-
-    def tag_lost(self):
-        self.emitSignal('tag_lost', bytearray('ok'))
-
-    def tag_found(self):
-        self.emitSignal('tag_found', bytearray('ok'))
-
-    def tag_events(self):
-        self.emitSignal('tag_events', bytearray('ok'))
-
-
-class TagNetGetter(object):
+class TagNetComponent(object):
     def __init__(self, conn):
         self.conn = conn
-        super(TagNetGetter, self).__init__()
+        super(TagNetComponent, self).__init__()
 
     def start(self, conn):
         self.tag_obj = TagNetDbus(TAGNET_OBJECT_PATH, conn)
@@ -145,6 +156,9 @@ class TagNetGetter(object):
     def on_error(self, failure):
         import sys
         sys.stderr.write(str(failure))
+
+    def report_changes(self, changes):
+        pass
         
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
@@ -159,13 +173,13 @@ def reactor_loop():
         print 'running'
         try:
             conn = client.connect(reactor)
-            si446x_do = Si446xGetter(conn)
-            conn.addCallback(si446x_do.start)
-            conn.addErrback(si446x_do.on_error)
-            conn = client.connect(reactor)
-            tagnet_do = TagNetGetter(conn)
+            tagnet_do = TagNetComponent(conn)
             conn.addCallback(tagnet_do.start)
             conn.addErrback(tagnet_do.on_error)
+            conn = client.connect(reactor)
+            si446x_do = Si446xComponent(conn, tagnet_do.report_changes)
+            conn.addCallback(si446x_do.start)
+            conn.addErrback(si446x_do.on_error)
         except error.DBusException, e:
             print 'DBus Setup Error:', e
             reactor.stop()
