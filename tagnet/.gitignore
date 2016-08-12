@@ -1,6 +1,6 @@
 .DS_Store
 *~
-\.pyc
+*\.pyc
 _trial_temp*
 *\.pdf
 *\.html

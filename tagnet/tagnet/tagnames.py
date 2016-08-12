@@ -5,7 +5,7 @@ from tagdef import *
 from tagtlv import *
 
 
-class TagName(TlvList):
+class TagName(TagTlvList):
     """
     constructor for tag names, which consist of a list of tag tlv's that represent the hierachical order of
     name components as defined by the list.
@@ -26,8 +26,6 @@ class TagName(TlvList):
         make an exact copy of this name in a new list object
         """
         return TagName(self)
-
-
 
 #------------ end of class definition ---------------------
 

@@ -10,6 +10,8 @@ from txdbus           import client, error, objects
 from txdbus.interface import DBusInterface, Method, Signal
 from twisted.python   import log
 
+from tagnet import TagName, TagMessage, TagPayload, TagPoll
+
 log.startLogging(sys.stdout)
 
 #from tagnet import tagnet_dbus_interface
@@ -116,7 +118,7 @@ class Si446xComponent(object):
 
     def send_poll(self, robj):
         print 'send_poll'
-        deferred =  self.robj.callRemote('send',self. msg, self.pwr)
+        deferred =  self.robj.callRemote('send',TagPoll().build(), self.pwr)
         deferred.addCallback(self.poll_sent)
         print 'send packet ({}:{})'.format(self.poll_count, self.recv_count)
 

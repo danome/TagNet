@@ -3,11 +3,12 @@ from time import time
 from construct import *
 
 TAGNET_VERSION = 1
+DEFAULT_HOPCOUNT = 20
 
 tagnet_message_header_s = Struct('tagnet_message_header_s',
                                  Byte('frame_length'),
                                  BitStruct('options',
-                                           Field('version',3),
+                                           BitField('version',3),
                                            Padding(3),
                                            Flag('response'),
                                            Enum(BitField('tlv_payload',1),
@@ -15,13 +16,13 @@ tagnet_message_header_s = Struct('tagnet_message_header_s',
                                                 TLV_LIST          = 1,
                                                 ),
                                            Enum(BitField('message_type',3),
-                                                # must be non-zero value for validity checking
+                                                NOT_USED          = 0, # must be non-zero value for validity checking
                                                 POLL              = 1,
                                                 BEACON            = 2,
                                                 PUT               = 3,
                                                 GET               = 4,
                                                 ),
-                                           Union('options',
+                                           Union('param',
                                                  BitField('hop_count',5),
                                                  Enum(BitField('error_code',5),
                                                       OK              = 0,
@@ -35,37 +36,62 @@ tagnet_message_header_s = Struct('tagnet_message_header_s',
                                            ),
                                  Byte('header_length'),
                                  )
+from tagnames import TagName
+from tagtlv import tlv_types
 
+# there is a definition conflict of enum in tagtlv from construct, so must be in this order
+#
+from tagtlv import *
 
 #------------ main message class definitions ---------------------
 
-class Message(object):
-    def __init__(self, mtype, name, payload=None, hop_count=20):
-        self.name = name # check type?
-        self.payload = payload # check type?
+class TagMessage(object):
+    def __init__(self, *args, **kwargs):
+        """
+        initialize the tagnet message  structure.
+        """
         self.header = tagnet_message_header_s.parse('\x00' * tagnet_message_header_s.sizeof())
-        self.header.options.message_type = mtype
-        self.header.options.version = TAGNET_VERSION
-        self.header.options.hop_count = hop_count
-        super(Message,self).__init__()
+        self.name = None
+        if (len(args) == 2):                                  # input is name, [payload=]payload
+            if isinstance(args[0], TagName) and isinstance(args[1], TagPayload):
+                self.name = args[0].copy()
+                self.payload = args[1].copy()
+        elif (len(args) == 1):
+            if isinstance(args[0], TagMessage):   # input is message
+                self.name = args[0].name.copy()
+                self.payload = args[0].payload.copy()
+            elif isinstance(args[0], TagName):       # input is name
+                self.name = args[0].copy()
+                self.payload = None
+        if (self.name):
+            self.header.options.version = TAGNET_VERSION
+            self.header.options.param.hop_count = DEFAULT_HOPCOUNT
+            super(TagMessage,self).__init__()
+        else:
+              print('error:',args)
 
     def copy(self):
         """
         make an copy of this message in a new message object
         """
-        return Message(self)
+        return TagMessage(self)
 
         
     def pkt_len(self):
-        return sum([sizeof(tagnet_message_header_s),self.name.pkt_len(),self.payload.pkt_len()])
+        l_pl = self.payload.pkt_len() if (self.payload) else 0
+        return sum([sizeof(tagnet_message_header_s),self.name.pkt_len(),l_pl])
 
-    def build(self, v):
+    def build(self, hop_count=None):
         """
         """
+        if (hop_count):
+            self.header.options.param.hop_count = hop_count
         self.header.frame_length = 4 + self.name.pkt_len() + (self.payload.pkt_len() if (self.payload) else 0)
         self.header.header_length = self.name.pkt_len()
-        self.header.options.tlv_payload = 'TLV_LIST' if (self.payload and isinstance(self.payload, TagLoad))
-        return tag_message_header_s.build(self.header) + self.name.build() + self.payload.build()
+        self.header.options.tlv_payload = 'TLV_LIST' if (self.payload and (len(self.payload) > 1)) else 'RAW'
+        l = tagnet_message_header_s.build(self.header) + self.name.build()
+        l += self.payload.build() if (self.payload) else ''
+        return l
 
     def parse(self, v):
         """
@@ -74,65 +100,76 @@ class Message(object):
 
 #------------ end of class definition ---------------------
 
-class Poll(Message):
-    def __init__(self, master_tid, time=time.time(), slot_size=10, slot_count=10):
-        pl = PayLoad(Tlv(tlv_types.TIME,time.time()),
-                          Tlv(tlv_types.INTEGER,slot_size),
-                          Tlv(tlv_types.INTEGER,slot_count))
-        super(Poll,self).__init__(TagName('POLL', '/tag/poll'), payload=pl, hop_count=1)
-
-#------------ end of class definition ---------------------
-
-class Beacon(Message):
+class TagBeacon(TagMessage):
     def __init__(self, node_id):
-        pl = PayLoad(Tlv(tlv_types.NODE_ID,node_id),
-                          Tlv(tlv_types.TIME=time.time()))
-        super(Beacon,self).__init__(TagName('BEACON', '/tag/beacon'), payload=pl, hop_count=1)
+        pl = TagPayload([(tlv_types.NODE_ID,node_id),
+                          (tlv_types.TIME,time())])
+        super(TagBeacon,self).__init__(TagName('/tag/beacon'), payload=pl)
+        self.header.options.message_type = 'BEACON'
+        self.header.options.param.hop_count = 1
 
 #------------ end of class definition ---------------------
 
-class Put(Message):
+class TagGet(TagMessage):
     def __init__(self, name, pl, hop_count=None):
-        super(Put,self).__init__('PUT', name, payload=pl, hop_count)
+        super(TagGet,self).__init__(name, payload=pl)
+        self.header.options.param.hop_count = hop_count if (hop_count) else 0
+        self.header.options.message_type = 'GET'
 
 #------------ end of class definition ---------------------
 
-class Get(Message):
-    def __init__(self, name, pl, hop_count=None):
-        super(Get,self).__init__('GET', name, payload=pl, hop_count)
-
-#------------ end of class definition ---------------------
-
-class TagLoad(TlvList):
+class TagPayload(TagTlvList):
     def __init__(self, payload=None):
-        super(Payload,self).__init__(payload)
+        super(TagPayload,self).__init__(payload)
 
     def copy(self):
         """
         make an exact copy of this name in a new list object
         """
-        return TagLoad(self)
+        return TagPayload(self)
+
+    def build(self):
+        """
+        """
+        if (len(self) == 1):
+            return self[0].tlv_value()
+        else:
+            return super(TagPayload,self).build()
 
 #------------ end of class definition ---------------------
 
-class Response(Message):
-    def __init__(self, msg):
-        rsp = self.copy()
+class TagPoll(TagMessage):
+    def __init__(self, slot_time=100, slot_count=10):
+        pl = TagPayload([(tlv_types.TIME,time()),
+                          (tlv_types.INTEGER,slot_time),
+                          (tlv_types.INTEGER,slot_count)])
+        super(TagPoll,self).__init__(TagName('/tag/poll'), payload=pl)
+        self.header.options.message_type = 'POLL'
+        self.header.options.tlv_payload = 'TLV_LIST'
+        self.header.options.param.hop_count = 1
+
+#------------ end of class definition ---------------------
+
+class TagPut(TagMessage):
+    def __init__(self, name, pl, hop_count=None):
+        super(TagPut,self).__init__(name, payload=pl)
+        self.header.options.param.hop_count = hop_count if (hop_count) else 0
+        self.header.options.message_type = 'PUT'
+
+
+#------------ end of class definition ---------------------
+
+class TagResponse(TagMessage):
+    """
+    note that the param field is a union that only sets hop_count, but displays all union fields.
+    """
+    def __init__(self, msg, hop_count=None):
+        rsp = msg.copy()
         rsp.header.options.response = True
-        super(Get,self).__init__('GET', name, payload=pl, hop_count)
-        
+        super(TagResponse,self).__init__('GET', name, payload=pl)
+        self.header.options.param.hop_count = hop_count if (hop_count) else 0
+        self.header.options.message_type = 'GET'
 
-#------------ end of class definition ---------------------
-
-
-
-#------------ helper class definitions ---------------------
-
-
-class TagTLV(object):
-    def __init__(self, tag, value):
-        self.tag = tag
-        
 #------------ end of class definition ---------------------
         
 class TagId(object):

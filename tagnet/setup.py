@@ -4,7 +4,7 @@ DESCRIPTION = 'tagnet protocol'
 
 import os, re
 def get_version():
-    VERSIONFILE = os.path.join('si446x', '__init__.py')
+    VERSIONFILE = os.path.join('tagnet', '__init__.py')
     initfile_lines = open(VERSIONFILE, 'rt').readlines()
     VSRE = r"^__version__ = ['\"]([^'\"]*)['\"]"
     for line in initfile_lines:
@@ -20,7 +20,7 @@ except ImportError:
 
 setup(
     name             = 'tagnet',
-    version          = VERSION,
+    version          = get_version(),
     description      = DESCRIPTION,
     license          = "MIT",
     long_description ="""\
