@@ -4,7 +4,7 @@ from os.path import normpath, commonprefix
 #from enum import Enum, unique
 import enum
 
-@enum.unique
+#@enum.unique
 class tlv_types(enum.Enum):
     STRING                 =  1
     INTEGER                =  2
