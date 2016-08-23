@@ -3,7 +3,8 @@
 import time
 import sys
 import signal
- 
+import binascii
+
 from construct        import *
 from twisted.internet import reactor, defer
 from txdbus           import client, error, objects
@@ -114,11 +115,13 @@ class Si446xComponent(object):
         robj.notifyOnSignal('receive', self.on_receive)
 #        robj.notifyOnSignal('receive', self.on_receive, interface=si446x_dbus_interface)
 #        robj.onError(self.on_error)
-        reactor.callLater(1, self.send_poll, robj)
+        reactor.callLater(0, self.send_poll, robj)
 
     def send_poll(self, robj):
         print 'send_poll'
-        deferred =  self.robj.callRemote('send',TagPoll().build(), self.pwr)
+        msg = TagPoll().build()
+        print binascii.hexlify(msg)
+        deferred =  robj.callRemote('send', msg, self.pwr)
         deferred.addCallback(self.poll_sent)
         print 'send packet ({}:{})'.format(self.poll_count, self.recv_count)
 

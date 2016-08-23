@@ -6,33 +6,20 @@ from construct import *
 
 from si446x.si446xdvr import si446x_dbus_interface
 
-msg_header_s = Struct('msg_header_s',
-                    Byte('length'),
-                    Byte('sequence'),
-                    UBInt16('address'),
-                    Enum(Byte('test_mode'),
-                         DISABLED = 0,
-                         RUN  = 1,
-                         PEND = 2,
-                         PING = 3,
-                         PONG = 4,
-                         REP  = 5,
-                         )
-                    )
+from tagnet import TagPayload, TagResponse, TagMessage
 
-msg = bytearray(('\x00' * msg_header_s.sizeof()) + 'hello world')
-msg[0] = len(msg)-1
 pwr = 32
 send_count = 0
 recv_count = 0
 robj = None
 
 @defer.inlineCallbacks
-def on_receive(msg, pwr):
+def on_receive(rxbuf, pwr):
     global send_count
-    print 'response {}: {}'.format(len(msg), pwr)
     recv_count += 1
-    e = yield robj.callRemote('send', msg, pwr)
+    print 'got {}: {}'.format(len(rxbuf), pwr)
+    rsp = TagResponse(rxbuf)
+    e = yield robj.callRemote('send', rsp.build(), pwr)
     print 'send packet ({}:{}) {}'.format(send_count, recv_count, e)
     send_count += 1
 

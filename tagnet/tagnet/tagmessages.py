@@ -50,43 +50,49 @@ class TagMessage(object):
         """
         initialize the tagnet message  structure.
         """
+        super(TagMessage,self).__init__()
         self.header = tagnet_message_header_s.parse('\x00' * tagnet_message_header_s.sizeof())
         self.name = None
-        if (len(args) == 2):                                  # input is name, [payload=]payload
+        self.payload = None
+        if (len(args) == 2):                                  # input is (name, [payload=]payload)
             if isinstance(args[0], TagName) and isinstance(args[1], TagPayload):
                 self.name = args[0].copy()
                 self.payload = args[1].copy()
         elif (len(args) == 1):
-            if isinstance(args[0], TagMessage):   # input is message
+            if isinstance(args[0], TagMessage):               # input is message
                 self.name = args[0].name.copy()
-                self.payload = args[0].payload.copy()
-            elif isinstance(args[0], TagName):       # input is name
+                self.payload = args[0].payload.copy() if (args[0].payload) else None
+            elif isinstance(args[0], TagName):                # input is name
                 self.name = args[0].copy()
                 self.payload = None
+            elif isinstance(args[0], bytearray):              # input is bytearray
+                self.parse(args[0])
         if (self.name):
             self.header.options.version = TAGNET_VERSION
             self.header.options.param.hop_count = DEFAULT_HOPCOUNT
-            super(TagMessage,self).__init__()
-        else:
-              print('error:',args)
+        elif (len(args) != 0):
+                print('error:',args)
 
     def copy(self):
         """
         make an copy of this message in a new message object
         """
-        return TagMessage(self)
+        msg = TagMessage(self)
+        msg.header = self.header
+        return msg
 
         
     def pkt_len(self):
         l_pl = self.payload.pkt_len() if (self.payload) else 0
-        return sum([sizeof(tagnet_message_header_s),self.name.pkt_len(),l_pl])
+        return sum([tagnet_message_header_s.sizeof(),self.name.pkt_len(),l_pl])
 
     def build(self, hop_count=None):
         """
         """
         if (hop_count):
             self.header.options.param.hop_count = hop_count
-        self.header.frame_length = 4 + self.name.pkt_len() + (self.payload.pkt_len() if (self.payload) else 0)
+        self.header.frame_length = (tagnet_message_header_s.sizeof() - 1) + self.name.pkt_len()
+        self.header.frame_length += (self.payload.pkt_len() if (self.payload) else 0)
         self.header.header_length = self.name.pkt_len()
         self.header.options.tlv_payload = 'TLV_LIST' if (self.payload and (len(self.payload) > 1)) else 'RAW'
         l = tagnet_message_header_s.build(self.header) + self.name.build()
@@ -96,7 +102,11 @@ class TagMessage(object):
     def parse(self, v):
         """
         """
-        return self
+        hdr_size = tagnet_message_header_s.sizeof()
+        self.header = tagnet_message_header_s.parse(v[0:hdr_size])
+        self.name = TagName(v[hdr_size:self.header.header_length+hdr_size+1])
+        if len(v) > (hdr_size + self.header.header_length):
+            self.payload = TagPayload(v[self.header.header_length+hdr_size+1:])
 
 #------------ end of class definition ---------------------
 
@@ -121,12 +131,6 @@ class TagGet(TagMessage):
 class TagPayload(TagTlvList):
     def __init__(self, payload=None):
         super(TagPayload,self).__init__(payload)
-
-    def copy(self):
-        """
-        make an exact copy of this name in a new list object
-        """
-        return TagPayload(self)
 
     def build(self):
         """
@@ -163,12 +167,12 @@ class TagResponse(TagMessage):
     """
     note that the param field is a union that only sets hop_count, but displays all union fields.
     """
-    def __init__(self, msg, hop_count=None):
-        rsp = msg.copy()
-        rsp.header.options.response = True
-        super(TagResponse,self).__init__('GET', name, payload=pl)
-        self.header.options.param.hop_count = hop_count if (hop_count) else 0
-        self.header.options.message_type = 'GET'
+    def __init__(self, rxbuf, payload=None, hop_count=None):
+        super(TagResponse,self).__init__(rxbuf)
+        self.header.options.response = True
+        self.payload = payload.copy() if (payload) else None
+        self.header.options.param.hop_count = hop_count if (hop_count) else DEFAULT_HOPCOUNT
+
 
 #------------ end of class definition ---------------------
         
