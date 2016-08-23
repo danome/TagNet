@@ -60,7 +60,7 @@ class TagTlvList(list):
                     for tlv in args[0]:
                         self.append(TagTlv(tlv))
                     return
-        print('error:', args, type(args[0][0]) if args[0] else '')
+        print('error:', args, type(args[0][0]) if (args and args[0]) else '')
 
     #------------ following methods extend base class  ---------------------
 
@@ -89,7 +89,6 @@ class TagTlvList(list):
         process packet formatted string of tlvs into a tagtlvlist. replaces current list
         """
         x = 0
-        self = []
         while (x < len(v)):
             y = v[x+1] + 2
             self.append(TagTlv(v[x:x+y]))
@@ -103,7 +102,7 @@ class TagTlvList(list):
     
     def startswith(self, d):
         """
-        check to see if this name begins withs with specified name. True if exactly prefix matches.
+        check to see if this name begins withs with specified name. True if prefix matches exactly.
         """
         return True if (os.path.commonprefix([self,d]) == d) else False
 
@@ -123,7 +122,8 @@ class TagTlvList(list):
         tl = []
         for o in l:
             tl.append(TagTlv(o))
-        return super(TagTlvList,self).extend(tl)
+        super(TagTlvList,self).extend(tl)
+        return self
 
     def insert(self, i, o):
         """
@@ -135,7 +135,8 @@ class TagTlvList(list):
         """
         __add__ overloaded to handle possible format conversions of value in adding object
         """
-        return super(TagTlvList,self).__add__(TagTlv(o))
+        l = o if isinstance(o, list) else [o]
+        return self.extend(l)
 
 #------------ end of class definition ---------------------
 
@@ -162,7 +163,7 @@ class TagTlv(object):
     def update(self, t, v=None):
         if (v is None):
             if isinstance(t, TagTlv):
-                self._convert(t.tlv_type(),t.tlv_value())
+                self._convert(t.tlv_type(),t.value())
             elif isinstance(t, types.TupleType):
                 self._convert(t[0],t[1])
             elif isinstance(t, bytearray):
@@ -203,8 +204,6 @@ class TagTlv(object):
             v.extend(self.value())
         h.extend([self.tlv_type().value, len(v)])
         return h + v
-        return bytearray([self.tlv_type().value, len(v)]) + v
-        return [self.tlv_type().value, len(v)]) + v
 
     def tlv_type(self):
         return self.tuple[0]
@@ -251,16 +250,16 @@ def test_tlv():
     o1 = tba.build()
     # parse()
     tstr.parse(o1)
-    # == succeeds
-    print 'tstr==tba', tstr == tba
-    # == fails
-    print 'tstr==tint', tstr == tint
     # len()
     print 'tstr', len(tstr), tstr
     print 'tint', len(tint), tint
     print 'ttlv', len(ttlv), ttlv
     print 'tba', len(tba), tba
-
+    # == succeeds
+    print 'tstr==tba', tstr == tba
+    # == fails
+    print 'tstr==tint', tstr == tint
+    print o1
     return tstr,tint,ttlv,tba,o1
 
 def test_tlv_list():
@@ -272,6 +271,7 @@ def test_tlv_list():
     #    bytearray
     tlba = TagTlvList(bytearray.fromhex(b'01037461670104706f6c6c'))
     #    list of tuples
+    tltups = TagTlvList([(tlv_types.STRING, 'baz'),(tlv_types.STRING,'zob')])
     #    list of tagtlvs
     tltlvs = TagTlvList([TagTlv(tlv_types.STRING,'abc'),TagTlv(tlv_types.INTEGER, 1)])
     # build()
@@ -280,13 +280,24 @@ def test_tlv_list():
     tlstr.parse(ol1)
     # endswith()
     # pkt_len()
+    print 'tlstr', len(tlstr), tlstr.pkt_len(), tlstr
+    print 'tllist', len(tllist), tllist.pkt_len(), tllist
+    print 'tltlvs', len(tltlvs), tltlvs.pkt_len(), tltlvs
+    print 'tltups', len(tltups), tltups.pkt_len(), tltups
+    print 'tlba', len(tlba), tlba.pkt_len(), tlba
     # startswith()
+    print 'startswith', tllist, tlstr, tllist.startswith(tlstr)
+    print 'startswith', tlstr, tllist, tlstr.startswith(tllist)
     # append()
+    a = TagTlvList('')
+    print 'append', a, 'string baz', a.append((tlv_types.STRING, 'baz'))
     # extend()
+    print 'extend', a, tlba, a.extend(tlba)
     # insert()
+    print 'insert'
     # __add__()
-
-    return tlstr,tllist,tltlvs,tlba,ol1
+    print ol1
+    return tlstr,tllist,tltups,tltlvs,tlba,ol1
 
 if __name__ == '__main__':
     test_tlv()
