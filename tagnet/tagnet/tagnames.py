@@ -29,7 +29,7 @@ class TagName(TagTlvList):
 
 #------------ end of class definition ---------------------
 
-def test():
+def tagnames_test():
     v1 = TagName('tgn://foo/bar')
     v2 = TagName(v1)
     v3 = v1.copy()
@@ -42,4 +42,4 @@ def test():
     return (v1,v2,v3)
     
 if __name__ == '__main__':
-    test()
+    tagnames_test()

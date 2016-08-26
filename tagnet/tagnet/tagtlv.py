@@ -1,6 +1,7 @@
 import os, sys, types
 from os.path import normpath, commonprefix
 import binascii
+from temporenc import packb, unpackb
 
 #from enum import Enum, unique
 import enum
@@ -12,7 +13,7 @@ class tlv_types(enum.Enum):
     GPS                    =  3
     TIME                   =  4
     NODE_ID                =  5
-
+    NODE_NAME              =  6
 
 from tagdef import *
 
@@ -144,23 +145,43 @@ class TagTlvList(list):
 class TagTlv(object):
     def __init__(self, t, v=None):
         self.tuple = None
-        self.update(t,v)
+        if (v):
+            self._convert(t,v)
+        elif isinstance(t, TagTlv):
+            self.tuple = t.tuple
+        elif isinstance(t, bytearray):
+            self.parse(t)
+        elif isinstance(t, types.TupleType):
+            self._convert(t[0],t[1])
+        else:
+            print "bad tlv init", t, v
+    
 
     def _convert(self, t, v):
-        if t == tlv_types.STRING:
+        """
+        convert external input value into object storage representation
+        """
+        if (t is tlv_types.STRING) or (t is tlv_types.NODE_NAME):
             if isinstance(v, types.StringType) or isinstance(v, bytearray):
                 self.tuple = (t, str(v))
-        elif t == tlv_types.INTEGER:
+        elif t is tlv_types.INTEGER:
             if  isinstance(v, types.IntType) or isinstance(v, bytearray):
                 self.tuple =  (t, int(v))
-        elif t == tlv_types.GPS:
+        elif t is tlv_types.GPS:
             self.tuple =  (t, bytearray(str(v)))
-        elif t == tlv_types.TIME:
-            self.tuple =  (t, bytearray(v))
-        elif t == tlv_types.NODE_ID:
-            self.tuple =  (t, bytearray(v))
+        elif t is tlv_types.TIME:
+            self.tuple =  (t, v)
+        elif t is tlv_types.NODE_ID:
+            if isinstance(v, types.IntType):
+                v = hex(v)[2:].decode('hex')
+            self.tuple =  (t, v)
+        else:
+            print "bad tlv convert", t, v
       
     def update(self, t, v=None):
+        """
+        modify existing type and value fields of object
+        """
         if (v is None):
             if isinstance(t, TagTlv):
                 self._convert(t.tlv_type(),t.value())
@@ -171,7 +192,7 @@ class TagTlv(object):
         else:
             self._convert(t, v)
         if (not self.tuple):
-            print('error tlv ({}): {}/{}'.format(type(t), t, v))
+            print('error tlv ({}): {} / {}'.format(type(t), t, v))
 
     def int_to_tlv_type(self, i):
         for tlvt in tlv_types:
@@ -182,9 +203,14 @@ class TagTlv(object):
         """
         parse packet formatted tlv into object instance
         """
-        if (fb[1] != len(fb[2:])):
+        t = self.int_to_tlv_type(fb[0])
+        l = fb[1]
+        v = fb[2:]
+        if (l != len(v)):
             print('tlv bad parse: {}'.format(fb))
-        self._convert(self.int_to_tlv_type(fb[0]), fb[2:])
+        if (t == tlv_types.TIME):
+             v = unpackb(v).datetime()
+        self._convert(t, v)
 
     def build(self):
         """
@@ -192,17 +218,18 @@ class TagTlv(object):
         """
         h = bytearray()
         v = bytearray()
-        if self.tlv_type() is tlv_types.STRING:
+        t = self.tlv_type()
+        if (t is tlv_types.STRING) or (t is tlv_types.NODE_NAME):
             v.extend(self.value())
-        elif self.tlv_type() is tlv_types.INTEGER:
+        elif t is tlv_types.INTEGER:
             v.append(self.value())
-        elif self.tlv_type() is tlv_types.GPS:
+        elif t is tlv_types.GPS:
             v.extend(self.value())
-        elif self.tlv_type() is tlv_types.TIME:
+        elif t is tlv_types.TIME:
+            v.extend(packb(self.value()))
+        elif t is tlv_types.NODE_ID:
             v.extend(self.value())
-        elif self.tlv_type() is tlv_types.NODE_ID:
-            v.extend(self.value())
-        h.extend([self.tlv_type().value, len(v)])
+        h.extend([t.value, len(v)])
         return h + v
 
     def tlv_type(self):
@@ -219,19 +246,21 @@ class TagTlv(object):
         return not self.__eq__(other)
 
     def __repr__(self):
-        return '({}, {})'.format(self.tlv_type(),self.value())
+        v = self.value().encode('hex') if self.tlv_type() is tlv_types.NODE_ID else self.value()
+        return '({}, {})'.format(self.tlv_type(),v)
 
     def __len__(self):
         l = 0
-        if self.tlv_type() is tlv_types.STRING:
+        t = self.tlv_type()
+        if (t is tlv_types.STRING) or (t is tlv_types.NODE_NAME):
             l = len(self.value())
-        elif self.tlv_type() is tlv_types.INTEGER:
+        elif t is tlv_types.INTEGER:
             l = len(bytearray(hex(self.value())))
-        elif self.tlv_type() is tlv_types.GPS:
+        elif t is tlv_types.GPS:
             l = len(self.value())
-        elif self.tlv_type() is tlv_types.TIME:
-            l = len(self.value())
-        elif self.tlv_type() is tlv_types.NODE_ID:
+        elif t is tlv_types.TIME:
+            l = len(packb(self.value()))
+        elif t is tlv_types.NODE_ID:
             l = len(self.value())
         return l + 2
 
@@ -296,10 +325,14 @@ def test_tlv_list():
     # insert()
     print 'insert'
     # __add__()
+    print 'add'
     print ol1
     return tlstr,tllist,tltups,tltlvs,tlba,ol1
 
-if __name__ == '__main__':
+def tagtlv_test():
     test_tlv()
     test_tlv_list()
+    
+if __name__ == '__main__':
+    tagtlv_test()
 

@@ -1,6 +1,8 @@
 from time import time
-
+from datetime import datetime
+from uuid import getnode as get_mac
 from construct import *
+import platform
 
 TAGNET_VERSION = 1
 DEFAULT_HOPCOUNT = 20
@@ -8,9 +10,9 @@ DEFAULT_HOPCOUNT = 20
 tagnet_message_header_s = Struct('tagnet_message_header_s',
                                  Byte('frame_length'),
                                  BitStruct('options',
+                                           Flag('response'),
                                            BitField('version',3),
                                            Padding(3),
-                                           Flag('response'),
                                            Enum(BitField('tlv_payload',1),
                                                 RAW               = 0,
                                                 TLV_LIST          = 1,
@@ -55,8 +57,9 @@ class TagMessage(object):
         self.name = None
         self.payload = None
         if (len(args) == 2):                                  # input is (name, [payload=]payload)
-            if isinstance(args[0], TagName) and isinstance(args[1], TagPayload):
+            if isinstance(args[0], TagName):
                 self.name = args[0].copy()
+            if (args[1]) and isinstance(args[1], TagPayload):
                 self.payload = args[1].copy()
         elif (len(args) == 1):
             if isinstance(args[0], TagMessage):               # input is message
@@ -144,13 +147,15 @@ class TagPayload(TagTlvList):
 
 class TagPoll(TagMessage):
     def __init__(self, slot_time=100, slot_count=10):
-        pl = TagPayload([(tlv_types.TIME,time()),
-                          (tlv_types.INTEGER,slot_time),
-                          (tlv_types.INTEGER,slot_count)])
-        super(TagPoll,self).__init__(TagName('/tag/poll'), payload=pl)
+        pl = TagPayload([(tlv_types.TIME,datetime.now()),
+                         (tlv_types.INTEGER,slot_time),
+                         (tlv_types.INTEGER,slot_count)])
+        nm = TagName('/tag/poll') + TagTlv(tlv_types.NODE_ID, get_mac())     
+        super(TagPoll,self).__init__(nm, pl)
         self.header.options.message_type = 'POLL'
         self.header.options.tlv_payload = 'TLV_LIST'
         self.header.options.param.hop_count = 1
+
 
 #------------ end of class definition ---------------------
 
@@ -167,12 +172,17 @@ class TagResponse(TagMessage):
     """
     note that the param field is a union that only sets hop_count, but displays all union fields.
     """
-    def __init__(self, rxbuf, payload=None, hop_count=None):
-        super(TagResponse,self).__init__(rxbuf)
+    def __init__(self, req, error_code=0, payload=None, hop_count=None):
+        if (req.header.options.message_type == 'POLL') and (not payload):
+            payload = TagPayload([(tlv_types.NODE_ID, get_mac()),
+                                  (tlv_types.NODE_NAME, platform.node()),
+                                  (tlv_types.TIME,datetime.now())])
+        super(TagResponse,self).__init__(req.name, payload)
+        self.header.options.message_type = req.header.options.message_type
         self.header.options.response = True
-        self.payload = payload.copy() if (payload) else None
-        self.header.options.param.hop_count = hop_count if (hop_count) else DEFAULT_HOPCOUNT
-
+        self.header.options.param.hop_count=0       # construct doesn't handle unions right
+                                          # this should be the error_code field in response
+            
 
 #------------ end of class definition ---------------------
         
@@ -184,3 +194,18 @@ class TagId(object):
         
 #------------ end of class definition ---------------------
 
+def printmsg(msg):
+    print str(msg.build()).encode('hex')
+    print msg.header
+    print msg.name
+    print msg.payload
+    
+def tagmessages_test():
+    tmpoll=TagPoll()
+    tmrsp=TagResponse(tmpoll)
+    printmsg(tmpoll)
+    printmsg(tmrsp)
+    return tmpoll, tmrsp
+    
+if __name__ == '__main__':
+    tagmessages_test()
