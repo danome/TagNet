@@ -165,7 +165,7 @@ class TagTlv(object):
             if isinstance(v, types.StringType) or isinstance(v, bytearray):
                 self.tuple = (t, str(v))
         elif t is tlv_types.INTEGER:
-            if  isinstance(v, types.IntType) or isinstance(v, bytearray):
+            if  isinstance(v, types.IntType) or isinstance(v, bytearray) or isinstance(v, types.LongType):
                 self.tuple =  (t, int(v))
         elif t is tlv_types.GPS:
             self.tuple =  (t, bytearray(str(v)))
