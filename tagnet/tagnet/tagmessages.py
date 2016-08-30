@@ -1,8 +1,11 @@
+from __future__ import print_function   # python3 print function
+from builtins import *
 from time import time
 from datetime import datetime
 from uuid import getnode as get_mac
 from construct import *
 import platform
+from binascii import hexlify
 
 TAGNET_VERSION = 1
 DEFAULT_HOPCOUNT = 20
@@ -195,10 +198,10 @@ class TagId(object):
 #------------ end of class definition ---------------------
 
 def printmsg(msg):
-    print str(msg.build()).encode('hex')
-    print msg.header
-    print msg.name
-    print msg.payload
+    print(hexlify(msg.build()))
+    print(msg.header)
+    print(msg.name)
+    print(msg.payload)
     
 def tagmessages_test():
     tmpoll=TagPoll()

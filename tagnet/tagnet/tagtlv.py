@@ -1,7 +1,10 @@
+from __future__ import print_function   # python3 print function
+from builtins import *
 import os, sys, types
 from os.path import normpath, commonprefix
 import binascii
 from temporenc import packb, unpackb
+from binascii import hexlify
 
 #from enum import Enum, unique
 import enum
@@ -154,7 +157,7 @@ class TagTlv(object):
         elif isinstance(t, types.TupleType):
             self._convert(t[0],t[1])
         else:
-            print "bad tlv init", t, v
+            print("bad tlv init", t, v)
     
 
     def _convert(self, t, v):
@@ -176,7 +179,7 @@ class TagTlv(object):
                 v = hex(v)[2:].decode('hex')
             self.tuple =  (t, v)
         else:
-            print "bad tlv convert", t, v
+            print("bad tlv convert", t, v)
       
     def update(self, t, v=None):
         """
@@ -208,28 +211,31 @@ class TagTlv(object):
         v = fb[2:]
         if (l != len(v)):
             print('tlv bad parse: {}'.format(fb))
-        if (t == tlv_types.TIME):
+        if t is tlv_types.TIME:
              v = unpackb(v).datetime()
+        elif  t is tlv_types.INTEGER:
+            v = int.from_bytes(v, 'big')
         self._convert(t, v)
 
     def build(self):
         """
         build a packet formatted tlv from object instance
         """
-        h = bytearray()
-        v = bytearray()
         t = self.tlv_type()
-        if (t is tlv_types.STRING) or (t is tlv_types.NODE_NAME):
-            v.extend(self.value())
+        if (t is tlv_types.STRING):
+            v = self.value().encode()
+        elif (t is tlv_types.NODE_NAME):
+            v = self.value().encode()
         elif t is tlv_types.INTEGER:
-            v.append(self.value())
+            n = int(self.value())
+            v = n.to_bytes(len(hex(n)[2:]),'big')
         elif t is tlv_types.GPS:
-            v.extend(self.value())
+            v = self.value().encode()
         elif t is tlv_types.TIME:
-            v.extend(packb(self.value()))
+            v = packb(self.value())
         elif t is tlv_types.NODE_ID:
-            v.extend(self.value())
-        h.extend([t.value, len(v)])
+            v = self.value()
+        h = int(t.value).to_bytes(1,'big') + int(len(v)).to_bytes(1,'big')
         return h + v
 
     def tlv_type(self):
@@ -246,7 +252,7 @@ class TagTlv(object):
         return not self.__eq__(other)
 
     def __repr__(self):
-        v = self.value().encode('hex') if self.tlv_type() is tlv_types.NODE_ID else self.value()
+        v = hexlify(self.value()) if self.tlv_type() is tlv_types.NODE_ID else self.value()
         return '({}, {})'.format(self.tlv_type(),v)
 
     def __len__(self):
@@ -255,7 +261,7 @@ class TagTlv(object):
         if (t is tlv_types.STRING) or (t is tlv_types.NODE_NAME):
             l = len(self.value())
         elif t is tlv_types.INTEGER:
-            l = len(bytearray(hex(self.value())))
+            l = len(hex(self.value())[2:])+1
         elif t is tlv_types.GPS:
             l = len(self.value())
         elif t is tlv_types.TIME:
@@ -271,25 +277,45 @@ def test_tlv():
     #   tuple
     tstr = TagTlv(tlv_types.STRING,'abc')
     tint = TagTlv(tlv_types.INTEGER, 1)
+    from datetime import datetime
+    ttime = TagTlv(tlv_types.TIME, datetime.now())
+    from uuid import getnode as get_mac
+    tnid = TagTlv(tlv_types.NODE_ID, get_mac())
+    import platform
+    tnn =  TagTlv(tlv_types.NODE_NAME, platform.node())
     #   tagtlv
     ttlv = TagTlv(tstr)
     #   bytearray
     tba = TagTlv(bytearray.fromhex(b'0103746167'))
     # build()
-    o1 = tba.build()
+    ostr = tstr.build()
+    oint = tint.build()
+    otlv = ttlv.build()
+    oba = tba.build()
+    otime = ttime.build()
+    onid = tnid.build()
+    onn = tnn.build()
     # parse()
-    tstr.parse(o1)
+    tstr.parse(ostr)
+    tint.parse(oint)
+    ttlv.parse(otlv)
+    tba.parse(oba)
+    ttime.parse(otime)
+    tnid.parse(onid)
+    tnn.parse(onn)
     # len()
-    print 'tstr', len(tstr), tstr
-    print 'tint', len(tint), tint
-    print 'ttlv', len(ttlv), ttlv
-    print 'tba', len(tba), tba
+    print('tstr', len(tstr), tstr, tstr.tlv_type(), tstr.value(), hexlify(ostr))
+    print('tint', len(tint), tint, tint.tlv_type(), tint.value(), hexlify(oint))
+    print('ttlv', len(ttlv), ttlv, ttlv.tlv_type(), ttlv.value(), hexlify(otlv))
+    print('tba', len(tba), tba, tba.tlv_type(), tba.value(), hexlify(oba))
+    print('ttime', len(ttime), ttime, ttime.tlv_type(), ttime.value(), hexlify(otime))
+    print('tnid', len(tnid), tnid, tnid.tlv_type(), hexlify(tnid.value()), hexlify(onid))
+    print('tnn', len(tnn), tnn, tnn.tlv_type(), tnn.value(), hexlify(onn))
     # == succeeds
-    print 'tstr==tba', tstr == tba
+    print('tstr==ttlv', tstr == ttlv)
     # == fails
-    print 'tstr==tint', tstr == tint
-    print o1
-    return tstr,tint,ttlv,tba,o1
+    print('tstr==tint', tstr == tint)
+    return tstr,tint,ttlv,tba,ttime,tnid,tnn,ostr,oint,otlv,oba,otime,onid,onn
 
 def test_tlv_list():
     # tagtlvlist.__init__()
@@ -309,24 +335,24 @@ def test_tlv_list():
     tlstr.parse(ol1)
     # endswith()
     # pkt_len()
-    print 'tlstr', len(tlstr), tlstr.pkt_len(), tlstr
-    print 'tllist', len(tllist), tllist.pkt_len(), tllist
-    print 'tltlvs', len(tltlvs), tltlvs.pkt_len(), tltlvs
-    print 'tltups', len(tltups), tltups.pkt_len(), tltups
-    print 'tlba', len(tlba), tlba.pkt_len(), tlba
+    print('tlstr', len(tlstr), tlstr.pkt_len(), tlstr)
+    print('tllist', len(tllist), tllist.pkt_len(), tllist)
+    print('tltlvs', len(tltlvs), tltlvs.pkt_len(), tltlvs)
+    print('tltups', len(tltups), tltups.pkt_len(), tltups)
+    print('tlba', len(tlba), tlba.pkt_len(), tlba)
     # startswith()
-    print 'startswith', tllist, tlstr, tllist.startswith(tlstr)
-    print 'startswith', tlstr, tllist, tlstr.startswith(tllist)
+    print('startswith', tllist, tlstr, tllist.startswith(tlstr))
+    print('startswith', tlstr, tllist, tlstr.startswith(tllist))
     # append()
     a = TagTlvList('')
-    print 'append', a, 'string baz', a.append((tlv_types.STRING, 'baz'))
+    print('append', a, 'string baz', a.append((tlv_types.STRING, 'baz')))
     # extend()
-    print 'extend', a, tlba, a.extend(tlba)
+    print('extend', a, tlba, a.extend(tlba))
     # insert()
-    print 'insert'
+    print('insert')
     # __add__()
-    print 'add'
-    print ol1
+    print('add')
+    print(ol1)
     return tlstr,tllist,tltups,tltlvs,tlba,ol1
 
 def tagtlv_test():
