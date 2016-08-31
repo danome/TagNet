@@ -28,7 +28,7 @@ A protocol transferring of named data objects in an ad hoc network of constraint
     url              = 'https://github.com/dmaltbie/Tagnet/tagnet',
     author           = 'Dan Maltbie',
     author_email     = 'dmaltbie@daloma.org',
-    install_requires = ['twisted>=10.1', 'six', 'temporenc', 'construct', 'uuid', 'datetime', 'platform'],
+    install_requires = ['twisted>=10.1', 'six', 'temporenc', 'construct', 'uuid', 'datetime'],
     provides         = ['tagnet'],
     packages         = ['tagnet',
                         'tagnet.test'],
