@@ -175,8 +175,12 @@ class TagTlv(object):
         elif t is tlv_types.TIME:
             self.tuple =  (t, v)
         elif t is tlv_types.NODE_ID:
-            if isinstance(v, types.IntType):
-                v = int(v).to_bytes(6)
+            if isinstance(v, types.IntType) or isinstance(v, types.LongType):
+                v = bytearray.fromhex(
+                    ''.join('%02X' % ((v >> 8*i) & 0xff) for i in reversed(xrange(6))))
+            elif isinstance(v, types.StringType):
+                print(v)
+                v = bytearray.fromhex(v)
             self.tuple =  (t, bytearray(v))
         else:
             print("bad tlv convert", t, v)
@@ -215,6 +219,8 @@ class TagTlv(object):
              v = unpackb(v).datetime()
         elif  t is tlv_types.INTEGER:
             v = int.from_bytes(v, 'big')
+        elif t is tlv_types.NODE_ID:
+            v = bytearray(v)
         self._convert(t, v)
 
     def build(self):
@@ -281,7 +287,8 @@ def test_tlv():
     from datetime import datetime
     ttime = TagTlv(tlv_types.TIME, datetime.now())
     from uuid import getnode as get_mac
-    tnid = TagTlv(tlv_types.NODE_ID, get_mac())
+    tnid1 = TagTlv(tlv_types.NODE_ID, get_mac())
+    tnid2 = TagTlv(tlv_types.NODE_ID, ''.join('%02X' % ((get_mac() >> 8*i) & 0xff) for i in reversed(xrange(6))))
     import platform
     tnn =  TagTlv(tlv_types.NODE_NAME, platform.node())
     #   tagtlv
@@ -295,7 +302,8 @@ def test_tlv():
     otlv = ttlv.build()
     oba = tba.build()
     otime = ttime.build()
-    onid = tnid.build()
+    onid1 = tnid1.build()
+    onid2 = tnid2.build()
     onn = tnn.build()
     # parse()
     tstr.parse(ostr)
@@ -304,7 +312,8 @@ def test_tlv():
     ttlv.parse(otlv)
     tba.parse(oba)
     ttime.parse(otime)
-    tnid.parse(onid)
+    tnid1.parse(onid1)
+    tnid2.parse(onid2)
     tnn.parse(onn)
     # len()
     print('tstr', len(tstr), tstr, tstr.tlv_type(), tstr.value(), hexlify(ostr))
@@ -313,13 +322,15 @@ def test_tlv():
     print('ttlv', len(ttlv), ttlv, ttlv.tlv_type(), ttlv.value(), hexlify(otlv))
     print('tba', len(tba), tba, tba.tlv_type(), tba.value(), hexlify(oba))
     print('ttime', len(ttime), ttime, ttime.tlv_type(), ttime.value(), hexlify(otime))
-    print('tnid', len(tnid), tnid, tnid.tlv_type(), hexlify(tnid.value()), hexlify(onid))
+    print('tnid1', len(tnid1), tnid1, tnid1.tlv_type(), hexlify(tnid1.value()), hexlify(onid1))
+    print('tnid2', len(tnid2), tnid2, tnid2.tlv_type(), hexlify(tnid2.value()), hexlify(onid2))
     print('tnn', len(tnn), tnn, tnn.tlv_type(), tnn.value(), hexlify(onn))
     # == succeeds
     print('tstr==ttlv', tstr == ttlv)
+    print('tnid1==tnid2', tnid1 == tnid2)
     # == fails
     print('tstr==tint1', tstr == tint1)
-    return tstr,tint1,tint10k,ttlv,tba,ttime,tnid,tnn,ostr,oint1,oint10k,otlv,oba,otime,onid,onn
+    return tstr,tint1,tint10k,ttlv,tba,ttime,tnid1,tnid2,tnn,ostr,oint1,oint10k,otlv,oba,otime,onid1,onid2,onn
 
 def test_tlv_list():
     # tagtlvlist.__init__()
