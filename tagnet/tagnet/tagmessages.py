@@ -103,16 +103,18 @@ class TagMessage(object):
         self.header.options.tlv_payload = 'TLV_LIST' if (self.payload and (len(self.payload) > 1)) else 'RAW'
         l = tagnet_message_header_s.build(self.header) + self.name.build()
         l += self.payload.build() if (self.payload) else ''
-        return l
+        return bytearray(l)
 
     def parse(self, v):
         """
         """
         hdr_size = tagnet_message_header_s.sizeof()
         self.header = tagnet_message_header_s.parse(v[0:hdr_size])
-        self.name = TagName(v[hdr_size:self.header.header_length+hdr_size+1])
+        self.name = TagName(v[hdr_size:self.header.header_length+hdr_size])
         if len(v) > (hdr_size + self.header.header_length):
-            self.payload = TagPayload(v[self.header.header_length+hdr_size+1:])
+            self.payload = TagPayload(v[self.header.header_length+hdr_size:])
+        else:
+            self.payload = None
 
 #------------ end of class definition ---------------------
 
@@ -204,11 +206,20 @@ def printmsg(msg):
     print(msg.payload)
     
 def tagmessages_test():
-    tmpoll=TagPoll()
-    tmrsp=TagResponse(tmpoll)
+    tmpoll = TagPoll()
+    tmrsp = TagResponse(tmpoll)
     printmsg(tmpoll)
     printmsg(tmrsp)
-    return tmpoll, tmrsp
-    
+    txpoll = tmpoll.build()
+    print(hexlify(txpoll))
+    ccpoll = TagMessage(txpoll)
+    xxpoll = ccpoll.build(1)
+    hdr_size = tagnet_message_header_s.sizeof()
+    print('txheader == xxheader',
+          hexlify(txpoll[0:hdr_size]) == hexlify(xxpoll[0:hdr_size]),
+          hexlify(txpoll[0:hdr_size]), hexlify(xxpoll[0:hdr_size]))
+    return tmpoll, tmrsp, ccpoll, xxpoll
+
+
 if __name__ == '__main__':
     tagmessages_test()
