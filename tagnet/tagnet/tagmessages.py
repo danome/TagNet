@@ -9,6 +9,7 @@ from binascii import hexlify
 
 TAGNET_VERSION = 1
 DEFAULT_HOPCOUNT = 20
+MAX_HOPCOUNT = 31
 
 tagnet_message_header_s = Struct('tagnet_message_header_s',
                                  Byte('frame_length'),
@@ -76,8 +77,8 @@ class TagMessage(object):
         if (self.name):
             self.header.options.version = TAGNET_VERSION
             self.header.options.param.hop_count = DEFAULT_HOPCOUNT
-        elif (len(args) != 0):
-                print('error:',args)
+        else:
+            print('error:',args)
 
     def copy(self):
         """
@@ -86,17 +87,17 @@ class TagMessage(object):
         msg = TagMessage(self)
         msg.header = self.header
         return msg
-
         
     def pkt_len(self):
         l_pl = self.payload.pkt_len() if (self.payload) else 0
         return sum([tagnet_message_header_s.sizeof(),self.name.pkt_len(),l_pl])
 
-    def build(self, hop_count=None):
+    def hop_count(self, n):
+        self.header.options.param.hop_count = n if (n < MAX_HOPCOUNT) else DEFAULT_HOPCOUNT
+
+    def build(self):
         """
-        """
-        if (hop_count):
-            self.header.options.param.hop_count = hop_count
+        """            
         self.header.frame_length = (tagnet_message_header_s.sizeof() - 1) + self.name.pkt_len()
         self.header.frame_length += (self.payload.pkt_len() if (self.payload) else 0)
         self.header.header_length = self.name.pkt_len()
@@ -213,7 +214,7 @@ def tagmessages_test():
     txpoll = tmpoll.build()
     print(hexlify(txpoll))
     ccpoll = TagMessage(txpoll)
-    xxpoll = ccpoll.build(1)
+    xxpoll = ccpoll.build()
     hdr_size = tagnet_message_header_s.sizeof()
     print('txheader == xxheader',
           hexlify(txpoll[0:hdr_size]) == hexlify(xxpoll[0:hdr_size]),

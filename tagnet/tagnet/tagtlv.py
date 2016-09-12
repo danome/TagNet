@@ -267,7 +267,7 @@ class TagTlv(object):
         if (t is tlv_types.STRING) or (t is tlv_types.NODE_NAME):
             l = len(self.value())
         elif t is tlv_types.INTEGER:
-            l = len(hex(self.value())[2:])+1
+            l = (len(hex(self.value())[2:])+1)/2
         elif t is tlv_types.GPS:
             l = len(self.value())
         elif t is tlv_types.TIME:

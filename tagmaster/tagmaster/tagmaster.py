@@ -4,18 +4,18 @@ import time
 import sys
 import signal
 import binascii
+import signal
 
-from construct        import *
-from twisted.internet import reactor, defer
-from txdbus           import client, error, objects
-from txdbus.interface import DBusInterface, Method, Signal
-from twisted.python   import log
+from twisted.internet      import reactor, defer
+from txdbus                import client, error, objects
+from txdbus.interface      import DBusInterface, Method, Signal
+from twisted.python        import log
 
-from tagnet import TagName, TagMessage, TagPayload, TagPoll
+from construct             import *
+
+from tagnet                import TagName, TagMessage, TagPayload, TagPoll
 
 log.startLogging(sys.stdout)
-
-#from tagnet import tagnet_dbus_interface
 
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
@@ -35,7 +35,7 @@ msg_header_s = Struct('msg_header_s',
 
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-# global list of tags within radio range
+# global list of tag devoces that are currently within radio range
 #
 taglist = dict()
 
@@ -58,13 +58,13 @@ class TagNetDbus(objects.DBusObject):
     """
     dbus_interfaces = [tagnet_dbus_interface]
                  
-    def __init__(self, object_path, connection):
+    def __init__(self, object_path):
         self.object_path = object_path
         super(TagNetDbus, self).__init__(object_path)
         self.obj_handler = objects.DBusObjectHandler(self)
 
     def dbus_tag_list(self, arg):
-        print 'Received remote call. Argument: ', arg
+        log.msg('Received remote call. Argument: {}'.format(arg))
         return 'You sent (%s)' % arg
 
     def tagnet_status(self):
@@ -81,6 +81,30 @@ class TagNetDbus(objects.DBusObject):
 
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
+class TagNetComponent(object):
+    def __init__(self, conn):
+        self.conn = conn
+        super(TagNetComponent, self).__init__()
+
+    def start(self, conn):
+        self.conn = conn
+        self.tag_obj = TagNetDbus(TAGNET_OBJECT_PATH)
+        self.conn.exportObject(self.tag_obj)
+        deferred = self.conn.requestBusName(TAGNET_BUS_NAME)
+        deferred.addCallback(self.got_bus)
+
+    def got_bus(self, bus_id):
+        self.bus_id = bus_id
+        log.msg('got_bus: {}'.format(bus_id))
+        
+    def on_error(self, failure):
+        log.msg(str(failure))
+
+    def report_changes(self, changes):
+        pass
+        
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
 from si446x import si446x_dbus_interface
 
 SI446X_BUS_NAME = 'org.tagnet.si446x'           # bus name for si446x device driver
@@ -90,8 +114,8 @@ POLL_DELAY = 5   # seconds
 
 class Si446xComponent(object):
     def __init__(self, conn, report_changes):
-        self.report_changes = report_changes
         self.conn = conn
+        self.report_changes = report_changes
         self.poll_count = 0
         self.recv_count = 0
         self.last_t = None
@@ -103,14 +127,14 @@ class Si446xComponent(object):
         super(Si446xComponent, self).__init__()
 
     def start(self, conn):
-        print 'get remote si446x object:  {}  {}'.format(SI446X_BUS_NAME, SI446X_OBJECT_PATH)
+        log.msg('get remote si446x object:  {}  {}'.format(SI446X_BUS_NAME, SI446X_OBJECT_PATH))
         deferred = conn.getRemoteObject(SI446X_BUS_NAME,
                                         SI446X_OBJECT_PATH,
                                         interfaces=si446x_dbus_interface)
         deferred.addCallback(self.got_remote)
 
     def got_remote(self, robj):
-        print 'got remote si446x object {}  {}'.format(SI446X_BUS_NAME, SI446X_OBJECT_PATH)
+        log.msg('got remote si446x object {}  {}'.format(SI446X_BUS_NAME, SI446X_OBJECT_PATH))
         self.robj = robj
         robj.notifyOnSignal('receive', self.on_receive)
 #        robj.notifyOnSignal('receive', self.on_receive, interface=si446x_dbus_interface)
@@ -118,53 +142,29 @@ class Si446xComponent(object):
         reactor.callLater(0, self.send_poll, robj)
 
     def send_poll(self, robj):
-        print 'send_poll'
+        log.msg('send_poll')
         msg = TagPoll().build()
-        print binascii.hexlify(msg)
+        log.msg(binascii.hexlify(msg))
         deferred =  robj.callRemote('send', msg, self.pwr)
         deferred.addCallback(self.poll_sent)
-        print 'send packet ({}:{})'.format(self.poll_count, self.recv_count)
+        log.msg('sent packet (p:{} r:{})'.format(self.poll_count, self.recv_count))
 
     def poll_sent(self, e):
-        print 'poll_sent'
+        log.msg('poll_sent')
         self.poll_count += 1
         reactor.callLater(POLL_DELAY, self.send_poll, self.robj)
 
     def on_error(self, failure):
-        import sys
-        sys.stderr.write(str(failure))
+        log.msg(str(failure))
 
-    def on_receive(self, msg, pwr):
-        print 'on_receive'
+    def on_receive(self, msg, rssi):
+        log.msg('on_receive')
         changes = []
         self.report_changes(changes)
         self.this_t = time.time()
         self.last_t = self.last_t if (self.last_t) else time.time()
         self.last_t = self.this_t
 
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-class TagNetComponent(object):
-    def __init__(self, conn):
-        self.conn = conn
-        super(TagNetComponent, self).__init__()
-
-    def start(self, conn):
-        self.tag_obj = TagNetDbus(TAGNET_OBJECT_PATH, conn)
-        conn.exportObject(self.tag_obj)
-        deferred = conn.requestBusName(TAGNET_BUS_NAME)
-        deferred.addCallback(self.got_bus)
-
-    def got_bus(self, bus_id):
-        self.bus_id = bus_id
-        
-    def on_error(self, failure):
-        import sys
-        sys.stderr.write(str(failure))
-
-    def report_changes(self, changes):
-        pass
-        
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 def reactor_loop():
@@ -175,7 +175,7 @@ def reactor_loop():
         """
         called when the twisted reactor is running
         """
-        print 'running'
+        log.msg('reactor_loop Starting')
         try:
             conn = client.connect(reactor)
             tagnet_do = TagNetComponent(conn)
@@ -186,7 +186,7 @@ def reactor_loop():
             conn.addCallback(si446x_do.start)
             conn.addErrback(si446x_do.on_error)
         except error.DBusException, e:
-            print 'DBus Setup Error:', e
+            log.msg('reactor_loop Setup Error: {}'.format(e))
             reactor.stop()
 
     signal.signal(signal.SIGINT, SIGINT_CustomEventHandler)

@@ -12,6 +12,6 @@ from tagmessages import TagMessage, TagPayload, TagPoll, TagBeacon, TagGet, TagP
 from tagdef import *
 from tagtlv import TagTlv, TagTlvList, tlv_types
 
-__version__ = '0.0.3'
+__version__ = '0.0.4'
 
 print 'tagnet driver version {}'.format(__version__)

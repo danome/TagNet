@@ -41,9 +41,7 @@ si446x_dbus_interface = DBusInterface( BUS_NAME,
                             Signal('send_cmp', 's'),
                          )
 
-# class Si446xDbus - driver is controlled by this dbus interface
-#
-class Si446xDbus (objects.DBusObject):
+class Si446xDbus(objects.DBusObject):
     """
     provides the interface for accessing the SI446x Radio Chip Driver
     """
