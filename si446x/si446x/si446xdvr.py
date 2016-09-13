@@ -339,9 +339,10 @@ def start_driver(fsm, radio, dbus):
     """
     s = ' Si446x radio driver [ {}, {} ] is ready for business'
     print(s.format(BUS_NAME, OBJECT_PATH))
-    dbus.signal_new_status()
     # transition radio automatically out of off state
     step_fsm(fsm,radio, Events.E_TURNON)
+    # signal state change on dbus
+    dbus.signal_new_status()
 
 # MAIN Initialization
 #
