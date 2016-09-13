@@ -41,10 +41,10 @@ taglist = dict()
 
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-TAGNET_BUS_NAME = 'org.tagnet.tagnet'           # bus name for tagnet forwarder
-TAGNET_OBJECT_PATH = '/org/tagnet/tagnet'
+TAGNET_BUS_NAME = 'org.tagnet.tagmaster'           # bus name for tagnet forwarder
+TAGNET_OBJECT_PATH = '/org/tagnet/tagmaster'
 
-tagnet_dbus_interface = DBusInterface(TAGNET_BUS_NAME,
+tagmaster_dbus_interface = DBusInterface(TAGNET_BUS_NAME,
                                       Method('tag_list', arguments='s', returns='ay' ),
                                       Signal('tag_found', 'ay' ),  # report new tag
                                       Signal('tag_lost', 'ay' ),   # report tag out of range
@@ -56,27 +56,28 @@ class TagNetDbus(objects.DBusObject):
     """
     provides the interface for accessing the tagnet port
     """
-    dbus_interfaces = [tagnet_dbus_interface]
+    dbusInterfaces = [tagmaster_dbus_interface]
                  
     def __init__(self, object_path):
-        self.object_path = object_path
         super(TagNetDbus, self).__init__(object_path)
+        self.object_path = object_path
         self.obj_handler = objects.DBusObjectHandler(self)
+        log.msg('TagNetDbus-init, {}'.format(self.object_path))
 
     def dbus_tag_list(self, arg):
-        log.msg('Received remote call. Argument: {}'.format(arg))
-        return 'You sent (%s)' % arg
+        log.msg('TagNetDbus-tag_list: {}'.format(arg))
+        return bytearray('You sent {}'.format(arg))
 
-    def tagnet_status(self):
+    def signal_tagnet_status(self):
         self.emitSignal('tagnet_status', bytearray('ok'))
 
-    def tag_lost(self):
+    def signal_tag_lost(self):
         self.emitSignal('tag_lost', bytearray('ok'))
 
-    def tag_found(self):
+    def signal_tag_found(self):
         self.emitSignal('tag_found', bytearray('ok'))
 
-    def tag_events(self):
+    def signal_tag_events(self):
         self.emitSignal('tag_events', bytearray('ok'))
 
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -85,22 +86,27 @@ class TagNetComponent(object):
     def __init__(self, conn):
         self.conn = conn
         super(TagNetComponent, self).__init__()
+        log.msg('TagNetComponent-init, {}'.format(self.conn))
 
     def start(self, conn):
         self.conn = conn
-        self.tag_obj = TagNetDbus(TAGNET_OBJECT_PATH)
-        self.conn.exportObject(self.tag_obj)
-        deferred = self.conn.requestBusName(TAGNET_BUS_NAME)
-        deferred.addCallback(self.got_bus)
+        log.msg('TagNetComponent-start, {}'.format(self.conn))
+        try:
+            self.conn.exportObject(TagNetDbus(TAGNET_OBJECT_PATH))
+            deferred = self.conn.requestBusName(TAGNET_BUS_NAME)
+            deferred.addCallback(self.dbus_ready)
+        except error.DBusException, e:
+            log.msg('TagNetComponent-start-error, {}'.format(e))
 
-    def got_bus(self, bus_id):
+    def dbus_ready(self, bus_id):
         self.bus_id = bus_id
-        log.msg('got_bus: {}'.format(bus_id))
+        log.msg('TagNetComponent-bus_ready: {}, {}'.format(TAGNET_BUS_NAME, self.bus_id))
         
     def on_error(self, failure):
-        log.msg(str(failure))
+        log.msg('TagNetComponent-error: {}'.format(str(failure)))
 
     def report_changes(self, changes):
+        log.msg('TagNetComponent-report_changes, {}'.format(changes))
         pass
         
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
