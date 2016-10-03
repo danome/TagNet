@@ -1,10 +1,19 @@
+from __future__ import print_function   # python3 print function
+from builtins import *
+
 from si446xdef import *
 from construct import *
 from time import time, ctime, mktime, localtime, strptime, strftime
 import sys
-#import inspect
+
+from binascii import hexlify
 
 class Trace:
+    """
+    This class provides control and support functions for low level radio
+    trace handling. The trace events are added to a circular buffer that
+    can be displayed when needed.
+    """
     def __init__(self, size, form='%Y.%m.%d %H:%M:%S'):
         self.rb = RingBuffer(size)
         self.size = size
@@ -12,13 +21,18 @@ class Trace:
         self.date_f=form
         self.disabled = False
         
-    def add(self, where, data, s_name=None, level=1):
+    def add(self, where, data, s_name='string', level=1):
+        """
+        add a new trace record. where is a well known name for the record type,
+        s_name is an optional name of the structure used to decode contents,
+        and level is the number of stack frames to include for call history
+        """
         if (self.disabled):
             return
-        where_id = radio_trace_ids.build(where)
+        where_id = ord(radio_trace_ids.build(where))
         sig = ' '
         stack = []
-        for x in range(level,0,-1):
+        for x in range(level+1,1,-1):
             try:
                 stack.append(
                     (sys._getframe(x).f_code.co_name, sys._getframe(x).f_lineno))
@@ -26,7 +40,7 @@ class Trace:
                 continue
         for fn,ln in stack[-level:]:
             sig += '{}:{} -> '.format(fn,ln)
-        self.rb.append([time(), where_id, sig, s_name, data])
+        self.rb.append(tuple([time(), where_id, sig, s_name, data]))
 
     def _disable(self):
         self.disabled = True
@@ -35,12 +49,24 @@ class Trace:
         self.disabled = False
         
     def format_time(self, t):
+        """
+        t = time.time() -> 1475131726.001496
+        format_time(t)  -> '2016.09.28 23:49:05.262983'
+        """
         return strftime(self.date_f,localtime(t))+'.{:.6}'.format(str(t%1)[2:])
 
     def parse_time(self, s):
+        """
+        s               -> '2016.09.28 23:49:05.262983'
+        parse_time(t)   -> 1475131726.001496
+        """
         return mktime(strptime(s[:-7],self.date_f))+float('.'+s[-6:])
         
     def _format(self,t,where,sig,s_name,data):
+        """
+        format a trace record based on t (time) where (record type), 
+        signature (stack trace), and s_name (structure to decode data with)
+        """
         if ((where == 'RADIO_CMD') or
             (where == 'RADIO_RSP') or
             (where == 'RADIO_DUMP') or
@@ -50,7 +76,7 @@ class Trace:
             try:
                 s += eval(s_name).parse(data).__repr__()
             except:
-                s += data.encode('hex')
+                s += data if isinstance(data, types.StringType) else binascii.hexlify(data)
         else:
             s = ' ' + data
         last_d = t-self.last_t if (self.last_t) else 0
@@ -101,14 +127,16 @@ class Trace:
                 if (where == mark):
                     self.mark_t = t
                 count -= 1
-            print self._format(t,where,sig,s_name,data)
             self.last_t = t
-#            print self.last_t, count, span_d
             if ((not span_d) and (count <= 0)):
                 break
 #end class
 
 class RingBuffer:
+    """
+    in-memory ringbuffer used to hold the trace records. note that the
+    class is modified to handle first full wrap differently
+    """
     def __init__(self,size_max):
         self.max = size_max
         self.data = []
@@ -131,6 +159,9 @@ class RingBuffer:
         """ return a list of elements from the oldest to the newest"""
         return self.data
     class RingBufferFull:
+        """
+        same class definition, but handles the wrapped case
+        """
         def __init__(self,n):
             raise "you should use RingBuffer"
         def len(self):
@@ -159,7 +190,7 @@ class RingBuffer:
 # test
 #
 def spi(t, cmd, s_name):
-    t.add('RADIO_CMD', cmd, s_name)
+    t.add('RADIO_CMD', cmd, s_name, level=2)
 
 def f1(t):
     request = change_state_cmd_s.parse('\x00' * change_state_cmd_s.sizeof())
@@ -167,10 +198,18 @@ def f1(t):
     cmd = change_state_cmd_s.build(request)
     spi(t, cmd, change_state_cmd_s.name)
 
-def f0():
-    t = Trace(10)
+def f0(t):
     f1(t)
     t.display()
 
+def si446xtrace_test():
+    t = Trace(10)
+    f0(t)
+    i=time()
+    s=t.format_time(i)
+    o=t.parse_time(s)
+    if i != o: print('si446xtrace_test fail, i should equal o')
+    return i,o,s
+
 if __name__=='__main__':
-    f0()
+    print(si446xtrace_test())

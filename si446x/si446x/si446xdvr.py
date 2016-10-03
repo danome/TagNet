@@ -2,25 +2,29 @@
 #
 #
 from __future__ import print_function
+from builtins import *
+
+import os
+import signal
+import platform
 from time import sleep, time
 import binascii
-import os
-import platform
 
 from twisted.python.constants import Names, NamedConstant
-from twisted.internet import reactor
+from twisted.internet         import reactor
+from twisted.python           import log
 
-from txdbus import client, objects
-from txdbus.interface import DBusInterface, Method, Signal
+from txdbus                   import client, objects
+from txdbus.interface         import DBusInterface, Method, Signal
 
-from machinist import TransitionTable, MethodSuffixOutputer, constructFiniteStateMachine
+from machinist                import TransitionTable, MethodSuffixOutputer, constructFiniteStateMachine
 
-from construct import *
+from construct                import *
 
-from si446xFSM import Events, Actions, States, table
-from si446xact import Si446xFsmActionHandlers
-from si446xradio import Si446xRadio
-from si446xdef import *
+from si446xFSM                import Events, Actions, States, table
+from si446xact                import Si446xFsmActionHandlers
+from si446xradio              import Si446xRadio
+from si446xdef                import *
 import si446xtrace
 
 BUS_NAME = 'org.tagnet.si446x'
@@ -31,7 +35,7 @@ si446x_dbus_interface = DBusInterface( BUS_NAME,
                             Method('clear_status', returns='s'),
                             Method('control', arguments='s', returns='s'),
                             Method('dump_radio', arguments='s', returns='s'),
-                            Method('dump_trace', arguments='sissu', returns='s'),
+                            Method('dump_trace', arguments='sissu', returns='a(dysss)'),
                             Method('send', arguments='ayu', returns='s'),
                             Method('spi_send', arguments='ays', returns='s'),
                             Method('spi_send_recv', arguments='ayuss', returns='ay'),
@@ -112,8 +116,10 @@ class Si446xDbus(objects.DBusObject):
         return 'ok ' + self.radio.trace.format_time(time())
     
     def dbus_dump_trace(self, f, n, t, m, s):
-        self.trace.display(filter=f, count=n, begin=t, mark=m, span=s)
-        return 'ok ' + self.radio.trace.format_time(time())
+#        self.trace.display(filter=f, count=n, begin=t, mark=m, span=s)
+        ar = self.trace.rb.get()
+        print(type(ar[0]),ar[0])
+        return self.trace.rb.get()
     
     def dbus_send(self, buf, power):
         if (self.fsm['actions'].tx['buffer']):
@@ -299,7 +305,7 @@ def step_fsm(fsm, radio, ev):
     frr = radio.fast_all()
     s = '{} / {} frr:{}'.format(ev.name,
                   fsm['machine'].state.name,
-                  frr.encode('hex'))
+                                binascii.hexlify(frr))
     fsm['trace'].add('RADIO_FSM', s)
     fsm['machine'].receive(ev)
     #if (frr[1] or frr[2]):
@@ -344,36 +350,55 @@ def start_driver(fsm, radio, dbus):
     # signal state change on dbus
     dbus.signal_new_status()
 
-# MAIN Initialization
-#
-def onConnected(conn):
-    fsm, radio, dbus = setup_driver()
-    conn.exportObject(dbus)
-    dn = conn.requestBusName(BUS_NAME)
-    
-    def onReady(_):
-        start_driver(fsm, radio, dbus)
-
-    dn.addCallback(onReady)
-    return dn
-
-def onErr(err):
-    print('Failed: ', err.getErrorMessage())
-    reactor.stop()
-
 def reactor_loop():
+    """
+    SI446x Driver reactor loop
+    """
+    fsm = None
+    radio = None
+    dbus = None
+    def onConnected(conn):
+        fsm, radio, dbus = setup_driver()
+        conn.exportObject(dbus)
+        dn = conn.requestBusName(BUS_NAME)
+    
+        def onReady(_):
+            start_driver(fsm, radio, dbus)
+
+        dn.addCallback(onReady)
+        return dn
+
+    def onErr(err):
+        print('Failed: ', err.getErrorMessage())
+        reactor.stop()
+
+    def SIGINT_CustomEventHandler(num, frame):
+        k={1:"SIGHUP", 2:"SIGINT"}
+        log.msg("Recieved signal - " + k[num])
+        if frame is not None:
+            log.msg("SIGINT at %s:%s"%(frame.f_code.co_name, frame.f_lineno))
+        log.msg("In SIGINT_CustomEventHandler")
+        if num == 2:
+            log.msg("shutting down ....")
+            if (radio): radio.shutdown()
+            reactor.stop()
+
+    signal.signal(signal.SIGINT, SIGINT_CustomEventHandler)
+    signal.signal(signal.SIGHUP, SIGINT_CustomEventHandler)
     dc = client.connect(reactor)
     dc.addCallback(onConnected)
     dc.addErrback(onErr)
     reactor.run()
 
 if __name__ == '__main__':
+    log.startLogging(sys.stdout)
     reactor_loop()
 
 
-### extra
-#
-def cycle():
+def si446xdvr_test():
+    """
+    unit test
+    """
     fsm, radio, dbus = setup_driver()
     start_driver(fsm, radio, dbus)
     #radio.trace.display()

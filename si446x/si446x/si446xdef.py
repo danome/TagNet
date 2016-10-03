@@ -1,3 +1,6 @@
+from __future__ import print_function   # python3 print function
+from builtins import *
+
 from construct import *
 
 try:

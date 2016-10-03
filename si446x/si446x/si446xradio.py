@@ -1,3 +1,6 @@
+from __future__ import print_function   # python3 print function
+from builtins import *
+
 from time import sleep, localtime
 import binascii
 
@@ -62,7 +65,7 @@ class SpiInterface:
             self.trace.add('RADIO_CTS_ERROR', 'no cts [1]', level=2)
         try:
             self.form = form
-            self.trace.add('RADIO_CMD', pkt, form, level=2)
+            self.trace.add('RADIO_CMD', bytearray(pkt), form, level=2)
             self.spi.xfer2(list(bytearray(pkt)))
         except IOError as e:
             self.trace.add('RADIO_CMD_ERROR', e, level=2)
@@ -74,7 +77,7 @@ class SpiInterface:
             self.trace.add('RADIO_RSP_ERROR', 'no cts [2]', level=2)
         try:
             r = self.spi.xfer2([0x44] + rlen * [0])
-            rsp = ''.join([chr(item) for item in r[1:]])
+            rsp = bytearray(r[1:rlen+1])
             form = form if (form) else self.form
             self.trace.add('RADIO_RSP', rsp, form, level=2)
         except IOError as e:
@@ -99,27 +102,25 @@ class SpiInterface:
         if (len > 4):
             self.trace.add('RADIO_FRR_TOO_LONG', 'len: {}, off: {}'.format(len,off), level=2)
         r = self.spi.xfer2([0x50 + index[off]] + len * [0])
-        rsp = ''.join([chr(item) for item in r[1:len+1]])
+        rsp = bytearray(r[1:len+1])
         self.trace.add('RADIO_FRR', rsp, fast_frr_rsp_s.name, level=2)
         return rsp
 #end class
-
-# _gpio_callback
-#
-def _gpio_callback(channel):
-    print('si446xradio: Edge detected on channel %s'%channel)
 
 ##########################################################################
 
 class Si446xRadio(object):
     """ class for handling low level Radio device control"""
-    def __init__(self, device=0, callback=_gpio_callback, trace=None):
+    def __init__(self, device=0, callback=None, trace=None):
         self.trace = trace if (trace) else si446xtrace.Trace(100)
         self.channel = 0
-        self.callback = callback
+        self.callback = callback if (callback) else self._gpio_callback
         self.dump_strings = {}
         self.spi = SpiInterface(device, trace=self.trace)
     #end def
+
+    def _gpio_callback(self, channel):
+        self.trace.add('si446xradio: Edge detected on channel %s'%channel)
 
     def change_state(self, state,  wait=0):
         """
@@ -193,12 +194,17 @@ class Si446xRadio(object):
 
     def dump_radio(self):
         """
-        Dump all of the current radio chip configuration to memory
+        Dump all of the current radio chip configuration to memory. This is a side effect of
+        getting all the properties since all spi_ I/O operations are traced.
         """
         for gp_n, gp_s in radio_config_groups.iteritems():
             i = 0
             s = ''
             while (True):
+                """
+                accumulate entire property, repeating get_ for MAX_RADIO_RSP size (16 bytes)
+                until all pieces have been retrieved.
+                """
                 r = gp_s.sizeof() - i
                 x = r if (r < MAX_RADIO_RSP) else MAX_RADIO_RSP
                 s += self.get_property(radio_config_group_ids.parse(gp_n), i, x)
@@ -207,7 +213,6 @@ class Si446xRadio(object):
                     break
             self.dump_strings[gp_n] = s
             self.dump_time = localtime()
-        #dump gpio, part_info, func_info, gpio_pin_cfg, fifo_info, int_status, device_state, frr, modem_status, ph_status, chip_status, adc_reading, 
     #end def
 
     def enable_interrupts(self):
@@ -378,7 +383,7 @@ class Si446xRadio(object):
         rsp = self.spi.response(17, get_property_rsp_s.name)
         if (rsp):
             response = get_property_rsp_s.parse(rsp)
-            return str(bytearray(response.data)[:len])
+            return bytearray(response.data)[:len]
         return None
     #end def
 
@@ -566,3 +571,39 @@ class Si446xRadio(object):
     #end def
 
 #end class
+
+def si446xtrace_test_callback():
+    print('tested radio callback')
+
+def test_trace(radio, trace):
+    for t in trace.rb.data:
+        print(type(t[4]),t)
+
+def test_radio(radio, trace):
+    radio.unshutdown()
+    radio.power_up()
+    radio.config_frr()
+    list_of_lists = radio.get_config_lists()
+    for l in list_of_lists:
+        x = 0
+        while (True):
+            s = l(x)
+            if (not s): break
+            radio.send_config(s)
+            x += len(s) + 1
+    radio.set_property('INT_CTL', 0, '\x03\x3b\x23\x00')
+    radio.set_property('PKT', 0x0c, '\x10')
+    radio.fast_all()
+    radio.dump_radio()
+    
+def si446xtrace_test():
+    import si446xtrace
+    trace =  si446xtrace.Trace(100)
+    radio = Si446xRadio(device=0, callback=si446xtrace_test_callback, trace=trace)
+    test_radio(radio, trace)
+    test_trace(radio, trace)
+    return trace, radio
+
+if __name__ == '__main__':
+    t,r = si446xtrace_test()
+    

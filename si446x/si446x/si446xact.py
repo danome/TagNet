@@ -1,3 +1,6 @@
+from __future__ import print_function   # python3 print function
+from builtins import *
+
 from time import sleep
 
 import spidev

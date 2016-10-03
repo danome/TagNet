@@ -22,11 +22,14 @@ tagnet_message_header_s = Struct('tagnet_message_header_s',
                                                 TLV_LIST          = 1,
                                                 ),
                                            Enum(BitField('message_type',3),
-                                                NOT_USED          = 0, # must be non-zero value for validity checking
-                                                POLL              = 1,
-                                                BEACON            = 2,
-                                                PUT               = 3,
-                                                GET               = 4,
+                                                POLL              = 0,
+                                                BEACON            = 1,
+                                                HEAD              = 2,
+                                                POST              = 3,
+                                                PUT               = 4,
+                                                GET               = 5,
+                                                DELETE            = 6,
+                                                PATCH             = 7,
                                                 ),
                                            Union('param',
                                                  BitField('hop_count',5),
@@ -34,13 +37,14 @@ tagnet_message_header_s = Struct('tagnet_message_header_s',
                                                       OK              = 0,
                                                       NO_ROUTE        = 1,
                                                       TOO_MANY_HOPS   = 2,
-                                                      TOO_LARGE       = 3,
+                                                      MTU_EXCEEDED    = 3,
                                                       UNSUPPORTED     = 4,
                                                       BAD_MESSAGE     = 5,
+                                                      FAILED          = 6,
                                                       ),
                                                  ),
                                            ),
-                                 Byte('header_length'),
+                                 Byte('name_length'),
                                  )
 from tagnames import TagName
 from tagtlv import tlv_types
@@ -100,7 +104,7 @@ class TagMessage(object):
         """            
         self.header.frame_length = (tagnet_message_header_s.sizeof() - 1) + self.name.pkt_len()
         self.header.frame_length += (self.payload.pkt_len() if (self.payload) else 0)
-        self.header.header_length = self.name.pkt_len()
+        self.header.name_length = self.name.pkt_len()
         self.header.options.tlv_payload = 'TLV_LIST' if (self.payload and (len(self.payload) > 1)) else 'RAW'
         l = tagnet_message_header_s.build(self.header) + self.name.build()
         l += self.payload.build() if (self.payload) else ''
@@ -111,9 +115,9 @@ class TagMessage(object):
         """
         hdr_size = tagnet_message_header_s.sizeof()
         self.header = tagnet_message_header_s.parse(v[0:hdr_size])
-        self.name = TagName(v[hdr_size:self.header.header_length+hdr_size])
-        if len(v) > (hdr_size + self.header.header_length):
-            self.payload = TagPayload(v[self.header.header_length+hdr_size:])
+        self.name = TagName(v[hdr_size:self.header.name_length+hdr_size])
+        if len(v) > (hdr_size + self.header.name_length):
+            self.payload = TagPayload(v[self.header.name_length+hdr_size:])
         else:
             self.payload = None
 

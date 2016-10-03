@@ -35,7 +35,7 @@ msg_header_s = Struct('msg_header_s',
 
 #@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-# global list of tag devoces that are currently within radio range
+# global list of tag devices that are currently within radio range
 #
 taglist = dict()
 

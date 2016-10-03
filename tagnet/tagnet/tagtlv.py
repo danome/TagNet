@@ -1,5 +1,5 @@
 from __future__ import print_function   # python3 print function
-from builtins import *
+from builtins import *                  # python3 types
 import os, sys, types
 from os.path import normpath, commonprefix
 import binascii
@@ -17,6 +17,10 @@ class tlv_types(enum.Enum):
     TIME                   =  4
     NODE_ID                =  5
     NODE_NAME              =  6
+    OFFSET                 =  7
+    COUNT                  =  8
+    EOF                    =  9
+    VERSION                = 10
 
 from tagdef import *
 
@@ -234,7 +238,7 @@ class TagTlv(object):
             v = self.value().encode()
         elif t is tlv_types.INTEGER:
             n = int(self.value())
-            v = n.to_bytes((len(hex(n)[2:])+1)/2,'big')
+            v = n.to_bytes((len(hex(n)[2:])+1)/2,'big', signed=True)
         elif t is tlv_types.GPS:
             v = self.value().encode()
         elif t is tlv_types.TIME:
