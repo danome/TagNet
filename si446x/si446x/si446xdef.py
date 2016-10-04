@@ -3,11 +3,6 @@ from builtins import *
 
 from construct import *
 
-try:
-    bytes
-except NameError:
-    bytes = str
-
     
 #################################################################
 #
@@ -830,22 +825,35 @@ radio_config_commands = {
     radio_config_cmd_ids.build('GET_CHIP_STATUS'): (None, None),    
 }
 
-def Si446xTraceIds_t(subcon):
-    return Enum(subcon,
-                RADIO_ERROR            = 0,
-                RADIO_CMD              = 1,
-                RADIO_RSP              = 2,
-                RADIO_GROUP            = 3,
-                RADIO_RX_FIFO          = 4,
-                RADIO_TX_FIFO          = 5,
-                RADIO_FRR              = 6,
-                RADIO_FSM              = 7,
-                RADIO_INT              = 8,
-                RADIO_DUMP             = 9,
-                RADIO_ACTION           = 10,
-                RADIO_IOC              = 11,
-                RADIO_CHIP             = 12,
-                RADIO_GPIO             = 13,
-           )
+class RadioTraceIds(object):
+    RADIO_ERROR            = 0
+    RADIO_CMD              = 1
+    RADIO_RSP              = 2
+    RADIO_GROUP            = 3
+    RADIO_RX_FIFO          = 4
+    RADIO_TX_FIFO          = 5
+    RADIO_FRR              = 6
+    RADIO_FSM              = 7
+    RADIO_INT              = 8
+    RADIO_DUMP             = 9
+    RADIO_ACTION           = 10
+    RADIO_IOC              = 11
+    RADIO_CHIP             = 12
+    RADIO_GPIO             = 13
+    def by_value(self, v):
+        for a,b in RadioTraceIds().__class__.__dict__.iteritems():
+            if a.startswith('__'): continue
+            if (b == v): return a
+    def by_name(self, n):
+        for a,b in RadioTraceIds().__class__.__dict__.iteritems():
+            if a.startswith('__'): continue
+            if (a == n): return b
 
-radio_trace_ids = Si446xTraceIds_t(Byte('radio_trace_ids'))
+radio_trace_ids = RadioTraceIds()
+
+def si446xdef_test():
+    r = RadioTraceIds()
+    print(r.by_name('RADIO_GPIO'), r.by_value(r.by_name('RADIO_GPIO')))
+
+if __name__ == '__main__':
+    r = si446xdef_test()

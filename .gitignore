@@ -8,3 +8,4 @@ _trial_temp*
 dist
 build
 MANIFEST
+*egg-info*

@@ -19,6 +19,8 @@ from si446xdef import *
 from si446xcfg import get_config_wds, get_config_local
 import si446xtrace
 
+__all__ = ['SpiInterface', 'Si446xRadio', 'si446xtrace_test']
+
 ##########################################################################
 #
 # _get_cts
@@ -605,5 +607,6 @@ def si446xtrace_test():
     return trace, radio
 
 if __name__ == '__main__':
+
     t,r = si446xtrace_test()
     

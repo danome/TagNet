@@ -30,7 +30,7 @@ class Si446xComponent(object):
     def __init__(self, conn, report_changes=None):
         self.conn = conn
         self.report_changes = report_changes
-        self.poll_count = 0
+        self.send_count = 0
         self.recv_count = 0
         super(Si446xComponent, self).__init__()
 
@@ -53,12 +53,15 @@ class Si446xComponent(object):
         log.msg('get_dump')
         deferred =  robj.callRemote('dump_trace', '', 0, '', '', 0)
         deferred.addCallback(self.got_dump)
-        log.msg('sent packet (p:{} r:{})'.format(self.poll_count, self.recv_count))
+        log.msg('sent packet (p:{} r:{})'.format(self.send_count, self.recv_count))
+        self.send_count += 1
 
     def got_dump(self, arg):
         log.msg('got_dump')
-        print(len(arg), arg[0])
+        for a in arg:
+            print(type(a), len(a), a)
         reactor.callLater(POLL_DELAY, self.get_dump, self.robj)
+        self.recv_count += 1
 
     def on_error(self, failure):
         log.msg(str(failure))

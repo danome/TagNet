@@ -8,14 +8,16 @@ import sys
 
 from binascii import hexlify
 
+__all__ = ['Trace', 'RingBuffer', 'si446xtrace_test']
+
 class Trace:
     """
     This class provides control and support functions for low level radio
     trace handling. The trace events are added to a circular buffer that
     can be displayed when needed.
     """
-    def __init__(self, size, form='%Y.%m.%d %H:%M:%S'):
-        self.rb = RingBuffer(size)
+    def __init__(self, size, form='%Y.%m.%d %H:%M:%S', rb=None):
+        self.rb = rb if (rb) else RingBuffer(size)
         self.size = size
         self.index = 0
         self.date_f=form
@@ -29,7 +31,7 @@ class Trace:
         """
         if (self.disabled):
             return
-        where_id = ord(radio_trace_ids.build(where))
+        where_id = radio_trace_ids.by_name(where)
         sig = ' '
         stack = []
         for x in range(level+1,1,-1):
@@ -40,7 +42,7 @@ class Trace:
                 continue
         for fn,ln in stack[-level:]:
             sig += '{}:{} -> '.format(fn,ln)
-        self.rb.append(tuple([time(), where_id, sig, s_name, data]))
+        self.rb.append(tuple([time(), where_id, sig, s_name, bytearray(data)]))
 
     def _disable(self):
         self.disabled = True
@@ -102,7 +104,7 @@ class Trace:
                 xb = RingBuffer(count)
                 n = 0
                 for t,where_id,sig,s_name,data in self.rb.get():
-                    where = radio_trace_ids.parse(where_id)
+                    where = radio_trace_ids.by_value(where_id)
                     if where in filter:
                         xb.append(n)
                     n += 1
@@ -112,7 +114,7 @@ class Trace:
         elif (count == 0):
             count = self.size
         for t,where_id,sig,s_name,data in self.rb.peek(depth):
-            where = radio_trace_ids.parse(where_id)
+            where = radio_trace_ids.by_value(where_id)
             if (span_d):
                 span_d -= 1
             else:
@@ -130,6 +132,7 @@ class Trace:
             self.last_t = t
             if ((not span_d) and (count <= 0)):
                 break
+            print(t,where_id,where,sig,s_name,data)
 #end class
 
 class RingBuffer:

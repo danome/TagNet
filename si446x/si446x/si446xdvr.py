@@ -27,6 +27,8 @@ from si446xradio              import Si446xRadio
 from si446xdef                import *
 import si446xtrace
 
+__all__ = ['BUS_NAME', 'OBJECT_PATH', 'si446x_dbus_interface', 'Si446xDbus', 'reactor_loop']
+
 BUS_NAME = 'org.tagnet.si446x'
 OBJECT_PATH = '/org/tagnet/si446x/0/0'   # object name includes device id/port numbers
 
@@ -35,7 +37,7 @@ si446x_dbus_interface = DBusInterface( BUS_NAME,
                             Method('clear_status', returns='s'),
                             Method('control', arguments='s', returns='s'),
                             Method('dump_radio', arguments='s', returns='s'),
-                            Method('dump_trace', arguments='sissu', returns='a(dysss)'),
+                            Method('dump_trace', arguments='sissu', returns='a(dyssay)'),
                             Method('send', arguments='ayu', returns='s'),
                             Method('spi_send', arguments='ays', returns='s'),
                             Method('spi_send_recv', arguments='ayuss', returns='ay'),
@@ -116,9 +118,6 @@ class Si446xDbus(objects.DBusObject):
         return 'ok ' + self.radio.trace.format_time(time())
     
     def dbus_dump_trace(self, f, n, t, m, s):
-#        self.trace.display(filter=f, count=n, begin=t, mark=m, span=s)
-        ar = self.trace.rb.get()
-        print(type(ar[0]),ar[0])
         return self.trace.rb.get()
     
     def dbus_send(self, buf, power):
@@ -390,11 +389,6 @@ def reactor_loop():
     dc.addErrback(onErr)
     reactor.run()
 
-if __name__ == '__main__':
-    log.startLogging(sys.stdout)
-    reactor_loop()
-
-
 def si446xdvr_test():
     """
     unit test
@@ -403,7 +397,7 @@ def si446xdvr_test():
     start_driver(fsm, radio, dbus)
     #radio.trace.display()
     import timeit
-    sp= "from si446x import si446xdvr,si446xFSM,si446xact;fsm, radio, dbus=si446xdvr.setup_driver();a=fsm['actions'];radio.trace._disable()"
+    sp= "import si446xdvr,si446xFSM,si446xact;fsm, radio, dbus=si446xdvr.setup_driver();a=fsm['actions'];radio.trace._disable()"
     num = 1000
     st="fsm['actions'].output_A_NOP(si446xFSM.Events.E_0NOP)"
     print('{}:{} {}'.format(timeit.timeit(stmt=st,setup=sp,number=num),num,st))
@@ -412,7 +406,7 @@ def si446xdvr_test():
     st="si446xact.no_op(fsm['actions'],si446xFSM.Events.E_0NOP)"
     print('{}:{} {}'.format(timeit.timeit(stmt=st,setup=sp,number=num),num,st))
 
-    sp= "from si446x import si446xdvr,si446xFSM,si446xact;fsm, radio, dbus=si446xdvr.setup_driver();a=fsm['actions'];radio.trace._enable()"
+    sp= "import si446xdvr,si446xFSM,si446xact;fsm, radio, dbus=si446xdvr.setup_driver();a=fsm['actions'];radio.trace._enable()"
     st="fsm['actions'].output_A_NOP(si446xFSM.Events.E_0NOP)"
     print('{}:{} {}'.format(timeit.timeit(stmt=st,setup=sp,number=num),num,st))
     st="a.output_A_NOP(si446xFSM.Events.E_0NOP)"
@@ -426,3 +420,8 @@ def si446xdvr_test():
     #if ((i % 1000) == 0): radio.trace.display(count=-10)
 
     return [fsm, radio, dbus]
+
+
+if __name__ == '__main__':
+    si446xdvr_test()
+
