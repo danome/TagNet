@@ -16,6 +16,7 @@ from twisted.python        import log
 from construct             import *
 
 from tagnet                import TagName, TagMessage, TagPayload, TagPoll
+from si446x                import si446xtrace, si446xdef
 
 log.startLogging(sys.stdout)
 
