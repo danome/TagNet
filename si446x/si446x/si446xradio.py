@@ -74,7 +74,7 @@ class SpiInterface:
 
     def response(self, rlen, form):
         _get_cts_wait(100)
-        rsp = ''
+        rsp = bytearray()
         if (not _get_cts()):
             self.trace.add('RADIO_RSP_ERROR', 'no cts [2]', level=2)
         try:
@@ -480,8 +480,8 @@ class Si446xRadio(object):
         """
         Set radio transmission power level (0x7f = 20dBm)
         """
-#        pkt = ''.join([chr(item) for item in [0x18, level, 0]])
-        self.set_property('PA', 1, chr(level & 0x7f))
+        print("set_power",level,type(level))
+        self.set_property('PA', 1, bytearray(level & 0x7f))
     #end def
 
     def shutdown(self):
@@ -569,7 +569,7 @@ class Si446xRadio(object):
         """
         Write data into the radio chip transmit fifo
         """
-        self.spi.write_fifo(dat)
+        self.spi.write_fifo(bytearray(dat))
     #end def
 
 #end class
