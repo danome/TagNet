@@ -35,11 +35,11 @@ setup(
     description      = DESCRIPTION,
     license          = "MIT",
     long_description ="""\
-Packet level driver for Si446x radio chip""",
+Packet level driver for si446x radio chip""",
     url              = 'https://github.com/dmaltbie/Tagnet/si446x',
     author           = 'Dan Maltbie',
     author_email     = 'dmaltbie@daloma.org',
-    install_requires = ['twisted>=10.1', 'six'],
+    install_requires = ['twisted==13.1.0', 'six'],
     provides         = ['si446x'],
     packages         = ['si446x',
                         'si446x.test'],
