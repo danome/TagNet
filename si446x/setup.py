@@ -2,9 +2,11 @@
 
 DESCRIPTION = 'Packet level driver for Si446x radio chip'
 
+# get version string from __init__.py file
+#
 import os, re
 def get_version():
-    VERSIONFILE = os.path.join('si446x', '__init__.py')
+    VERSIONFILE = os.path.join('si446x', 'si446xvers.py')
     initfile_lines = open(VERSIONFILE, 'rt').readlines()
     VSRE = r"^__version__ = ['\"]([^'\"]*)['\"]"
     for line in initfile_lines:
@@ -18,6 +20,8 @@ try:
 except ImportError:
     from distutils.core import setup, Extension
 
+# add extension for the c-file containing si446x radion config strings
+#
 config_strings = Extension('si446x/si446xcfg',
                            define_macros = [('MAJOR_VERSION', '1'),
                                             ('MINOR_VERSION', '0')],

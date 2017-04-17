@@ -1,4 +1,3 @@
-
 """
 Si446x Packet Driver: Native Python implementation for Si446x Radio Device
 
@@ -15,8 +14,4 @@ from .si446xcfg    import *
 from .si446xtrace  import *
 
 __all__ = (si446xdvr.__all__ + si446xact.__all__ + si446xradio.__all__ + si446xtrace.__all__)
-
-__version__ = '0.0.8'
-
-print 'si446x driver version {}'.format(__version__)
 
