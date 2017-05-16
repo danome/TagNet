@@ -23,10 +23,11 @@ except ImportError:
 # add extension for the c-file containing si446x radion config strings
 #
 config_strings = Extension('si446x/si446xcfg',
-                           define_macros = [('MAJOR_VERSION', '1'),
-                                            ('MINOR_VERSION', '0')],
-                           include_dirs = ['/usr/local/include'],
-                           library_dirs = ['/usr/local/lib'],
+                           define_macros = [('__version__', get_version())],
+                           include_dirs = ['/usr/local/include',
+                                           '/usr/include/python2.7'],
+                           library_dirs = ['/usr/local/lib',
+                                           '/usr/lib/python2.7'],
                            sources = ['si446x/radioconfig/si446xcfg.c'])
 
 setup(
