@@ -1,5 +1,5 @@
 
 include setup.py
-include si446x
+include si446x/*
 global-exclude _trial_temp
 graft doc
