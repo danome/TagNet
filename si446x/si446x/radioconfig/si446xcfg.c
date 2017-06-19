@@ -3,13 +3,21 @@
 #define SI446X_CHIP  0x4463
 #include "si446x.h"
 #undef SI446X_CHIP
-#include "radio_config_si446x.h"
+//#include "radio_config_si446x.h"
+#include "radio_config_si4464_30_434_2GFSK_10_20.h"
 #include "radio_platform_si446x.h"
 #include "Si446xLocalConfig.h"
 #include <Python.h>
 
-const uint8_t si446x_wds_config[] = SI446X_WDS_CONFIG_BYTES;
+const uint8_t si446x_wds_config[] = RADIO_CONFIGURATION_DATA_ARRAY;
+//const uint8_t si446x_wds_config[] = SI446X_WDS_CONFIG_BYTES;
 
+/*
+ * Each configuration string contains a length byte followed by
+ * byte string providing a radio command and parameters. Each
+ * string typically is a set_property radio command and
+ * parameters.
+ */
 const uint8_t si446x_local_config[] = {
      SI446X_GPIO_PIN_CFG_LEN,          SI446X_RF_GPIO_PIN_CFG,
      SI446X_GLOBAL_CONFIG_1_LEN,       SI446X_GLOBAL_CONFIG_1,
@@ -26,7 +34,7 @@ const uint8_t si446x_local_config[] = {
 static PyObject *get_config_wds(PyObject *self, PyObject *args)
 {
   int    c_index, s_len;
-  const char  *s;
+  const uint8_t  *s;
   if (!PyArg_ParseTuple(args, "i", &c_index)) {
     return NULL;
   }
@@ -42,7 +50,7 @@ static PyObject *get_config_wds(PyObject *self, PyObject *args)
 static PyObject *get_config_local(PyObject *self, PyObject *args)
 {
   int    c_index, s_len;
-  const char  *s;
+  const uint8_t  *s;
   if (!PyArg_ParseTuple(args, "i", &c_index)) {
     return NULL;
   }

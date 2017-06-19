@@ -633,20 +633,33 @@ def test_radio(radio, trace):
     radio.unshutdown()
     radio.power_up()
     radio.config_frr()
+    total = 0
     list_of_lists = radio.get_config_lists()
     for l in list_of_lists:
+        print(l)
         x = 0
         while (True):
             s = l(x)
             if (not s): break
-            radio.send_config(s)
+            if (s[0] != radio_config_cmd_ids.build('POWER_UP') and
+                ((s[0] == radio_config_cmd_ids.build('SET_PROPERTY')) and
+                      (s[1] != radio_config_group_ids.build('FRR_CTL')))):
+                print('len({})    command({})    Group({})'.format(len(s), binascii.hexlify(s[0]), binascii.hexlify(s[1])))
+                radio.send_config(s)
+                total += len(s)
+                status = radio.get_chip_status()
+                if (status.chip_pend.CMD_ERROR):
+                    print(status)
+                    print(binascii.hexlify(s))
+                    radio.clear_interrupts()
             x += len(s) + 1
-    radio.set_property('INT_CTL', 0, '\x03\x3b\x23\x00')
-    radio.set_property('PKT', 0x0c, '\x10')
-    radio.fast_all()
-    radio.dump_radio()
-    
-def si446xtrace_test():
+    ss = radio.get_interrupts()
+    print(ss)
+    ss= radio.fast_all()
+    print(ss)
+    print(radio.dump_radio())
+
+def si446xradio_test():
     import si446xtrace
     trace =  si446xtrace.Trace(100)
     radio = Si446xRadio(device=0, callback=si446xtrace_test_callback, trace=trace)
@@ -655,6 +668,4 @@ def si446xtrace_test():
     return trace, radio
 
 if __name__ == '__main__':
-
-    t,r = si446xtrace_test()
-    
+    t,r = si446xradio_test()
