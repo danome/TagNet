@@ -23,10 +23,30 @@
 /* interrupt enable (p0100)
  * enable selected interrupts
  */
+// Interest bits set to one will enable interrupt
+#define SI446X_PH_INTEREST              SI446X_PH_STATUS_PACKET_SENT | \
+                                        SI446X_PH_STATUS_PACKET_RX | \
+                                        SI446X_PH_STATUS_CRC_ERROR | \
+                                        SI446X_PH_STATUS_TX_FIFO_ALMOST_EMPTY | \
+                                        SI446X_PH_STATUS_RX_FIFO_ALMOST_FULL
+
+#define SI446X_MODEM_INTEREST           SI446X_MODEM_STATUS_INVALID_SYNC | \
+                                        SI446X_MODEM_STATUS_RSSI | \
+                                        SI446X_MODEM_STATUS_PREAMBLE_DETECT | \
+                                        SI446X_MODEM_STATUS_SYNC_DETECT
+
+#define SI446X_CHIP_INTEREST            0
+
+/*
+ * Interrupt Control
+ */
 #define SI446X_INT_CTL_ENABLE_4_LEN     8
 #define SI446X_INT_CTL_ENABLE_4         0x11, 0x01, 0x04, 0x00,  \
-                                        SI446X_INT_STATUS_MODEM_INT_STATUS + SI446X_INT_STATUS_PH_INT_STATUS,  \
-                                        SI446X_PH_INTEREST, SI446X_MODEM_INTEREST, SI446X_CHIP_INTEREST
+                                        SI446X_INT_STATUS_MODEM_INT_STATUS  \
+                                            + SI446X_INT_STATUS_PH_INT_STATUS,   \
+                                        SI446X_PH_INTEREST, \
+                                        SI446X_MODEM_INTEREST, \
+                                        SI446X_CHIP_INTEREST
 
 
 /*

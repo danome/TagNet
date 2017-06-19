@@ -245,96 +245,119 @@ class Si446xDbus(objects.DBusObject):
         self.fsm['actions'].tx['buffer'] = None
 
     ### Asynchronous Event Handlers
-    
-    def interrupt_cb(self, channel):
-        self.trace.add('RADIO_INT', 'sync')
+
+    def radio_interrupt(self, channel):
+        """
+        Handle hardware interupt
+
+        This function has been synchronized with twisted thread handler so
+        that radio driver state machine re-entrency is controlled and access
+        to the radio device is exclusively controlled.
+
+        The interrupt_handler() must clear/process all outstanding interrupt
+        sources before returning. Otherwise, we won't get another interrupt
+        from the device being blocked by the remaining pending interrupt
+        sources.
+        """
+        frr = self.radio.fast_all()
+        self.trace.add('RADIO_INT', 'sync frr: {}'.format(binascii.hexlify(frr)))
+#        self.trace.add('RADIO_INT', bytearray(frr), s_name='fast_frr_s')
         interrupt_handler(self.fsm, self.radio)
 
     def async_interrupt(self, channel):
-        self.trace.add('RADIO_INT', 'async')
-        reactor.callFromThread(self.interrupt_cb, channel)
+        """
+        Handle external device interrupt
 
-    def config_cb(self):
+        First, need to synchronize the hardware interrupt event with
+        the Twisted thread handler using callFromThread(radio_interrupt).
+        Twisted provides a way to defer processing of external events
+        until it has reached an appropriate opportunity in its processing
+        loop. We use this to synchronize the external interrupt, thus
+        ensuring control to critical access resources like the driver
+        state machine and radio device registers.
+
+        In this case, the radio_interrupt() funtion is called by the
+        main DBus processing loop somtime in the future.
+        """
+        self.trace.add('RADIO_INT', 'async ch({})'.format(channel))
+        reactor.callFromThread(self.radio_interrupt, channel)
+
+    def config_done_sync(self):
+        """
+        Handle Config_done event
+
+        This function has been synchronized with twisted thread handler so
+        that radio driver state machine re-entrency is controlled.
+        """
         step_fsm(self.fsm, self.radio, Events.E_CONFIG_DONE)
 
     def config_done(self):
-        reactor.callLater(0, self.config_cb)
+        """
+        Synchronize config completion with twisted thread handler
+        """
+        reactor.callLater(0, self.config_done_sync)
 
-    def timeout_cb(self):
+    def timeout_expired_sync(self):
+        """
+        Handle radio timer expiration
+
+        This function has been synchronized with twisted thread handler so
+        that radio driver state machine re-entrency is controlled.
+        """
         step_fsm(self.fsm, self.radio, Events.E_WAIT_DONE)
 
     def start_timer(self, delay): # seconds (float)
-        return reactor.callLater(delay, self.timeout_cb)
+        """
+        Start radio timer for delay seconds
+        """
+        return reactor.callLater(delay, self.timeout_expired_sync)
 #end class
 
 def process_interrupts(fsm, radio, pend):
     """
-    process_interrupts - for each interrupt source process the event transition
+    For each interrupt source process the event transition
 
-    return list of cleared pending flags, or None if no flags cleared
-    note that logic seems backwards, but a zero (false) means to clear the 
-    pending flag (set to one if you don't want to clear the flag)
+    Return list of cleared pending flags, or None if no flags cleared.
+    Note that logic seems backwards, but a zero (false) means to clear the
+    pending flag (set to one if you don't want to clear the flag) as
+    dictated by the Si446x device API.
     """
     clr_flags = clr_pend_int_s.parse('\xff' * clr_pend_int_s.sizeof())
     got_ints = False
-    if (pend.modem_pend.INVALID_SYNC_PEND):
-        if (fsm['machine'].state is States.S_RX_ON):
-            step_fsm(fsm, radio, Events.E_INVALID_SYNC)
-        else:
-            radio.trace.add('RADIO_ERROR', 'Phantom INVALID_SYNC_PEND')
-        clr_flags.modem_pend.INVALID_SYNC_PEND_CLR = False
+    if (pend.ph_pend.TX_FIFO_ALMOST_EMPTY):
+        step_fsm(fsm, radio, Events.E_TX_THRESH)
+        clr_flags.ph_pend.TX_FIFO_ALMOST_EMPTY = False
         got_ints = True
-    if (pend.modem_pend.PREAMBLE_DETECT_PEND):
-        if (fsm['machine'].state is States.S_RX_ON):
-            step_fsm(fsm, radio, Events.E_PREAMBLE_DETECT)
-        else:
-            radio.trace.add('RADIO_ERROR', 'Phantom PREAMBLE_DETECT_PEND')
-        clr_flags.modem_pend.PREAMBLE_DETECT_PEND_CLR = False
-        got_ints = True
-    if (pend.modem_pend.SYNC_DETECT_PEND):
-        if (fsm['machine'].state is States.S_RX_ON):
-            step_fsm(fsm, radio, Events.E_SYNC_DETECT)
-        else:
-            radio.trace.add('RADIO_ERROR', 'Phantom SYNC_DETECT_PEND')
-        clr_flags.modem_pend.SYNC_DETECT_PEND_CLR = False
-        got_ints = True
-    if (pend.ph_pend.CRC_ERROR_PEND):
-        if (fsm['machine'].state is States.S_RX_ACTIVE):
-            step_fsm(fsm, radio, Events.E_CRC_ERROR)
-        else:
-            radio.trace.add('RADIO_ERROR', 'Phantom CRC_ERROR_PEND')
-        clr_flags.ph_pend.CRC_ERROR_PEND_CLR = False
-        got_ints = True
-    if (pend.ph_pend.PACKET_RX_PEND):
-        if (fsm['machine'].state is States.S_RX_ACTIVE):
-            step_fsm(fsm, radio, Events.E_PACKET_RX)
-        else:
-            radio.trace.add('RADIO_ERROR', 'Phantom PACKET_RX_PEND')
-        clr_flags.ph_pend.PACKET_RX_PEND_CLR = False
-        got_ints = True
-    if (pend.ph_pend.PACKET_SENT_PEND):
+    if (pend.ph_pend.PACKET_SENT):
         step_fsm(fsm, radio, Events.E_PACKET_SENT)
-        clr_flags.ph_pend.PACKET_SENT_PEND_CLR = False
+        clr_flags.ph_pend.PACKET_SENT = False
         got_ints = True
-    if (pend.ph_pend.RX_FIFO_ALMOST_FULL_PEND):
-        if (fsm['machine'].state is States.S_RX_ACTIVE):
-            step_fsm(fsm, radio, Events.E_RX_THRESH)
-        else:
-            radio.trace.add('RADIO_ERROR', 'Phantom RX_FIFO_ALMOST_FULL_PEND')
-        clr_flags.ph_pend.RX_FIFO_ALMOST_FULL_PEND_CLR = False
+    if (pend.ph_pend.RX_FIFO_ALMOST_FULL):
+        step_fsm(fsm, radio, Events.E_RX_THRESH)
+        clr_flags.ph_pend.RX_FIFO_ALMOST_FULL = False
         got_ints = True
-    if (pend.ph_pend.TX_FIFO_ALMOST_EMPTY_PEND):
-        if (fsm['machine'].state is States.S_TX_ACTIVE):
-            step_fsm(fsm, radio, Events.E_TX_THRESH)
-        else:
-            radio.trace.add('RADIO_ERROR', 'Phantom TX_FIFO_ALMOST_EMPTY_PEND')
-        clr_flags.ph_pend.TX_FIFO_ALMOST_EMPTY_PEND_CLR = False
+    if (pend.ph_pend.CRC_ERROR):
+        step_fsm(fsm, radio, Events.E_CRC_ERROR)
+        clr_flags.ph_pend.CRC_ERROR = False
         got_ints = True
-    if (pend.modem_pend.RSSI_PEND):
-        clr_flags.modem_pend.RSSI_PEND_CLR = False
+    if (pend.ph_pend.PACKET_RX):
+        step_fsm(fsm, radio, Events.E_PACKET_RX)
+        clr_flags.ph_pend.PACKET_RX = False
         got_ints = True
-    if (pend.modem_pend.INVALID_PREAMBLE_PEND):
-        clr_flags.modem_pend.INVALID_PREAMBLE_PEND_CLR = False
+    if (pend.modem_pend.INVALID_SYNC):
+        step_fsm(fsm, radio, Events.E_INVALID_SYNC)
+        clr_flags.modem_pend.INVALID_SYNC = False
+        got_ints = True
+    if (pend.modem_pend.PREAMBLE_DETECT):
+        step_fsm(fsm, radio, Events.E_PREAMBLE_DETECT)
+        clr_flags.modem_pend.PREAMBLE_DETECT = False
+        got_ints = True
+    if (pend.modem_pend.SYNC_DETECT):
+        step_fsm(fsm, radio, Events.E_SYNC_DETECT)
+        clr_flags.modem_pend.SYNC_DETECT = False
+        got_ints = True
+    if (pend.modem_pend.RSSI):
+        clr_flags.modem_pend.RSSI = False
         got_ints = True
     if (got_ints):
         return clr_flags
@@ -348,17 +371,28 @@ def interrupt_handler(fsm, radio):
     Process interrupts until no more exist
 
     Get interrupts from radio device and process until nothing is pending.
+    Initially, all pending interrupt sources are retrieved along with
+    clearing all sources.
+    All pending interrupt sources are processed by process_interrupts(),
+    causing the appropriate state machine event to be executed and
+    clr_flags to be set to clear the source
+
+    Each time the pending interrupt information is retrieved, interrupts
+    that have been serviced will be cleared.
+
+    If after trying to process all outstanding interrupt pending
+    sources is not successful, then clear all pending interrupts and
+    log the error condition.
     """
     pending_ints = radio.get_clear_interrupts()
     for n in range(5):
         clr_flags = process_interrupts(fsm, radio, pending_ints)
         if (clr_flags is None):
             return
-        radio.trace.add('RADIO_INT', 'clearing interrupts: {}'.format(clr_flags.__repr__()))
         pending_ints = radio.get_clear_interrupts(clr_flags)
     # got here if something seems stuck, clear all interrupts
-    radio.trace.add('RADIO_ERROR', 'interrupts stuck: {}'.format(pending_ints.__repr__()))
-    radio.get_gpio()
+    radio.trace.add('RADIO_ERROR', "stuck interrupts")
+    radio.get_gpio()   # side effect is to trace current gpio values
 
 
 def step_fsm(fsm, radio, ev):

@@ -680,8 +680,7 @@ typedef enum {
 #error Unrecognized value for SI446X_CHIP
 #endif
 
-
-// #define SI446X_CMD_GET_INT_STATUS             0x20
+// Bit masks for SI446X_CMD_GET_INT_STATUS               0x20
 #define SI446X_INT_STATUS_CHIP_INT_STATUS                0x04
 #define SI446X_INT_STATUS_MODEM_INT_STATUS               0x02
 #define SI446X_INT_STATUS_PH_INT_STATUS                  0x01
@@ -694,11 +693,6 @@ typedef enum {
 #define SI446X_PH_STATUS_TX_FIFO_ALMOST_EMPTY            0x02
 #define SI446X_PH_STATUS_RX_FIFO_ALMOST_FULL             0x01
 
-// bits set to one enable interrupt
-//#define SI446X_PH_INTEREST                       0x39
-#define SI446X_PH_INTEREST                       0xff
-#define SI446X_PH_RX_CLEAR_MASK                  SI446X_PH_STATUS_FILTER_MATCH |SI446X_PH_STATUS_FILTER_MISS | SI446X_PH_STATUS_PACKET_RX | SI446X_PH_STATUS_CRC_ERROR | SI446X_PH_STATUS_RX_FIFO_ALMOST_FULL
-
 #define SI446X_MODEM_STATUS_POSTAMBLE_DETECT             0x40
 #define SI446X_MODEM_STATUS_INVALID_SYNC                 0x20
 #define SI446X_MODEM_STATUS_RSSI_JUMP                    0x10
@@ -706,11 +700,6 @@ typedef enum {
 #define SI446X_MODEM_STATUS_INVALID_PREAMBLE             0x04
 #define SI446X_MODEM_STATUS_PREAMBLE_DETECT              0x02
 #define SI446X_MODEM_STATUS_SYNC_DETECT                  0x01
-
-// bits set to one enable interrupt
-//#define SI446X_MODEM_INTEREST                    0x23
-#define SI446X_MODEM_INTEREST                    0xff
-#define SI446X_MODEM_RX_CLEAR_MASK               SI446X_MODEM_STATUS_POSTAMBLE_DETECT | SI446X_MODEM_STATUS_INVALID_SYNC | SI446X_MODEM_STATUS_RSSI_JUMP | SI446X_MODEM_STATUS_RSSI | SI446X_MODEM_STATUS_INVALID_PREAMBLE | SI446X_MODEM_STATUS_PREAMBLE_DETECT | SI446X_MODEM_STATUS_SYNC_DETECT
 
 #define SI446X_CHIP_STATUS_CAL                           0x40
 #define SI446X_CHIP_STATUS_FIFO_UNDER_OVER_ERROR         0x20
@@ -720,10 +709,24 @@ typedef enum {
 #define SI446X_CHIP_STATUS_LOW_BATT                      0x02
 #define SI446X_CHIP_STATUS_WUT                           0x01
 
-// bits set to one enable interrupt
-//#define SI446X_CHIP_INTEREST                     0x08
-#define SI446X_CHIP_INTEREST                     0xff
-#define SI446X_CHIP_RX_CLEAR_MASK                SI446X_CHIP_STATUS_FIFO_UNDER_OVER_ERROR | SI446X_CHIP_STATUS_CMD_ERROR
+// Mask bits set to zero will clear receive interrupt
+#define SI446X_PH_RX_CLEAR_MASK                 (!( SI446X_PH_STATUS_FILTER_MATCH | \
+                                                    SI446X_PH_STATUS_FILTER_MISS | \
+                                                    SI446X_PH_STATUS_PACKET_RX | \
+                                                    SI446X_PH_STATUS_CRC_ERROR | \
+                                                    SI446X_PH_STATUS_RX_FIFO_ALMOST_FULL))
+
+// Mask bits set to zero will clear receive interrupt
+#define SI446X_MODEM_RX_CLEAR_MASK            (!(SI446X_MODEM_STATUS_INVALID_SYNC | \
+                                                 SI446X_MODEM_STATUS_RSSI_JUMP | \
+                                                 SI446X_MODEM_STATUS_RSSI | \
+                                                 SI446X_MODEM_STATUS_INVALID_PREAMBLE | \
+                                                 SI446X_MODEM_STATUS_PREAMBLE_DETECT | \
+                                                 SI446X_MODEM_STATUS_SYNC_DETECT))
+
+// Mask bits set to zero will clear receive interrupt
+#define SI446X_CHIP_RX_CLEAR_MASK             (!(SI446X_CHIP_STATUS_FIFO_UNDER_OVER_ERROR | \
+                                                 SI446X_CHIP_STATUS_CMD_ERROR))
 
 //#define SI446X_PROP_FRR_CTL_A_MODE                   0x0200
 //#define SI446X_PROP_FRR_CTL_B_MODE                   0x0201
