@@ -89,9 +89,11 @@
  * (protect against false starts)
  * TX_TIMEOUT = time to wait for packet transmission to complete
  * RX_TIMEOUT = time to wait for packet reception to complete
+ *
+ * Units T32khz.  100ms * 32.768 = 3277
  */
-#define SI446X_TX_TIMEOUT                   100000
-#define SI446X_RX_TIMEOUT                   100000
+#define SI446X_TX_TIMEOUT                   32768
+#define SI446X_RX_TIMEOUT                   32768
 
 /*
  * initial RSSI_THRESH (threshold) for rssi comparisons.  Stuffed into
