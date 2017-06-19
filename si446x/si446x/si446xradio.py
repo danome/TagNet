@@ -19,21 +19,48 @@ from si446xdef import *
 from si446xcfg import get_config_wds, get_config_local
 import si446xtrace
 
-__all__ = ['SpiInterface', 'Si446xRadio', 'si446xtrace_test']
+__all__ = ['SpiInterface', 'Si446xRadio', 'si446xradio_test']
 
-##########################################################################
-#
-# _get_cts
-#
+"""
+This Module handles access to the Si446x Radio hardware interface.
+
+The interface consists of:
+- Serial Peripherial Interface  =  four-wire interface (DI,DO,CLK,CS)
+- General Purpose IO            =  input pins (CTS, NIRQ, SDN)
+
+The SpiInterface class provides the methods for accessing the radio SPI.
+This includes sending commands, receiving responses, writing the transmit
+fifo, reading the receive fifo, and reading the fast response registers.
+All radio SPI IO accesses are handled by this class and recorded in a
+circular trace buffer for later analysis.
+
+The GPIO is accessed using the Raspberry Pi Python RPi.GPIO module.
+
+The Si446xRadio class provides a set of methods for operating on the radio,
+such as starting, stopping, configuring, interrupts, and checking status.
+In most cases, these methods accept/return the dictionary version of any
+radio structures used in the operation (see si446xdef.py). One exception,
+for example, is get_property(). Significant events are recorded in the
+trace buffer for later analysis.
+"""
+
 def _get_cts():
+    """
+    Read the current value of the radio CTS GPIO pin
+
+    Internal use only.
+    """
     if (gpio):
         return (GPIO.input(GPIO_CTS))
     else:
         return False
 
-# _get_cts_wait
-#
 def _get_cts_wait(t):
+    """
+    Wait for the value of the radio CTS GPIO pin to go high (True)
+
+    Internal use only.
+    """
     if (gpio):
         for i in range(t+1):
             r = _get_cts()
@@ -139,7 +166,9 @@ class Si446xRadio(object):
 
     def check_CCA(self):
         """
-        Perform Clear Channel Assessment.
+        Perform Clear Channel Assessment
+
+        Return False if signal is detected (rssi above threshold).
         """
         rssi = self.fast_latched_rssi()
         return True if (rssi < si446x_cca_threshold) else False
@@ -287,7 +316,7 @@ class Si446xRadio(object):
 
     def get_channel(self):
         """
-        get_channel get current radio channel
+        Get current radio channel
         """
         return self.channel
     #end def
@@ -307,19 +336,36 @@ class Si446xRadio(object):
 
     def get_config_lists(self):
         """
-        Get a list of configuration lists
+        Get list of radio configuration string generator functions
 
-        each list is consists of concatenated pascal strings, each presenting
-        a command string for configuring radio chip properties
+        Each item in the returned list is a pointer to a function
+        that can be called successively to traverse the config
+        strings in its list. The first call is passed zero to
+        start with the first string in the list. Successive calls
+        are passed the offset into the list for the next appropriate
+        string (the sum of all previous string lengths). The
+        list is terminated by a zero-length string.
+
+        There are at least two configuration strings, one produced
+        by the Silicon Labs WDS program. The other is defined
+        in the platform configuration file that specifies details
+        about this specific hardware instantiation (e.g., GPIO pin
+        assignments). Each list consists of a set of Pascal-style
+        strings that consist of a one byte length field followed
+        by specified number of bytes (and NOT null-terminated like
+        c-style strings). The list consists of zero or more strings
+        concatenated together, terminating in a zero-length string.
+        See radioconfig/si446xcfg.c for more details.
         """
         return [get_config_wds, get_config_local]
     #end def
-    
+
     def get_cts(self):
         """
         Get current readiness radio chip command processor
+
+        Read CTS, return true if high
         """
-        # read CTS, return true if high
         rsp = _get_cts()
         return rsp
     #end def
@@ -327,7 +373,7 @@ class Si446xRadio(object):
     def get_gpio(self):
         """
         Get current state and configuration of radio chip GPIO pins
-        """        
+        """
         request = read_cmd_s.parse('\x00' * read_cmd_s.sizeof())
         request.cmd='GPIO_PIN_CFG'
         cmd = read_cmd_s.build(request)
@@ -374,6 +420,8 @@ class Si446xRadio(object):
     def get_property(self, group, prop, len):
         """
         Read one or more contiguous radio chip properties
+
+        Returns byte array since this is potentially only portion of a property group
         """
         request = get_property_cmd_s.parse('\x00' * get_property_cmd_s.sizeof())
         request.cmd='GET_PROPERTY'
@@ -391,7 +439,7 @@ class Si446xRadio(object):
 
     def power_up(self):
         """
-        Turn radio chip power on.
+        Start up the Radio.
         """
         if (not _get_cts()):
             self.trace.add('RADIO_CHIP', 'cts not ready', level=2)
@@ -409,8 +457,8 @@ class Si446xRadio(object):
         """
         Read Clear-to-send (CTS) status via polling command over SPI
 
-        Pull nsel low. send command. read cts and cmd_buff. If cts=0xff, then 
-        pull nsel high and repeat.
+        Pull nsel low. read cts from cmd_buff. If cts=0xff, then
+        pull nsel high and repeat. Else return copy of the command buf
         """
         rsp = self.spi.response(read_cmd_buff_rsp_s.sizeof(), read_cmd_buff_rsp_s.name)
         if (rsp):
@@ -453,7 +501,7 @@ class Si446xRadio(object):
         """
         self.channel = num
     #end def
-    
+
     def send_config(self, props):
         """
         Send a config string to the radio chip
@@ -564,7 +612,7 @@ class Si446xRadio(object):
             GPIO.output(GPIO_SDN,0)
             sleep(.1)
     #end def
-    
+
     def write_tx_fifo(self, dat):
         """
         Write data into the radio chip transmit fifo

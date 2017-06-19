@@ -8,11 +8,6 @@ from twisted.python           import log
 
 import si446xdef
 
-# to_send = [0x01, 0x02, 0x03]
-# spi.xfer(to_send)
-# Perform an SPI transaction with chip-select should be held active between blocks.
-# xfer2(to_send[, speed_hz, delay_usec, bits_per_word])
-
 def BytesToHex(Bytes):
     return ''.join(["0x%02X " % x for x in Bytes]).strip()
 #end def
@@ -22,12 +17,17 @@ __all__ = ['Si446xFsmActionHandlers']
 
 ##########################################################################
 #
-# utility routines
 #
 def start_timer(actions, delay):
+    """
+    Start an action timer
+    """
     actions.timer = actions.dbus.start_timer(delay)
 
 def stop_timer(actions):
+    """
+    Stop outstanding action timer
+    """
     if (not actions.timer):
         return
     try:
@@ -39,12 +39,18 @@ def stop_timer(actions):
     actions.timer = None
 
 def fail(s):
+    """
+    FIX: log error and don't return!!!
+    """
     log.msg("FAIL: ", s)
     while (0):
         x = 1
     pass
 
 def _trace(trace, where, ev):
+    """
+    Trace action with where and event
+    """
     if (trace):
         s = '{} {}'.format(where, ev)
         trace.add('RADIO_ACTION', s, level=2)
@@ -52,11 +58,15 @@ def _trace(trace, where, ev):
 
 ##########################################################################
 #
-# FsmActionHandlers - The method handlers for actions in the Finite State Machine
-#
 class Si446xFsmActionHandlers(object):
-    
+    """
+    The method handlers for actions in the Finite State Machine
+    """
     def __init__(self, radio, dbus):
+        """
+        Initialize the action handler state, including clearing
+        statistical counters.
+        """
         self.dbus = dbus
         self.radio = radio
         self.timer = None
@@ -122,35 +132,35 @@ class Si446xFsmActionHandlers(object):
     def output_A_RX_DRAIN_FF(self, ev):
         self._trace("drain rx fifo", ev)
         rx_drain_ff(self, ev)
-        
+
     def output_A_RX_START(self, ev):
         self._trace("rx start", ev)
         rx_start(self, ev)
-        
+
     def output_A_RX_TIMEOUT(self, ev):
         self._trace("rx timeout", ev)
         rx_timeout(self, ev)
-        
+
     def output_A_STANDBY(self, ev):
         self._trace("standby", ev)
         standby(self, ev)
-        
+
     def output_A_TX_CMP(self, ev):
         self._trace("tx complete", ev)
         tx_cmp(self, ev)
-        
+
     def output_A_TX_FILL_FF(self, ev):
         self._trace("tx fill fifo", ev)
         tx_fill_ff(self, ev)
-        
+
     def output_A_TX_START(self, ev):
         self._trace("tx start", ev)
         tx_start(self, ev)
-        
+
     def output_A_TX_TIMEOUT(self, ev):
         self._trace("tx timeout", ev)
         tx_timeout(self, ev)
-        
+
     def output_A_UNSHUT(self, ev):
         self._trace("unshutdown", ev)
         unshut(self, ev)
@@ -164,6 +174,10 @@ class Si446xFsmActionHandlers(object):
 
 #
 def clear_sync(actions, ev):
+    """
+    Recover from invalid sync by flushing receive fifo and
+    restarting receiver.
+    """
     actions.radio.fifo_info(rx_flush=True)
     actions.rx['sync_errors'] += 1
     rx_on(actions, ev)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Eric B. Decker
+ * Copyright (c) 2015, 2017 Eric B. Decker
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -53,6 +53,8 @@
  */
 
 /*
+ * Units used with RadioAlarm need to be TRadio, which in our case is T32khz.
+ *
  * When the chip is brought out of Shutdown (SDN = 1 = > 0), it takes max
  * of 6ms before it can accept commands.  One should also check the value
  * of CTS to make sure the chip is indeed ready to accept commands.

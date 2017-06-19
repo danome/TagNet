@@ -2,7 +2,7 @@
 
 /*  ---  Local Config ---
  *
- * Driver/Platform dependent
+ * Driver dependent
  *
  * SI446X_GPIO_PIN_CFG_LEN and SI446X_RF_GPIO_PIN_CFG are provided by platform
  * dependent code and are in radio_platform_si446x.h.  See platform code,
@@ -81,4 +81,3 @@
 #define SI446X_MODEM_RSSI_LEN           7
 #define SI446X_MODEM_RSSI               0x11, 0x20, 0x03, 0x4a, SI446X_INITIAL_RSSI_THRESH, \
                                               0x0c, 0x25
-

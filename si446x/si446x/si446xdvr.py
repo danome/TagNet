@@ -1,6 +1,45 @@
 #!/usr/bin/env python
 #
 #
+"""
+Si446x Radio Driver
+
+This module provides the primary driver interface by provising a DBUS Session
+level interface to access driver state machine and radio functions, It also
+handles driver initialization,interrupt processing,  state machine control.
+
+The Radio Driver depends on several Python packages for major functions,
+including:
+
+- twisted==13.1.0:   Asynchronous I/O event handling framework
+                         (see https://twistedmatrix.com/trac/)
+- txdbus==1.0.13:    Twisted-based interface to DBUS
+                         (see https://github.com/cocagne/txdbus)
+- machinist==0.2.0:  Finite State Machine building tool
+                         (see https://github.com/ScatterHQ/machinist)
+- construct==2.5.5:  Declarative parser for binary structures
+                         (see http://construct.readthedocs.io/en/latest/)
+
+The following are important data structures defined/used by the Radio Driver:
+
+- Si446xDbus:        Object inherits from txdbus to define the txdbus interface.
+- radio:             Object handling radio hardware operations
+- fsm:               Dict containing FSM action and machine objects
+- fsm['actions']:    Object containing all FSM-related driver action routines
+- fsm['machine']:    Object containing machinist FSM context
+- trace:             Object managing the Driver's internal trace buffer
+
+The trace is an in-memory circular array that tracek fine grain driver events,
+like state machine changes and radio access functions. Typically the trace
+buffer is shared across several modules and is passed as a parameter to object
+instantiation. If no trace object is specified, then the object will instantiate
+its own trace buffer.
+
+The Driver provides a basic selftest when it is invoked directly as __main__.
+
+Copyright (c) 2016, 2017 Daniel J. Maltbie
+"""
+
 from __future__ import print_function
 from builtins import *
 
@@ -47,12 +86,13 @@ si446x_dbus_interface = DBusInterface( BUS_NAME,
                             Signal('send_cmp', 's'),
                          )
 
+
 class Si446xDbus(objects.DBusObject):
     """
-    provides the interface for accessing the SI446x Radio Chip Driver
+    Dbus Interface Class for si446x Radio Driver
     """
     dbusInterfaces = [si446x_dbus_interface]
-    
+
     def __init__(self, objectPath, trace=None):
         super(Si446xDbus,self).__init__(objectPath)
         self.uuid = binascii.hexlify(os.urandom(16))
@@ -62,15 +102,26 @@ class Si446xDbus(objects.DBusObject):
         self.trace = trace if (trace) else si446xtrace.Trace(100)
 
     def marry(self, fsm, radio):
+        """
+        Associate fsm and radio objects
+        """
         self.fsm = fsm
         self.radio = radio
 
     ### DBus Interface Methods
 
     def dbus_cca(self):
+        """
+        Determine if channel is clear to send
+
+        Returns current value of rssi
+        """
         return self.fsm['actions'].rx['rssi']
-    
+
     def dbus_clear_status(self):
+        """
+        Clear driver status counters
+        """
         self.fsm['actions'].ioc['unshuts'] = 0
         s =  self.dbus_status()
         for r in [ 'packets', 'len_errors', 'timeouts', 'sync_errors','crc_errors']:
@@ -81,6 +132,10 @@ class Si446xDbus(objects.DBusObject):
 
     def dbus_control(self, action):
         self.radio.trace.add('RADIO_IOC', action)
+        Control radio operation
+
+        Action string identifiers can be: 'TURNON', 'TURNOFF', and 'STANDBY'
+        """
         if (self.control_event):
             return 'dbus_control busy {}'.format(self.control_event)
         if (action == 'TURNON'):
@@ -108,6 +163,12 @@ class Si446xDbus(objects.DBusObject):
         return 'user control {} failed {}'.format(action, self.radio.trace.format_time(time()))
 
     def dbus_dump_radio(self, s):
+        """
+        Dump radio settings into the trace buffer
+
+        If 'REFRESH' is specified, then read all settings from radio
+        Else just read subset of current status
+        """
         if (s == 'REFRESH'):
             self.radio.dump_radio()
         self.radio.read_silicon_info()
@@ -169,14 +230,20 @@ class Si446xDbus(objects.DBusObject):
         self.control_event = None
 
     def signal_receive(self):
+        """
+        Issue dbus signal when radio packet received
+        """
         r = self.fsm['actions'].rx['buffer']
         self.emitSignal('receive', bytearray(r), int(self.fsm['actions'].rx['rssi']))
         self.fsm['actions'].rx['buffer'] = None
-    
+
     def signal_send_cmp(self, condition):
+        """
+        Issue dbus signal when radio packet send is complete
+        """
         self.emitSignal('send_cmp', condition)
         self.fsm['actions'].tx['buffer'] = None
-    
+
     ### Asynchronous Event Handlers
     
     def interrupt_cb(self, channel):
@@ -357,11 +424,17 @@ def reactor_loop():
     radio = None
     dbus = None
     def onConnected(conn):
+        """
+        Handle dbus connection event
+        """
         fsm, radio, dbus = setup_driver()
         conn.exportObject(dbus)
         dn = conn.requestBusName(BUS_NAME)
-    
+
         def onReady(_):
+            """
+            Handle dbus ready event
+            """
             start_driver(fsm, radio, dbus)
 
         dn.addCallback(onReady)
@@ -372,6 +445,9 @@ def reactor_loop():
         reactor.stop()
 
     def SIGINT_CustomEventHandler(num, frame):
+        """
+        Handle external trap events (SIGHUP, SIGINT)
+        """
         k={1:"SIGHUP", 2:"SIGINT"}
         log.msg("Recieved signal - " + k[num])
         if frame is not None:
@@ -423,5 +499,7 @@ def si446xdvr_test():
 
 
 if __name__ == '__main__':
+    """
+    if this file is invoked directly, then run selftest
+    """
     si446xdvr_test()
-
