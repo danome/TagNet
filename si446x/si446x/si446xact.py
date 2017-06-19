@@ -343,12 +343,11 @@ def unshut(actions, ev):
     #zzz clear flags, buffers, statistics
     return
 
-def si446xact_test():
-    actions = Si446xFsmActionHandlers(None, None)
+def si446xact_test(radio=None, dbus=None):
+    actions = Si446xFsmActionHandlers(radio, dbus)
     from si446xFSM import Events
     actions.output_A_NOP(Events.E_0NOP)
     return actions
 
 if __name__ == '__main__':
     actions = si446xact_test()
-

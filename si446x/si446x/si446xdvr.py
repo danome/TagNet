@@ -262,7 +262,7 @@ class Si446xDbus(objects.DBusObject):
             self.status = 'ON'
         s = '{}, {} {}'.format(self.status, self.fsm['machine'].state,
                                  self.radio.trace.format_time(time()))
-        print ('new_status',s)
+        log.msg('new_status',s)
         self.emitSignal('new_status', s)
         self.control_event = None
 
@@ -512,7 +512,10 @@ def reactor_loop():
         return dn
 
     def onErr(err):
-        print('Failed: ', err.getErrorMessage())
+        """
+        Handle dbus errors
+        """
+        log.msg('Failed: ', err.getErrorMessage())
         reactor.stop()
 
     def SIGINT_CustomEventHandler(num, frame):
@@ -538,27 +541,29 @@ def reactor_loop():
 
 def si446xdvr_test():
     """
-    unit test
+    self test
     """
     fsm, radio, dbus = setup_driver()
     start_driver(fsm, radio, dbus)
     #radio.trace.display()
     import timeit
-    sp= "import si446xdvr,si446xFSM,si446xact;fsm, radio, dbus=si446xdvr.setup_driver();a=fsm['actions'];radio.trace._disable()"
+    sp= "import si446x.si446xdvr,si446x.si446xFSM,si446x.si446xact;fsm, radio, dbus=si446x.si446xdvr.setup_driver();a=fsm['actions'];radio.trace._disable()"
     num = 1000
-    st="fsm['actions'].output_A_NOP(si446xFSM.Events.E_0NOP)"
+    print('trace disabled')
+    st="fsm['actions'].output_A_NOP(si446x.si446xFSM.Events.E_0NOP)"
     print('{}:{} {}'.format(timeit.timeit(stmt=st,setup=sp,number=num),num,st))
-    st="a.output_A_NOP(si446xFSM.Events.E_0NOP)"
+    st="a.output_A_NOP(si446x.si446xFSM.Events.E_0NOP)"
     print('{}:{} {}'.format(timeit.timeit(stmt=st,setup=sp,number=num),num,st))
-    st="si446xact.no_op(fsm['actions'],si446xFSM.Events.E_0NOP)"
+    st="si446x.si446xact.no_op(fsm['actions'],si446x.si446xFSM.Events.E_0NOP)"
     print('{}:{} {}'.format(timeit.timeit(stmt=st,setup=sp,number=num),num,st))
 
-    sp= "import si446xdvr,si446xFSM,si446xact;fsm, radio, dbus=si446xdvr.setup_driver();a=fsm['actions'];radio.trace._enable()"
-    st="fsm['actions'].output_A_NOP(si446xFSM.Events.E_0NOP)"
+    sp= "import si446x.si446xdvr,si446x.si446xFSM,si446x.si446xact;fsm, radio, dbus=si446x.si446xdvr.setup_driver();a=fsm['actions'];radio.trace._enable()"
+    print('trace enabled')
+    st="fsm['actions'].output_A_NOP(si446x.si446xFSM.Events.E_0NOP)"
     print('{}:{} {}'.format(timeit.timeit(stmt=st,setup=sp,number=num),num,st))
-    st="a.output_A_NOP(si446xFSM.Events.E_0NOP)"
+    st="a.output_A_NOP(si446x.si446xFSM.Events.E_0NOP)"
     print('{}:{} {}'.format(timeit.timeit(stmt=st,setup=sp,number=num),num,st))
-    st="si446xact.no_op(fsm['actions'],si446xFSM.Events.E_0NOP)"
+    st="si446x.si446xact.no_op(fsm['actions'],si446x.si446xFSM.Events.E_0NOP)"
     print('{}:{} {}'.format(timeit.timeit(stmt=st,setup=sp,number=num),num,st))
 
     #step_fsm(fsm, radio, Events.E_TURNOFF)
