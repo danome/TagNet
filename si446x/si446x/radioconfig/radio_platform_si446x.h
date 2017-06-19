@@ -64,12 +64,13 @@
 /*
  * SI446X_RF_GPIO_CFG determines how the gpio pins are programmed.
  *
- * gp0: 0, gp1: cts, gp2: rx_state (33), gp3: tx_state (32)
- * gp2: 0, gp3: 1 -> Tx,   gp2: 1, gp3: 0 -> Rx
+ * gp0: in_sleep (28),  asleep: gp0=0
+ * gp1: cts(8), clear: gp1=1
+ * gp2: rx_state (33), gp3: tx_state (32)
+ *      Transmit: gp2=0, gp3=1
+ *      Receive:  gp2=1, gp3=0
  */
 #define SI446X_GPIO_PIN_CFG_LEN    8
-#define SI446X_RF_GPIO_PIN_CFG     0x13, 2, 8, 33, 32, 0x00, 0x00, 0x00
-
 
 /*
  * Export WDS values for Static WDS configuration
@@ -98,5 +99,6 @@
         0x0C, RF_FREQ_CONTROL_INTE_8, \
         0x00 \
  }
+#define SI446X_RF_GPIO_PIN_CFG     0x13, 28, 8, 33, 32, 0x00, 0x00, 0x00
 
 #endif          // __RADIO_PLATFORM_SI446X_H__
