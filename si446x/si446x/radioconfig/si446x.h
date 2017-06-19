@@ -921,17 +921,16 @@ typedef struct {
 } rps_t;
 
 typedef struct {
-  uint16_t              p_dump_start;   /* 16 bit raw (platform) us timestamp */
-  uint32_t              l_dump_start;   /* 32 bit us TRadio Localtime timestamp */
-  uint32_t              l_dump_end;     /* 32 bit us TRadio Localtime timestamp */
-  uint32_t              l_delta;        /* how long did dump take */
+  uint32_t              dump_start;   /* 32 bit us TRadio Localtime timestamp */
+  uint32_t              dump_end;     /* 32 bit us TRadio Localtime timestamp */
+  uint32_t              delta;        /* how long did dump take */
 
   uint8_t               CTS_pin;
   uint8_t               IRQN_pin;
   uint8_t               SDN_pin;
   uint8_t               CSN_pin;
-  uint8_t               ta0ccr3;
-  uint8_t               ta0cctl3;
+  uint16_t              cap_val;
+  uint16_t              cap_control;
 
   si446x_part_info_t    part_info;
   si446x_func_info_t    func_info;

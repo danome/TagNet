@@ -128,14 +128,16 @@ class Si446xDbus(objects.DBusObject):
             self.fsm['actions'].rx[r] = 0
         for r in [ 'packets', 'errors', 'timeouts']:
             self.fsm['actions'].tx[r] = 0
-        return s + self.radio.trace.format_time(time())
+        return self.sign_rsp(s)
 
     def dbus_control(self, action):
-        self.radio.trace.add('RADIO_IOC', action)
+        """
         Control radio operation
 
         Action string identifiers can be: 'TURNON', 'TURNOFF', and 'STANDBY'
         """
+        log.msg("Driver Control: %s"%(action))
+        self.radio.trace.add('RADIO_IOC', bytearray(action, 'utf8'))
         if (self.control_event):
             return 'dbus_control busy {}'.format(self.control_event)
         if (action == 'TURNON'):
@@ -160,7 +162,9 @@ class Si446xDbus(objects.DBusObject):
             self.control_event =  None
             return 'ok {} {}:{}'.format(self.radio.trace.format_time(time()),
                                          self.fsm['machine'].state, self.control_event)
-        return 'user control {} failed {}'.format(action, self.radio.trace.format_time(time()))
+        err = 'user control {} failed {}'.format(action, self.radio.trace.format_time(time()))
+        log.msg(err)
+        return err
 
     def dbus_dump_radio(self, s):
         """
@@ -176,33 +180,61 @@ class Si446xDbus(objects.DBusObject):
         self.radio.get_interrupts()
         self.radio.get_gpio()
         self.radio.trace_radio()
-        return 'ok ' + self.radio.trace.format_time(time())
-    
-    def dbus_dump_trace(self, f, n, t, m, s):
-        return self.trace.rb.get()
-    
+        return self.sign_rsp('ok')
+
+    def dbus_dump_trace(self, n):
+        """
+        Return trace records
+
+        If n is zero then return all trace records
+        else return most recent 'n' records
+        """
+        entries =  self.trace.rb.get()
+        n = n if (n > 0) else len(entries)
+        return entries[len(entries)-n:]
+
     def dbus_send(self, buf, power):
+        """
+        Send a Radio packet to the radio
+
+        'buffer' is a bytearray containing the packet to be transmitted
+        'power' sets the radio transmit power for this packet
+        """
         if (self.fsm['actions'].tx['buffer']):
             return 'busy {}'.format(self.fsm['machine'].state)
         if (self.fsm['machine'].state is not States.S_RX_ON):
             return 'error {}'.format(self.fsm['machine'].state)
-        self.fsm['actions'].tx['buffer'] = buf
+        self.fsm['actions'].tx['buffer'] = bytearray(buf)
         self.fsm['actions'].tx['power'] = power
         self.fsm['actions'].tx['offset'] = 0
+        print('send: {}, {}'.format(len(self.fsm['actions'].tx['buffer']),
+                                    self.fsm['actions'].tx['power']))
         step_fsm(self.fsm, self.radio, Events.E_TRANSMIT)
         return 'ok ' + self.radio.trace.format_time(time())
-    
+
     def dbus_spi_send(self, pkt, form):
+        """
+        Send a SPI Command to the radio
+
+        FOR DIAGNOSTIC PURPOSES ONLY
+        """
         self.radio.spi.command(pkt, form)
         return 'ok ' + self.radio.trace.format_time(time())
 
     def dbus_spi_send_recv(self, pkt, rlen, c_form, r_form):
+        """
+        Send a SPI Command to the radio and read the response
+
+        FOR DIAGNOSTIC PURPOSES ONLY
+        """
         self.radio.spi.command(pkt, c_form)
         return bytearray(self.radio.spi.response(rlen, r_form)[0:rlen])
 
     def dbus_status(self):
-        s = '[{}] {}, {}, unshuts {}'.format(
-            platform.node(),
+        """
+        Get current status of radio driver
+        """
+        s = '{}, {}, unshuts {}'.format(
             self.status,
             self.fsm['machine'].state,
             self.fsm['actions'].ioc['unshuts'],)
@@ -212,11 +244,16 @@ class Si446xDbus(objects.DBusObject):
         s += '\n TX: '
         for r in ['packets','errors','timeouts','power']:
             s += '{} {}, '.format(r, self.fsm['actions'].tx[r])
-        return s + self.radio.trace.format_time(time())
+        frr = self.radio.fast_all()
+        s += '\n sync frr: {}'.format(binascii.hexlify(frr))
+        return self.sign_rsp(s)
 
     ### DBus Signals
-    
+
     def signal_new_status(self):
+        """
+        Issue dbus signal when radio status changes
+        """
         if (self.fsm['machine'].state == States.S_SDN):
             self.status = 'OFF'
         elif (self.fsm['machine'].state == States.S_STANDBY):
@@ -408,22 +445,21 @@ def step_fsm(fsm, radio, ev):
                                 binascii.hexlify(frr))
     fsm['trace'].add('RADIO_FSM', s)
     fsm['machine'].receive(ev)
-    #if (frr[1] or frr[2]):
-    #    reactor.calllater(0, interrupt_handler, fsm, radio)
+
 
 def setup_driver():
     """
     Instantiate all of the driver components
 
     includes the following objects:
-    trace, dbus, radio, state machine actions, finite state machine.
+    trace, dbus, radio, state machine actions, finite state machine
 
-    Returns list of [fsm, radio, dbus] object references.
+    Returns list of [fsm, radio, dbus] object references
     """
     trace =  si446xtrace.Trace(1000)
     dbus = Si446xDbus(OBJECT_PATH, trace=trace)
     radio = Si446xRadio(device=0, callback=dbus.async_interrupt, trace=trace)
-    print('init radio done')
+    log.msg('init radio done')
     actions = Si446xFsmActionHandlers(radio, dbus)
     machine = constructFiniteStateMachine(
         inputs=Events,
@@ -439,12 +475,13 @@ def setup_driver():
     dbus.marry(fsm, radio)
     return [fsm, radio, dbus]
 
+
 def start_driver(fsm, radio, dbus):
     """
     Signal current (off) status and turn on driver
     """
     s = ' Si446x radio driver [ {}, {} ] is ready for business'
-    print(s.format(BUS_NAME, OBJECT_PATH))
+    log.msg(s.format(BUS_NAME, OBJECT_PATH))
     # transition radio automatically out of off state
     step_fsm(fsm,radio, Events.E_TURNON)
     # signal state change on dbus

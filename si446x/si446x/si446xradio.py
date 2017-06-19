@@ -88,59 +88,92 @@ class SpiInterface:
         except IOError as e:
             self.trace.add('RADIO_INIT_ERROR', e, level=2)
 
-    def command(self, pkt, form):
+    def command(self, msg, form):
+        """
+        Send command message to the device
+
+        Wait for CTS and then SPI write the msg
+        """
         _get_cts_wait(100)
         if (not _get_cts()):
             self.trace.add('RADIO_CTS_ERROR', 'no cts [1]', level=2)
         try:
             self.form = form
-            self.trace.add('RADIO_CMD', bytearray(pkt), form, level=2)
-            self.spi.xfer2(list(bytearray(pkt)))
+            self.trace.add('RADIO_CMD', bytearray(msg), s_name=form, level=2)
+            self.spi.xfer2(list(bytearray(msg)))
         except IOError as e:
             self.trace.add('RADIO_CMD_ERROR', e, level=2)
 
     def response(self, rlen, form):
+        """
+        Get msg response for previous command
+
+        Wait for CTS and then SPI read back the response buffer.
+        """
         _get_cts_wait(100)
         rsp = bytearray()
         if (not _get_cts()):
             self.trace.add('RADIO_RSP_ERROR', 'no cts [2]', level=2)
         try:
             r = self.spi.xfer2([0x44] + rlen * [0])
-            rsp = bytearray(r[1:rlen+1])
+            rsp = bytearray(r) if (r[0]) else bytearray(r[1:]) # zzz funky
             form = form if (form) else self.form
-            self.trace.add('RADIO_RSP', rsp, form, level=2)
+            self.trace.add('RADIO_RSP', rsp, s_name=form, level=2)
         except IOError as e:
             self.trace.add('RADIO_RSP_ERROR', e, level=2)
         return rsp
 
     def read_fifo(self, rlen):
+        """
+        SPI read data from the Receive FIFO
+        """
         if (rlen > RX_FIFO_MAX):
             self.trace.add('RADIO_RX_TOO_LONG', 'len: {}'.format(rlen), level=2)
         r = self.spi.xfer2([0x77] + rlen * [0])
-        self.trace.add('RADIO_RX_FIFO', str(rlen), None, level=2)
-        return r[1:]
+        self.trace.add('RADIO_RX_FIFO', len(r)-1, level=2)
+        return bytearray(r[1:])
 
     def write_fifo(self, buf):
+        """
+        SPI write data to the Transmit FIFO
+        """
         if (len(buf) > TX_FIFO_MAX):
             self.trace.add('RADIO_TX_TOO_LONG', 'len: {}'.format(len(buf)), level=2)
-        self.trace.add('RADIO_TX_FIFO', str(len(buf)), None, level=2)
-        r = self.spi.xfer2([0x66] + buf)
+        self.trace.add('RADIO_TX_FIFO', 'len: {}'.format(len(buf)), level=2)
+        r = self.spi.xfer2([0x66] + list(buf))
 
     def read_frr(self, off, len):
+        """
+        SPI read the fast read registers
+        """
         index = [0,1,3,7]
         if (len > 4):
             self.trace.add('RADIO_FRR_TOO_LONG', 'len: {}, off: {}'.format(len,off), level=2)
         r = self.spi.xfer2([0x50 + index[off]] + len * [0])
         rsp = bytearray(r[1:len+1])
-        self.trace.add('RADIO_FRR', rsp, fast_frr_rsp_s.name, level=2)
+        self.trace.add('RADIO_FRR', rsp, s_name=fast_frr_s.name, level=2)
         return rsp
 #end class
 
-##########################################################################
 
 class Si446xRadio(object):
-    """ class for handling low level Radio device control"""
+    """
+    Class for handling low level Radio device operations.
+
+    This is the radio API for the SI446x ('63 specifically, but verified
+    to operate with '68 as well -tbd)
+    """
     def __init__(self, device=0, callback=None, trace=None):
+        """
+        Initialize Si446x Radio Device API
+
+        RPi defines a single SPI interface with two chip selects. This
+        allows for two devices (0 and 1) to be connected and separately
+        accessed. A SpiInterface object is created for one of these devices.
+
+        The callback function handles the RPi interrupt from the GPIO
+        pin which should be wired to the radio interrupt pin. See
+        """
         self.trace = trace if (trace) else si446xtrace.Trace(100)
         self.channel = 0
         self.callback = callback if (callback) else self._gpio_callback
@@ -149,12 +182,13 @@ class Si446xRadio(object):
     #end def
 
     def _gpio_callback(self, channel):
-        self.trace.add('si446xradio: Edge detected on channel %s'%channel)
+        self.trace.add('RADIO_ERROR', 'si446xradio: Edge detected on channel %s'%channel)
 
     def change_state(self, state,  wait=0):
         """
-        change_state - force radio chip to change to specific state.
-        waits (ms) for acknowledgement that radio has processed the change
+        change_state - force radio chip to change to specific state
+
+        waits (ms) for acknowledgement that radio has processed the change.
         """
         request = change_state_cmd_s.parse('\x00' * change_state_cmd_s.sizeof())
         request.cmd = 'CHANGE_STATE'
@@ -184,6 +218,7 @@ class Si446xRadio(object):
         cf = clr_pend_int_s.build(clr_flags) if (clr_flags) else ''
         cmd = read_cmd_s.build(request) + cf
         self.spi.command(cmd, read_cmd_s.name)
+        self.trace.add('RADIO_PEND', cmd, s_name=s_name, level=2)
     #end def
 
     def config_frr(self):
@@ -225,30 +260,40 @@ class Si446xRadio(object):
 
     def dump_radio(self):
         """
-        Dump all of the current radio chip configuration to memory. This is a side effect of
-        getting all the properties since all spi_ I/O operations are traced.
+        Dump all of the current radio decice property settings
+
+        Since all SPI I/O operations are traced, this has the side effect that the
+        dump is written out to the radio trace.
+        A shadow of all of the property information is maintained by 'dump_strings'
+        in memory and is returned by this call.
         """
         for gp_n, gp_s in radio_config_groups.iteritems():
-            i = 0
-            s = ''
+            accumulator = 0
+            prop = ''
             while (True):
                 """
-                accumulate entire property, repeating get_ for MAX_RADIO_RSP size (16 bytes)
+                accumulate entire property, repeating get_ for MAX_RADIO_RSP size
                 until all pieces have been retrieved.
                 """
-                r = gp_s.sizeof() - i
-                x = r if (r < MAX_RADIO_RSP) else MAX_RADIO_RSP
-                s += self.get_property(radio_config_group_ids.parse(gp_n), i, x)
-                i += x
-                if (i >= gp_s.sizeof()):
+                remainder = gp_s.sizeof() - accumulator
+                chunk_size = remainder if (remainder < MAX_RADIO_RSP) else MAX_RADIO_RSP
+                prop += self.get_property(radio_config_group_ids.parse(gp_n),
+                                          accumulator, chunk_size)
+                accumulator += chunk_size
+                if (accumulator >= gp_s.sizeof()):
                     break
-            self.dump_strings[gp_n] = s
-            self.dump_time = localtime()
+            self.dump_strings[gp_n] = prop
+        self.dump_time = localtime()
+        return self.dump_strings
     #end def
 
     def enable_interrupts(self):
         """
         Enable radio chip interrupts
+
+        Callback function is defined when object was created. It is bound
+        the interrupt and will be called when the GPIO transitions from
+        high to low.
         """
         if (gpio):
             GPIO.add_event_detect(GPIO_NIRQ,
@@ -590,7 +635,7 @@ class Si446xRadio(object):
         Dump the saved radio chip configuration to the trace buffer
         """
         for k, v in self.dump_strings.iteritems():
-            self.trace.add('RADIO_DUMP', v, radio_config_groups[k].name, level=2)
+            self.trace.add('RADIO_DUMP', v, s_name=radio_config_groups[k].name, level=2)
     #end def
 
     def unshutdown(self):
