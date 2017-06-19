@@ -111,6 +111,15 @@ class Si446xDbus(objects.DBusObject):
         self.fsm = fsm
         self.radio = radio
 
+    def sign_rsp(self, s):
+        """
+        Add node name and driver version to the response string
+        """
+        s += '\n node {}, version {} [{}]'.format(platform.node(),
+                                                __version__,
+                                                  self.radio.trace.format_time(time()))
+        return s
+
     ### DBus Interface Methods
 
     def dbus_cca(self):
