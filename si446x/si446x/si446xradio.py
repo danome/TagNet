@@ -629,13 +629,14 @@ class Si446xRadio(object):
         """
         Set radio transmission power level (0x7f = 20dBm)
         """
-        print("set_power",level,type(level))
-        self.set_property('PA', 1, bytearray(level & 0x7f))
+        b = bytearray(1)
+        b[0] = level & 0x7f
+        self.set_property('PA', 1, b)
     #end def
 
     def shutdown(self):
         """
-        Power off the radio chip.
+        Power off the radio chip
         """
         self.trace.add('RADIO_CHIP',
                        'set GPIO pin {} (SI446x sdn disable)'.format(GPIO_SDN),
