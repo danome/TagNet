@@ -68,17 +68,37 @@ def _get_cts_wait(t):
             sleep(.001)
     return False
 
-##########################################################################
-#
-# common spi access routines
-#
-# note: spi device driver controls chip select
 
 class SpiInterface:
-    """class to access the Si446x over SPI interface"""
+    """
+    Class to access the Si446x over SPI interface
+
+    Basic access to the Si446x device uses the SPI interface. The methods
+    of this class contain the semantics for accessing the device bus
+    registers. The Si446x device contains an internal processor, much
+    of the communication involves command and response exchanges
+    through a 16-byte shared memory buffer. Data is transferred through
+    direct access to the transmit and receive fifos. Additional,
+    a set of four special registers can be directly accessed through
+    bus registers. Otherwise, all configuration and status is exchanged
+    through messages.
+
+    Note: SPI device driver controls chip select and performs an SPI
+          transaction with chip-select held active throughout the transfer.
+          For example:
+          to_send = [0x01, 0x02, 0x03]
+          xfer2(to_send[, speed_hz, delay_usec, bits_per_word])
+    """
     def __init__(self, device, trace=None):
+        """
+        Initialize the SPI interface
+
+        Establish connection to device provided by spidev and RPi and
+        set speed
+        """
         try:
             self.trace = trace if (trace) else si446xtrace.Trace(100)
+            self.device = device
             self.spi = spidev.SpiDev()
             self.spi.open(0, device)  # port=0, device(CS)=device_num
             #self.spi.max_speed_hz=600000
@@ -210,31 +230,38 @@ class Si446xRadio(object):
 
     def clear_interrupts(self, clr_flags=None):
         """
-        Clear radio chip pending interrupts  default (nothing in clr_flags)
-        then clear all interrupts
+        Clear radio chip pending interrupts
+
+        Default (nothing in clr_flags) then clear all interrupts by
+        sending short command. Otherwise, send the flags to clear.
+        (flag == 0 means clear pending interrupt (yes, 0))
         """
         request = read_cmd_s.parse('\x00' * read_cmd_s.sizeof())
         request.cmd='GET_INT_STATUS'
         cf = clr_pend_int_s.build(clr_flags) if (clr_flags) else ''
         cmd = read_cmd_s.build(request) + cf
-        self.spi.command(cmd, read_cmd_s.name)
+        s_name = get_clear_int_cmd_s.name if (cf) else read_cmd_s.name
+        self.spi.command(cmd, s_name)
         self.trace.add('RADIO_PEND', cmd, s_name=s_name, level=2)
     #end def
 
-    def config_frr(self):
+    def config_frr(self,
+                   a_mode='CURRENT_STATE',
+                   b_mode='INT_PH_PEND',
+                   c_mode='INT_MODEM_PEND',
+                   d_mode='LATCHED_RSSI'):
         """
-        Configure the Fast Response Registers to the expected values by Driver
-        const uint8_t si446x_frr_config[] = { 0x11, 0x02, 0x04, 0x00,
+        Configure the Fast Response Registers (FRR) to the specific Driver usage
 
-        frr is set manually right after POWER_UP
-        A: device state
-        B: PH_PEND
-        C: MODEM_PEND
-        D: Latched_RSSI
+        FRR should be set explicitly right after POWER_UP to the following:
+        A: CURRENT_STATE   - current state of the radio
+        B: PH_PEND         - packet handler pending interrupts
+        C: MODEM_PEND      - modem pending interrupts
+        D: LATCHED_RSSI    - current latched RSSI valu
 
         We use LR (Latched_RSSI) when receiving a packet.  The RSSI value is
         attached to the last RX packet.  The Latched_RSSI value may, depending
-        on configuration, be associated with some number of bit times once RX 
+        on configuration, be associated with some number of bit times once RX
         is enabled or when SYNC is detected.
         """
         request = config_frr_cmd_s.parse('\x00' * config_frr_cmd_s.sizeof())
@@ -242,10 +269,10 @@ class Si446xRadio(object):
         request.group='FRR_CTL'
         request.num_props=4
         request.start_prop=0
-        request.a_mode='CURRENT_STATE'
-        request.b_mode='INT_PH_PEND'
-        request.c_mode='INT_MODEM_PEND'
-        request.d_mode='LATCHED_RSSI'
+        request.a_mode=a_mode
+        request.b_mode=b_mode
+        request.c_mode=c_mode
+        request.d_mode=d_mode
         cmd = config_frr_cmd_s.build(request)
         self.spi.command(cmd, config_frr_cmd_s.name)
     #end def
@@ -304,21 +331,21 @@ class Si446xRadio(object):
 
     def  fast_all(self):
         """
-        Read all four fast response registers
+        Get all four fast response registers
         """
-        return self.spi.read_frr(0, 4)
+        return fast_frr_s.parse(self.spi.read_frr(0, 4))
     #end def
-     
+
     def fast_device_state(self):
         """
-        Get current state of the radio chip from fast read register
+        Get current radio device state from fast read register
         """
-        return ord(self.spi.read_frr(0, 1))
+        return Si446xNextStates_t(Byte('state')).parse(self.spi.read_frr(0, 1))
     #end def
 
     def fast_latched_rssi(self):
         """
-        get RSSI from fast read register
+        Get RSSI from fast read register
 
         The radio chip measures the receive signal strength (RSSI) during the
         beginning of receiving a packet, and latches this value.
@@ -328,23 +355,23 @@ class Si446xRadio(object):
 
     def fast_modem_pend(self):
         """
-        get modem pending interrupt flags from fast read register
+        Get modem pending interrupt flags from fast read register
         """
-        return ord(self.spi.read_frr(2, 1))
+        return modem_pend_s.parse(self.spi.read_frr(2, 1))
     #end def
 
     def fast_ph_pend(self):
         """
-        get modem pending interrupt flags from fast read register
+        Get packet handler (ph) pending interrupt flags from fast read register
         """
-        return ord(self.spi.read_frr(1, 1))
+        return ph_pend_s.parse(self.spi.read_frr(1, 1))
     #end def
 
     def fifo_info(self, rx_flush=False, tx_flush=False):
         """
         Get the current tx/rx fifo depths and optionally flush
 
-        returns a list of [rx_fifo_count, tx_fifo_space]
+        Returns a list of [rx_fifo_count, tx_fifo_space]
         """
         request = fifo_info_cmd_s.parse('\x00' * fifo_info_cmd_s.sizeof())
         request.cmd='FIFO_INFO'
@@ -366,15 +393,39 @@ class Si446xRadio(object):
         return self.channel
     #end def
 
+    def get_chip_status(self):
+        """
+        Get current chip status
+
+        No change to current pending interrupts.
+        """
+        request = get_chip_status_cmd_s.parse('\x00\xff')
+        request.cmd = 'GET_CHIP_STATUS'
+        cmd = get_chip_status_cmd_s.build(request)
+        self.spi.command(cmd, get_chip_status_cmd_s)
+        rsp = self.spi.response(get_chip_status_rsp_s.sizeof(), get_chip_status_rsp_s.name)
+        if (rsp):
+            self.trace.add('RADIO_PEND', rsp, s_name=get_chip_status_rsp_s.name, level=2)
+            return (get_chip_status_rsp_s.parse(rsp))
+        return None
+    #end def
+
     def get_clear_interrupts(self, clr_flags=None):
         """
         Clear radio chip pending interrupts
 
-        Return pending interrupt conditions (existing prior to clear).
+        The interrupts to clear can be specified (clr_pending_int_s).
+        If no clr_flags passed, then will clear all pending interrupts.
+
+        Returns pending interrupt conditions existing prior to
+        clear (int_status_rsp_s).
+
+        Refer to structures defined by the Si4463 radio API revB1B.
         """
         self.clear_interrupts(clr_flags)
         rsp = self.spi.response(int_status_rsp_s.sizeof(), int_status_rsp_s.name)
         if (rsp):
+            self.trace.add('RADIO_PEND', rsp, s_name=int_status_rsp_s.name, level=2)
             return (int_status_rsp_s.parse(rsp))
         return None
     #end def
@@ -434,16 +485,10 @@ class Si446xRadio(object):
         """
         get current interrupt conditions
 
-        doesn't clear any interrupts
+        doesn't clear any interrupts (set all flags to 1)
         """
-        request = read_cmd_s.parse('\x00' * read_cmd_s.sizeof())
-        request.cmd='GET_INT_STATUS'
-        cmd = read_cmd_s.build(request)
-        self.spi.command(cmd, read_cmd_s.name)
-        rsp = self.spi.response(int_status_rsp_s.sizeof(), int_status_rsp_s.name)
-        if (rsp):
-            return (int_status_rsp_s.parse(rsp))
-        return None
+        clr_flags = clr_pend_int_s.parse('\xff' * clr_pend_int_s.sizeof())
+        return self.get_clear_interrupts(clr_flags)
     #end def
 
     def get_packet_info(self):
@@ -514,28 +559,31 @@ class Si446xRadio(object):
         """
         Read silicon manufacturing information
         """
+        response = []
         request = read_cmd_s.parse('\x00' * read_cmd_s.sizeof())
         request.cmd='PART_INFO'
         cmd = read_cmd_s.build(request)
         self.spi.command(cmd, read_cmd_s.name)
         rsp = self.spi.response(read_part_info_rsp_s.sizeof(),
-                                read_part_info_rsp_s.name)
+                                 read_part_info_rsp_s.name)
         if (rsp):
-            response = read_part_info_rsp_s.parse(rsp)
-        request.cmd='FUNC_INFO'
-        cmd = read_cmd_s.build(request)
-        self.spi.command(cmd, read_cmd_s.name)
-        rsp = self.spi.response(read_func_info_rsp_s.sizeof(),
-                                read_func_info_rsp_s.name)
+            response.append((rsp, read_part_info_rsp_s.parse(rsp)))
+
+            request.cmd='FUNC_INFO'
+            cmd = read_cmd_s.build(request)
+            self.spi.command(cmd, read_cmd_s.name)
+            rsp = self.spi.response(read_func_info_rsp_s.sizeof(),
+                                     read_func_info_rsp_s.name)
         if (rsp):
-            response = read_func_info_rsp_s.parse(rsp)
+            response.append((rsp,read_func_info_rsp_s.parse(rsp)))
+        return response
     #end def
 
 
     def read_rx_fifo(self, len):
         """
         Read data from the radio chip receive fifo
-        returns bytestring
+        returns bytesarray
         """
         return self.spi.read_fifo(len)
     #end def
@@ -558,8 +606,16 @@ class Si446xRadio(object):
 
     def set_property(self, pg, ps, pd):
         """
-        Set one or more contiguous radio chip properties
+        Set one or more contiguous radio device properties
+
+        Up to 12 properties at a time (msg buffer is 16, subtrace for
+        cts and set_property_header). Higher level code would need to
+        split up the data into more than one set_property call to set
+        any group larger than 12 (like modem for instance).
         """
+        if (len(pd) > MAX_GROUP_WRITE):
+            self.trace.add('RADIO_ERROR',
+                           'set property too long ({}:{}) ({})'.format(pg, ps, len(pd)))
         request = set_property_cmd_s.parse('\x00' * set_property_cmd_s.sizeof())
         request.cmd='SET_PROPERTY'
         request.group=pg
