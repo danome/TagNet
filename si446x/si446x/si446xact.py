@@ -317,7 +317,7 @@ def tx_fill_ff(actions, ev):
             log.msg('tx_fill_ff: fifo empty, too late', rx_len, tx_free)
         actions.tx['offset'] += remaining_len if (remaining_len < tx_free) else tx_free
         segment = actions.tx['buffer'][start_offset:actions.tx['offset']]
-        actions.radio.write_tx_fifo(segment)
+        actions.radio.write_tx_fifo(bytearray(segment))
 #
 def tx_start(actions, ev):
     pkt_len = len(actions.tx['buffer'])

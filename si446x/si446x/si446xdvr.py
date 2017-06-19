@@ -65,18 +65,21 @@ from si446xact                import Si446xFsmActionHandlers
 from si446xradio              import Si446xRadio
 from si446xdef                import *
 import si446xtrace
+from si446xvers               import __version__
 
-__all__ = ['BUS_NAME', 'OBJECT_PATH', 'si446x_dbus_interface', 'Si446xDbus', 'reactor_loop']
+# Public names from this module
+#
+__all__ = ['BUS_NAME', 'OBJECT_PATH', 'si446x_dbus_interface', 'Si446xDbus', 'reactor_loop', 'si446xdvr_test']
 
-BUS_NAME = 'org.tagnet.si446x'
-OBJECT_PATH = '/org/tagnet/si446x/0/0'   # object name includes device id/port numbers
 
+# DBUS interface definition
+#
 si446x_dbus_interface = DBusInterface( BUS_NAME,
                             Method('cca', returns='u'),
                             Method('clear_status', returns='s'),
                             Method('control', arguments='s', returns='s'),
                             Method('dump_radio', arguments='s', returns='s'),
-                            Method('dump_trace', arguments='sissu', returns='a(dyssay)'),
+                            Method('dump_trace', arguments='i', returns='a(dsssay)'),
                             Method('send', arguments='ayu', returns='s'),
                             Method('spi_send', arguments='ays', returns='s'),
                             Method('spi_send_recv', arguments='ayuss', returns='ay'),
