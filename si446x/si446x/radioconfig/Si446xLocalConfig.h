@@ -67,7 +67,7 @@
 #define SI446X_PKT_RX_FIELD_CONFIG_10_LEN 14
 #define SI446X_PKT_RX_FIELD_CONFIG_10   0x11, 0x12, 0x0a, 0x21, \
                                               0x00, 0x01, 0x04, 0x82, \
-                                              0x00, 0x81, 0x00, 0x0a, \
+                                              0x00, 0xff, 0x00, 0x0a, \
                                               0x00, 0x00
 
 /* MODEM_RSSI (p204a+)
