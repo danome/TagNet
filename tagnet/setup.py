@@ -24,7 +24,7 @@ setup(
     description      = DESCRIPTION,
     license          = "MIT",
     long_description ="""\
-A protocol transferring of named data objects in an ad hoc network of constraint-based nodes using low-power 400MHz radio networks.""",
+A protocol for named data objects in an ad hoc network of constraint-based nodes using low-power sub-GHz radios.""",
     url              = 'https://github.com/dmaltbie/Tagnet/tagnet',
     author           = 'Dan Maltbie',
     author_email     = 'dmaltbie@daloma.org',
