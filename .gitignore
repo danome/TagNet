@@ -9,3 +9,4 @@ dist
 build
 MANIFEST
 *egg-info*
+.ipynb_checkpoints
