@@ -6,26 +6,7 @@ import binascii
 from temporenc import packb, unpackb
 from binascii import hexlify
 
-#from enum import Enum, unique
-import enum
-
-@enum.unique
-class tlv_types(enum.Enum):
-    STRING                 =  1
-    INTEGER                =  2
-    GPS                    =  3
-    TIME                   =  4
-    NODE_ID                =  5
-    NODE_NAME              =  6
-    OFFSET                 =  7
-    COUNT                  =  8
-    EOF                    =  9
-    VERSION                = 10
-
 from tagdef import *
-
-# gps format:  '32.30642N122.61458W'
-# time format: '1470998711.36'
 
 def _forever(v):
     """

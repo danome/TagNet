@@ -7,45 +7,6 @@ from construct import *
 import platform
 from binascii import hexlify
 
-TAGNET_VERSION = 1
-DEFAULT_HOPCOUNT = 20
-MAX_HOPCOUNT = 31
-
-tagnet_message_header_s = Struct('tagnet_message_header_s',
-                                 Byte('frame_length'),
-                                 BitStruct('options',
-                                           Flag('response'),
-                                           BitField('version',3),
-                                           Padding(3),
-                                           Enum(BitField('tlv_payload',1),
-                                                RAW               = 0,
-                                                TLV_LIST          = 1,
-                                                ),
-                                           Enum(BitField('message_type',3),
-                                                POLL              = 0,
-                                                BEACON            = 1,
-                                                HEAD              = 2,
-                                                POST              = 3,
-                                                PUT               = 4,
-                                                GET               = 5,
-                                                DELETE            = 6,
-                                                PATCH             = 7,
-                                                ),
-                                           Union('param',
-                                                 BitField('hop_count',5),
-                                                 Enum(BitField('error_code',5),
-                                                      OK              = 0,
-                                                      NO_ROUTE        = 1,
-                                                      TOO_MANY_HOPS   = 2,
-                                                      MTU_EXCEEDED    = 3,
-                                                      UNSUPPORTED     = 4,
-                                                      BAD_MESSAGE     = 5,
-                                                      FAILED          = 6,
-                                                      ),
-                                                 ),
-                                           ),
-                                 Byte('name_length'),
-                                 )
 from tagnames import TagName
 from tagtlv import tlv_types
 
