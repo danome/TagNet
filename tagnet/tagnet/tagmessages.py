@@ -17,6 +17,10 @@ from tagtlv import tlv_types
 #
 from tagtlv import *
 
+
+MAX_TAGNET_PKT_SIZE = 254
+
+
 #------------ main message class definitions ---------------------
 
 class TagMessage(object):
@@ -112,11 +116,17 @@ class TagMessage(object):
 
         Note that value may change if message is further modified.
         """
+        l_pl = 0
         if (self.payload):
             if isinstance(self.payload, TagTlvList):  l_pl = self.payload.pkt_len()
             elif isinstance(self.payload, bytearray): l_pl = len(self.payload)
-        else:                                         l_pl = 0
         return sum([tagnet_message_header_s.sizeof(),self.name.pkt_len(),l_pl])
+
+    def payload_free(self):
+        used_bytes = self.pkt_len()
+        free_bytes = (MAX_TAGNET_PKT_SIZE - used_bytes) \
+                     if (used_bytes < MAX_TAGNET_PKT_SIZE) else 0
+        return f_bytes
 
     def hop_count(self, n=None):
         """

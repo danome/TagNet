@@ -157,7 +157,7 @@ class TagTlv(object):
         The Tuple consists of a TagTlv Type and a bytearray for Value.
         """
         self.tuple = None
-        if (v):
+        if (v is not None):
             self._convert(t,v)
         elif isinstance(t, TagTlv):
             self.tuple = t.tuple
@@ -169,6 +169,8 @@ class TagTlv(object):
             self._convert(tlv_types.STRING, t)
         elif isinstance(t, types.TupleType):
             self._convert(t[0],t[1])
+        elif isinstance(t, type(tlv_types.EOF)):
+            self._convert(t, '')
         else:
             print("bad tlv init", t, v)
 
@@ -181,8 +183,10 @@ class TagTlv(object):
             if isinstance(v, types.StringType) or isinstance(v, bytearray):
                 self.tuple = (t, str(v))
         elif (t is tlv_types.INTEGER) or (t is tlv_types.OFFSET):
-            if  isinstance(v, types.IntType) or isinstance(v, bytearray) or isinstance(v, types.LongType):
+            if  isinstance(v, types.IntType) or isinstance(v, types.LongType):
                 self.tuple =  (t, int(v))
+            else:
+                self.tuple = (t, 0)
         elif t is tlv_types.GPS:
             # zzz
             v = bytearray.fromhex(''.join('%02X' % (v[i]) for i in reversed(xrange(10))))
@@ -232,13 +236,18 @@ class TagTlv(object):
         """
         t = self.int_to_tlv_type(fb[0])
         l = fb[1]
-        v = fb[2:]
+        v = bytearray(fb[2:])
         if (l != len(v)):
             print('tlv bad parse: {}'.format(fb))
         if t is tlv_types.TIME:
              v = unpackb(v).datetime()
         elif  (t is tlv_types.INTEGER) or (t is tlv_types.OFFSET):
-            v = int.from_bytes(v, 'big')
+#            print(t,l,hexlify(v))
+            a = 0
+            for i in range(l): a = (a << 8) + v[i]
+            v = a
+#            for i in range(l): a = (a * 256) + int.from_bytes(v[i],'big')
+#            v = int.from_bytes(v, 'big')
         elif t is tlv_types.NODE_ID or t is tlv_types.GPS:
             v = bytearray(v)
         elif t is tlv_types.VERSION:
@@ -258,7 +267,11 @@ class TagTlv(object):
             v = self.value().encode()
         elif (t is tlv_types.INTEGER) or (t is tlv_types.OFFSET):
             n = int(self.value())
-            v = n.to_bytes((len(hex(n)[2:])+1)/2,'big', signed=True)
+            p = pack('>L', n)
+            for i in range(0,4):
+                if (p[i] != '\x00'): break
+            v = p[i:]
+#            v = n.to_bytes((len(hex(n)[2:])+1)/2,'big', signed=True)
         elif t is tlv_types.GPS:
             # zzz
             v = self.value().encode()
@@ -293,6 +306,8 @@ class TagTlv(object):
             v = hexlify(self.value())
         elif (self.tlv_type() is tlv_types.VERSION):
             v = list(unpack('HBB', self.value()))
+        elif (self.tlv_type() is tlv_types.EOF):
+            v = ''
         else:
             v = self.value()
         return '({}, {})'.format(self.tlv_type(),v)
