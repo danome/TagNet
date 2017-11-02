@@ -269,6 +269,23 @@ class TagPut(TagMessage):
 
 #------------ end of class definition ---------------------
 
+class TagDelete(TagMessage):
+    """
+    Instantiate a TagNet Delete message
+    """
+    def __init__(self, name, pl=None, hop_count=None):
+        if (pl):
+            super(TagDelete,self).__init__(name, pl)
+        else:
+            super(TagDelete,self).__init__(name)
+        self.header.options.message_type = 'DELETE'
+        if (hop_count):
+            self.hop_count(hop_count)
+        else:
+            self.hop_count(DEFAULT_HOPCOUNT)
+
+#------------ end of class definition ---------------------
+
 class TagResponse(TagMessage):
     """
     set message to response
