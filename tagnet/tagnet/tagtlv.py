@@ -189,14 +189,16 @@ class TagTlv(object):
                 self.tuple = (t, 0)
         elif t is tlv_types.GPS:
             # zzz
-            v = bytearray.fromhex(''.join('%02X' % (v[i]) for i in reversed(xrange(10))))
+            v = bytearray.fromhex(''.join('%02X' % (v[i]) for i in xrange(12)))
+#            v = bytearray.fromhex(''.join('%02X' % (v[i]) for i in reversed(xrange(12))))
             self.tuple =  (t, v)
         elif t is tlv_types.TIME:
             self.tuple =  (t, v)
         elif t is tlv_types.NODE_ID:
             if isinstance(v, types.IntType) or isinstance(v, types.LongType):
                 v = bytearray.fromhex(
-                    ''.join('%02X' % ((v >> 8*i) & 0xff) for i in reversed(xrange(6))))
+                    ''.join('%02X' % ((v >> 8*i) & 0xff) for i in xrange(6)))
+#                    ''.join('%02X' % ((v >> 8*i) & 0xff) for i in reversed(xrange(6))))
             elif isinstance(v, types.StringType):
                 v = bytearray.fromhex(v)
             self.tuple =  (t, bytearray(v))
