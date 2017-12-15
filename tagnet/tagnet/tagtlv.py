@@ -1,13 +1,79 @@
 from __future__ import print_function   # python3 print function
+# NOT THE MAIN SOURCE: see repo [danome]:Tagnet/tagnet/tagnet/tagtlv.py
 from builtins import *                  # python3 types
-import os, sys, types
+import os, sys, types, platform
 from os.path import normpath, commonprefix
-from temporenc import packb, unpackb
+#from temporenc import packb, unpackb
 from binascii import hexlify
 from struct import pack, unpack
+from datetime import datetime
+from uuid import getnode as get_mac
+import copy
+import unittest
+import enum
 
-from tagdef import *
+# only make these names public
+#
+__all__ = ['TagTlvList', 'TagTlv', 'tlv_types', 'tlv_errors']
 
+# Fundamental Types of TLV objects
+#
+class tlv_types(enum.Enum):
+    NONE             =  0
+    STRING           =  1
+    INTEGER          =  2
+    GPS              =  3
+    TIME             =  4
+    NODE_ID          =  5
+    NODE_NAME        =  6
+    OFFSET           =  7
+    SIZE             =  8
+    EOF              =  9
+    VERSION          = 10
+    BLOCK            = 11
+    RECNUM           = 12
+    RECCNT           = 13
+    DELAY            = 14
+    ERROR            = 15
+    APP1             = 20
+    APP2             = 21
+
+class tlv_errors(enum.Enum):
+    SUCCESS          =  0
+    FAIL             =  1
+    ESIZE            =  2
+    ECANCEL          =  3
+    EOFF             =  4
+    EBUSY            =  5
+    EINVAL           =  6
+    ERETRY           =  7
+    ERESERVE         =  8
+    EALREADY         =  9
+    ENOMEM           = 10
+    ENOACK           = 11
+    ETIMEOUT         = 12
+    ESUBSYSDIS       = 13
+    EODATA           = 14
+    ELAST            = 15
+
+#    FAIL             =  1   # Generic condition: backwards compatible
+#    ESIZE            =  2   # Parameter passed in was too big.
+#    ECANCEL          =  3   # Operation cancelled by a call.
+#    EOFF             =  4   # Subsystem is not active
+#    EBUSY            =  5   # The underlying system is busy; retry later
+#    EINVAL           =  6   # An invalid parameter was passed
+#    ERETRY           =  7   # A rare and transient failure: can retry
+#    ERESERVE         =  8   # Reservation required before usage
+#    EALREADY         =  9   # The device state you are requesting is already set
+#    ENOMEM           = 10   # Memory required not available
+#    ENOACK           = 11   # A packet was not acknowledged
+#    ETIMEOUT         = 12   # operation timed out
+#    ESUBSYSDIS       = 13   # subsystem is disabled (vs. off)
+#    EODATA           = 14   # End Of DATA (e.g., file or record)
+#    ELAST            = 15   # Last enum value
+
+# General Functions
+#
 def _forever(v):
     """
     Returns the same value it is instantiated with each time it is called using .next()
@@ -15,51 +81,92 @@ def _forever(v):
     while True:
         yield (v)
 
+def int_to_tlv_type(idx):
+    """
+    Returns the network format (byte) value of TLV type
+    """
+    for tlvt in tlv_types:
+        if (tlvt.value == idx): return tlvt
+    return None
+
+#------------ end of general functions  ---------------------
+
+
+class TlvBadException(Exception):
+    def __init__( self, t, v):
+        self.t = t
+        self.v = v
+        Exception.__init__(self, 'Bad Tlv: type:{}, value:{}'.format(
+            t if (t) else 'None',
+            v if (v) else 'None'))
+
+class TlvListBadException(Exception):
+    def __init__( self, args):
+        self.args = args
+        Exception.__init__(self, 'Bad Tlv List: args:{}'.format(
+            args if (args) else 'None'))
+
+#------------ end of exception classes  ---------------------
+
 
 class TagTlvList(list):
     """
     constructor for Tag TLV lists.
 
-    Used for specifying tag names and payloads.
+    Used in specifying tag names and payloads.
     """
     zstring=_forever(tlv_types.STRING)
 
     def __init__(self, *args, **kwargs):
         """
-        initialize the tlv list structure
+        initialize the tagtlv list structure
 
-        Expects a single parameter of one of the following types:
+        If no parameter, then return empty TagTlvList
+
+        One parameter of one of the following types:
         - String
         - bytearray
         - TagTlvList
         - list of TagTlvs [tlv, ...]
         - list of tuples [(type, value)...]
+        - TagTlv (singleton)
+
+        More than one parameter then treat as list of TLVs.
 
         Make sure that all elements added are valid tlv_types.
         """
         super(TagTlvList,self).__init__()
-        if (len(args) == 1):
-            if isinstance(args[0], types.StringType):
-                for t,v in (zip(self.zstring,normpath(args[0]).split(os.sep)[1:])):
-                    self.append(TagTlv(t,v))
-                return
-            elif isinstance(args[0], TagTlvList):
-                for tlv in args[0]:
-                    self.append(TagTlv(tlv))
-                return
-            elif isinstance(args[0], bytearray):
-                self.parse(args[0])
-                return
-            else: # isinstance(args[0], types.ListType)
-                if isinstance(args[0][0], types.TupleType):
+        if (len(args) == 0):
+            pass
+        elif (len(args) == 1):
+            try:
+                if isinstance(args[0], types.StringType):
+                    for t,v in zip(self.zstring,
+                                   normpath(args[0]).split(os.sep)):
+                        if (v == ''):
+                            continue
+                        self.append(TagTlv(t,v))
+                elif isinstance(args[0], bytearray):
+                    self.parse(args[0])
+                elif isinstance(args[0], TagTlvList):
+                    for tlv in args[0]:
+                        self.append(TagTlv(tlv))
+                elif isinstance(args[0][0], types.TupleType):
                     for t,v in args[0]:
                         self.append(TagTlv(t,v))
-                    return
                 elif isinstance(args[0][0], TagTlv):
                     for tlv in args[0]:
                         self.append(TagTlv(tlv))
-                    return
-        print('error:', args, type(args[0][0]) if (args and args[0]) else '')
+            except:
+                raise TlvListBadException(args)
+        else:
+            try:
+                tl = []
+                for arg in args:
+                    tl.append(TagTlv(arg))
+                super(TagTlvList,self).extend(tl)
+            except:
+                raise TlvListBadException(args)
 
     #------------ following methods extend base class  ---------------------
 
@@ -69,28 +176,28 @@ class TagTlvList(list):
         """
         fb = bytearray(b'')
         for tlv in self:
-            fb += tlv.build()
+            fb.extend(tlv.build())
         return fb
 
     def copy(self):
         """
         make a copy of this tlvlist in a new tlvlist object
         """
-        return TagTlvList(self)
+        return copy.deepcopy(self)
 
     def endswith(self, d):
         """
         """
         return self
 
-    def parse(self, v):
+    def parse(self, fb):
         """
-        process packet formatted string of tlvs into a tagtlvlist. replaces current list
+        process nextwork formatted string of tlvs into a tagtlvlist. replaces current list
         """
         x = 0
-        while (x < len(v)):
-            y = v[x+1] + 2
-            self.append(TagTlv(v[x:x+y]))
+        while (x < len(fb)):
+            y = fb[x+1] + 2
+            self.append(TagTlv(fb[x:x+y]))
             x += y
 
     def pkt_len(self):  # needs fixup
@@ -108,336 +215,613 @@ class TagTlvList(list):
 
     #------------ following methods overload base class  ---------------------
 
-    def append(self, o):
+    def append(self, t):
         """
         append overloaded to handle possible format conversions of value in appending object
         """
-        return self.extend([o])
+        self.extend([t])
 
     def extend(self, l):
         """
         extend overloaded to handle possible format conversions of value in extending list
         """
         tl = []
-        for o in l:
-            tl.append(TagTlv(o))
+        for t in l:
+            tl.append(TagTlv(t))
         super(TagTlvList,self).extend(tl)
-        return self
 
-    def insert(self, i, o):
+    def insert(self, i, t):
         """
         insert overloaded to handle possible format conversions of value in inserting object
         """
-        return super(TagTlvList,self).insert(i,TagTlv(o))
+        super(TagTlvList,self).insert(i,TagTlv(t))
 
-    def __add__(self,o):
+    def __add__(self, other):
         """
         __add__ overloaded to handle possible format conversions of value in adding object
         """
-        l = o if isinstance(o, list) else [o]
-        return self.extend(l)
+        tl = copy.copy(self)
+        if isinstance(other, TagTlv):
+            tl.append(TagTlv(other))
+        elif isinstance(other, TagTlvList):
+            tl = TagTlvList(other).extend(TagTlvList(self))
+        return tl
+
+    def __radd__(self, other):
+        """
+        __add__ overloaded to handle possible format conversions of value in adding object
+        """
+        if isinstance(other, TagTlv):
+            self.append(TagTlv(other))
+        elif isinstance(other, TagTlvList):
+            self.extend(TagTlvList(other))
+        return self
+
+
+#------------ end of class definition ---------------------
+
+class _Tlv(object):
+    """
+    internal class for handling basic tlv manipulation
+
+    returns none if operation fails
+    """
+    def __init__(self, t, v=None):
+        """
+        Create basic Tlv object instance
+
+        Translates from Python variable to TagTlv network
+        bytearray.
+
+        When only one parameter, use as bytearray in network
+        format and verify its validity.
+
+        Tlv is internally stored in the network format.
+
+        Can be retrieved in network format with self.build()
+        or as Python object with self.value()
+        """
+        self.mytuple   = None
+        try:
+            self.mytuple = self._build_tlv(t, v)
+        except:
+            if (isinstance(t, bytearray)):
+                if (self._build_value(t) is not None):
+                    if (len(t[2:]) == t[1]):
+                        self.mytuple = copy.copy(t)
+        if (self.mytuple is None):
+            raise TlvBadException(t, v)
+
+    def tlv_type(self):
+        """
+        returns value of the tlv type for this TLV
+        """
+        if (self.mytuple):
+            return int_to_tlv_type(self.mytuple[0])
+        return (tlv_types.None)
+
+    def value(self):
+        """
+        returns the python object representing tlv value
+        """
+        return self._build_value(self.mytuple)
+
+    def build(self):
+        """
+        returns the tlv network byte array
+        """
+        return bytearray(self.mytuple)
+
+    def __len__(self):
+        """
+        returns the length of tlv network byte array
+        """
+        if (self.mytuple):
+            return len(self.mytuple)
+        return 0
+
+    def __eq__(self, other):
+        return (self.mytuple == other.mytuple)
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def _to_tlv(self, t, v):
+        """
+        add tlv header to network byte array
+        """
+        if isinstance(t, type(tlv_types.NONE)): # match any tlv_type
+            hdr = int(t.value).to_bytes(1,'big') + \
+                  int(len(v)).to_bytes(1,'big')
+            return bytearray(hdr + bytearray(v))
+        raise TlvBadException(t, v)
+
+    def _to_tlv_int(self, t, v):
+        """
+        compress integer and add tlv header to network byte array
+        """
+        n = int(v)
+        p = pack('>L', n)
+        for i in range(0,4):
+            if (p[i] != '\x00'): break
+        return self._to_tlv(t, p[i:])
+
+    def _build_tlv(self, t, v):
+        """
+        construct a network byte array from a type-value pair
+        """
+        if (t == tlv_types.INTEGER) or \
+           (t == tlv_types.OFFSET) or \
+           (t == tlv_types.RECNUM) or \
+           (t == tlv_types.RECCNT) or \
+           (t == tlv_types.DELAY) or \
+           (t == tlv_types.SIZE):
+            if isinstance(v, types.IntType) or \
+               isinstance(v, types.LongType):
+                return self._to_tlv_int(t, v)
+
+        if (t == tlv_types.ERROR):
+            if isinstance(v, tlv_errors):
+                return self._to_tlv_int(t, v.value)
+
+        if (t == tlv_types.STRING)or \
+           (t == tlv_types.NODE_NAME):
+            if isinstance(v, types.StringType) or \
+               isinstance(v, bytearray):
+                return self._to_tlv(t, bytearray(v))
+
+        if (t == tlv_types.GPS):
+            if isinstance(v, tuple) or isinstance(v, list):
+                ba = pack('<iii', *v)
+                return self._to_tlv(t, bytearray(ba))
+
+        if (t == tlv_types.TIME):   return self._to_tlv(t, v)
+
+        if (t == tlv_types.NODE_ID):
+            if isinstance(v, types.IntType) or\
+               isinstance(v, types.LongType):
+                ba = bytearray.fromhex(
+                    ''.join('%02X' % ((v >> 8*i) & 0xff) for i in xrange(6)))
+            elif isinstance(v, types.StringType):
+                ba = bytearray.fromhex(v)
+            elif isinstance(v, bytearray):
+                ba = v
+            if (ba):
+                return self._to_tlv(t, ba)
+            raise TlvBadException(t, v)
+
+        if (t == tlv_types.EOF):    return self._to_tlv(t, bytearray(''))
+
+        if (t == tlv_types.VERSION):
+            if isinstance(v, list) or \
+               isinstance(v, tuple):
+                ba = pack('HBB', *v)
+                return self._to_tlv(t, bytearray(ba))
+
+        if (t == tlv_types.BLOCK) or \
+           (t == tlv_types.APP1)  or \
+           (t == tlv_types.APP2):
+            return self._to_tlv(t, v)
+
+        raise TlvBadException(t, v)
+
+    def _build_value(self, ba):
+        """
+        construct a python object from network byte array
+        """
+        def int_to_value(v):
+            """
+            Returns an integer from converting the network (byte string) value
+            """
+            try:
+                acc = 0
+                for i in range(l): acc = (acc << 8) + v[i]
+                return acc
+            except:
+                return None
+
+        def err_to_value(v):
+            """
+            Returns a tlv_errors type from converting the network (byte string) value
+            """
+            try:
+                acc = 0
+                err = tlv_errors.SUCCESS
+                for i in range(l): acc = (acc << 8) + v[i]
+                for n in tlv_errors.__dict__['_member_names_']:
+                    err = eval('tlv_errors.'+n)
+                    if err.value == acc:
+                        return err
+                return none
+            except:
+                return None
+
+        if (len(ba) < 2):
+            raise TlvBadException(t, v)
+        t = int_to_tlv_type(ba[0])
+        l = ba[1]
+        v = ba[2:]
+        if (len(v) != l):
+            raise TlvBadException(t, v)
+        if (t == tlv_types.INTEGER):   return int_to_value(v)
+        if (t == tlv_types.STRING):    return bytearray(v)
+        if (t == tlv_types.GPS):       return list(unpack('<iii', v))
+        if (t == tlv_types.TIME):      return v
+        if (t == tlv_types.NODE_ID):   return v
+        if (t == tlv_types.NODE_NAME): return bytearray(v)
+        if (t == tlv_types.OFFSET):    return int_to_value(v)
+        if (t == tlv_types.SIZE):      return int_to_value(v)
+        if (t == tlv_types.EOF):       return bytearray(b'')
+        if (t == tlv_types.VERSION):   return list(unpack('HBB', v))
+        if (t == tlv_types.BLOCK):     return copy.deepcopy(v)
+        if (t == tlv_types.RECNUM):    return int_to_value(v)
+        if (t == tlv_types.RECCNT):    return int_to_value(v)
+        if (t == tlv_types.DELAY):     return int_to_value(v)
+        if (t == tlv_types.ERROR):     return err_to_value(v)
+        if (t == tlv_types.APP1):      return copy.deepcopy(v)
+        if (t == tlv_types.APP2):      return copy.deepcopy(v)
+        raise TlvBadException(t, v)
 
 #------------ end of class definition ---------------------
 
 
 class TagTlv(object):
     """
-    Constructor for a TagNet Type-Length-Value (TLV) Objects
+    Constructor for a TagNet Type-Length-Value (TLV) Object
 
-    Handles the translation between network format and python structures.
+    Handles the translation between network format and
+    python types.
     """
-    def __init__(self, t, v=None):
+    def __init__(self, t=None, v=None):
         """
-        initialize the specified TLV type with optional value
+        initializes the specified TLV type and value
 
-        The value can be of various formats, including:
-          TagTlv, bytearray, Integer, Long, String, or Tuple(T,V)
+        When invoked with zero parameters, just create empty
+        tlv.
 
-        The bytearray is interpreted to be network formated data.
-        The Tuple consists of a TagTlv Type and a bytearray for Value.
+        When invoked with two parameters, the first parameter
+        is the tlv_type, and the second is the data associated
+        with this type, in its Python form.
+
+        When invoked with one parameter, then handle by type
+        as follows:
+        - integer or long   = convert number to integer tlv
+        - string            = convert string to string tlv
+        - bytearray         = parse network format to tlv
+        - tuple(t,v)        = convert tuple(tlv, value) to tlv
+        - TagTlv            = create new tlv, copy type/value
         """
-        self.tuple = None
-        if (v is not None):
-            self._convert(t,v)
-        elif isinstance(t, TagTlv):
-            self.tuple = t.tuple
-        elif isinstance(t, bytearray):
-            self.parse(t)
-        elif isinstance(t, types.IntType) or isinstance(t, types.LongType):
-            self._convert(tlv_types.INTEGER, t)
-        elif isinstance(t, types.StringType):
-            self._convert(tlv_types.STRING, t)
-        elif isinstance(t, types.TupleType):
-            self._convert(t[0],t[1])
-        elif isinstance(t, type(tlv_types.EOF)):
-            self._convert(t, '')
-        else:
-            print("bad tlv init", t, v)
+        self.mytlv = None  # value of tlv associated with this object
+        if (t is None) and (v is None):       # no parameters
+            pass                              #  empty list
+        elif (t is not None and v is not None): # two parameters
+            self.mytlv = _Tlv(t,v)              #  tuple
+        elif (v is None):                     # one parameter
+            if isinstance(t, types.IntType) or \
+               isinstance(t, types.LongType):       # Integer
+                self.mytlv = _Tlv(tlv_types.INTEGER, t)
+            elif isinstance(t, types.StringType):     # String
+                self.mytlv = _Tlv(tlv_types.STRING, t)
+            elif isinstance(t, bytearray):            # bytearray
+                self.mytlv = _Tlv(t)
+            elif isinstance(t, types.TupleType):      # Tuple
+                self.mytlv = _Tlv(t[0], t[1])
+            elif (isinstance(t, TagTlv)):             # TagTlv
+                self.mytlv = _Tlv(t.tlv_type(), t.value())
+            elif (t == tlv_types.EOF):
+                self.mytlv = _Tlv(t, bytearray(b''))
+        if (self.mytlv is None):
+            raise TlvBadException(t, v)
 
-
-    def _convert(self, t, v):
-        """
-        convert a network formated type-value into object instance
-        """
-        if (t is tlv_types.STRING) or (t is tlv_types.NODE_NAME):
-            if isinstance(v, types.StringType) or isinstance(v, bytearray):
-                self.tuple = (t, str(v))
-        elif (t is tlv_types.INTEGER) or (t is tlv_types.OFFSET):
-            if  isinstance(v, types.IntType) or isinstance(v, types.LongType):
-                self.tuple =  (t, int(v))
-            else:
-                self.tuple = (t, 0)
-        elif t is tlv_types.GPS:
-            # zzz
-            v = bytearray.fromhex(''.join('%02X' % (v[i]) for i in xrange(12)))
-#            v = bytearray.fromhex(''.join('%02X' % (v[i]) for i in reversed(xrange(12))))
-            self.tuple =  (t, v)
-        elif t is tlv_types.TIME:
-            self.tuple =  (t, v)
-        elif t is tlv_types.NODE_ID:
-            if isinstance(v, types.IntType) or isinstance(v, types.LongType):
-                v = bytearray.fromhex(
-                    ''.join('%02X' % ((v >> 8*i) & 0xff) for i in xrange(6)))
-#                    ''.join('%02X' % ((v >> 8*i) & 0xff) for i in reversed(xrange(6))))
-            elif isinstance(v, types.StringType):
-                v = bytearray.fromhex(v)
-            self.tuple =  (t, bytearray(v))
-        elif t is tlv_types.VERSION:
-            if isinstance(v, list) or isinstance(v, tuple):
-                v = pack('HBB', *v)
-            self.tuple = (t, v)
-        elif t is tlv_types.EOF:
-            self.tuple = (t, '')
-        else:
-            print("bad tlv convert", t, v)
+    def copy(self):
+        return copy.deepcopy(self)
 
     def update(self, t, v=None):
         """
         modify existing type and value fields of object
         """
-        if (v is None):
-            if isinstance(t, TagTlv):
-                self._convert(t.tlv_type(),t.value())
-            elif isinstance(t, types.TupleType):
-                self._convert(t[0],t[1])
-            elif isinstance(t, bytearray):
-                self.parse(t)
-        else:
-            self._convert(t, v)
-        if (not self.tuple):
-            print('error tlv ({}): {} / {}'.format(type(t), t, v))
+        if (v):
+            self.mytlv = _Tlv(t, v)
+            if (self.mytlv):
+                return
+        if isinstance(t, TagTlv):
+            self.mytlv = _Tlv(t.tlv_type(),t.value())
+            if (self.mytlv):
+                return
+        if isinstance(t, types.TupleType):
+            self.mytlv = _Tlv(t[0],t[1])
+            if (self.mytlv):
+                return
+        raise TlvBadException(t, v)
 
-    def int_to_tlv_type(self, i):
-        for tlvt in tlv_types:
-            if (tlvt.value == i): return tlvt
-        return None
-
-    def parse(self, fb):
+    def parse(self, ba):
         """
-        parse packet formatted tlv into object instance
+        parse network formatted tlv into object instance
         """
-        t = self.int_to_tlv_type(fb[0])
-        l = fb[1]
-        v = bytearray(fb[2:])
-        if (l != len(v)):
-            print('tlv bad parse: {}'.format(fb))
-        if t is tlv_types.TIME:
-             v = unpackb(v).datetime()
-        elif  (t is tlv_types.INTEGER) or (t is tlv_types.OFFSET):
-#            print(t,l,hexlify(v))
-            a = 0
-            for i in range(l): a = (a << 8) + v[i]
-            v = a
-#            for i in range(l): a = (a * 256) + int.from_bytes(v[i],'big')
-#            v = int.from_bytes(v, 'big')
-        elif t is tlv_types.NODE_ID or t is tlv_types.GPS:
-            v = bytearray(v)
-        elif t is tlv_types.VERSION:
-            v = bytearray(v)
-        elif t is tlv_types.EOF:
-            v = bytearray()
-        self._convert(t, v)
+        self.mytlv = _Tlv(ba)
+        if (self.mytlv is None):
+            raise TlvBadException(self.mytlv, None)
 
     def build(self):
         """
-        build a packet formatted tlv from object instance
+        build a network formatted tlv from object instance
         """
-        t = self.tlv_type()
-        if (t is tlv_types.STRING):
-            v = self.value().encode()
-        elif (t is tlv_types.NODE_NAME):
-            v = self.value().encode()
-        elif (t is tlv_types.INTEGER) or (t is tlv_types.OFFSET):
-            n = int(self.value())
-            p = pack('>L', n)
-            for i in range(0,4):
-                if (p[i] != '\x00'): break
-            v = p[i:]
-#            v = n.to_bytes((len(hex(n)[2:])+1)/2,'big', signed=True)
-        elif t is tlv_types.GPS:
-            # zzz
-            v = self.value().encode()
-        elif t is tlv_types.TIME:
-            v = packb(self.value())
-        elif t is tlv_types.NODE_ID:
-            v = self.value()
-        elif t is tlv_types.VERSION:
-            v = self.value()
-        elif t is tlv_types.EOF:
-            v = ''
-        h = int(t.value).to_bytes(1,'big') + int(len(v)).to_bytes(1,'big')
-        return h + v
+        if (self.mytlv):
+            return self.mytlv.build()
+        raise TlvBadException(self.mytlv, None)
 
     def tlv_type(self):
-        return self.tuple[0]
+        return self.mytlv.tlv_type()
 
     def value(self):
-        return self.tuple[1]
+        return self.mytlv.value()
+
+    def __add__(self, other):
+        if isinstance(other, TagTlv):
+            return TagTlvList([other,self])
+        elif isinstance(other, TagTlvList):
+              return TagTlvList([self]) + TagTlvList(other)
+        return None
 
     def __eq__(self, other):
-        return (isinstance(other, self.__class__)
-            and self.__dict__ == other.__dict__)
+        return (isinstance(other, self.__class__) and
+                self.mytlv.__eq__(other.mytlv))
+#            and self.__dict__ == other.__dict__)
 
     def __ne__(self, other):
         return not self.__eq__(other)
 
     def __repr__(self):
-        # zzz
-        if (self.tlv_type() is tlv_types.NODE_ID)\
-                 or (self.tlv_type() is tlv_types.GPS):
-            v = hexlify(self.value())
-        elif (self.tlv_type() is tlv_types.VERSION):
-            v = list(unpack('HBB', self.value()))
-        elif (self.tlv_type() is tlv_types.EOF):
-            v = ''
-        else:
-            v = self.value()
-        return '({}, {})'.format(self.tlv_type(),v)
+        try:
+            v = self.mytlv.value()
+            if (self.tlv_type() == tlv_types.NODE_ID):
+                v = hexlify(v)
+            return '({}, {})'.format(self.mytlv.tlv_type(),v)
+        except:
+            raise TlvBadException(self.mytlv, None)
 
     def __len__(self):
-        l = 0
-        t = self.tlv_type()
-        if (t is tlv_types.STRING) or (t is tlv_types.NODE_NAME):
-            l = len(self.value())
-        elif (t is tlv_types.INTEGER) or (t is tlv_types.OFFSET):
-            l = (len(hex(self.value())[2:])+1)/2
-        elif t is tlv_types.GPS:
-            l = len(self.value())
-        elif t is tlv_types.TIME:
-            l = len(packb(self.value()))
-        elif t is tlv_types.NODE_ID:
-            l = len(self.value())
-        elif t is tlv_types.VERSION:
-            l = len(self.value())
-        elif t is tlv_types.EOF:
-            l = len(self.value())
-        return l + 2
+        return self.mytlv.__len__()
 
 #------------ end of class definition ---------------------
 
-def test_tlv():
-    # tagtlv.__init__()
-    #   tuple
-    tstr = TagTlv(tlv_types.STRING,'abc')
-    tint1 = TagTlv(tlv_types.INTEGER, 1)
-    tint10k = TagTlv(tlv_types.INTEGER, 10000)
-    from datetime import datetime
-    ttime = TagTlv(tlv_types.TIME, datetime.now())
-    from uuid import getnode as get_mac
-    tnid1 = TagTlv(tlv_types.NODE_ID, get_mac())
-    tnid2 = TagTlv(tlv_types.NODE_ID, ''.join('%02X' % ((get_mac() >> 8*i) & 0xff) for i in reversed(xrange(6))))
-    import platform
-    tnn =  TagTlv(tlv_types.NODE_NAME, platform.node())
-    #   tagtlv
-    ttlv = TagTlv(tstr)
-    #   bytearray
-    tba = TagTlv(bytearray.fromhex(b'0103746167'))
-    # build()
-    ostr = tstr.build()
-    oint1 = tint1.build()
-    oint10k = tint10k.build()
-    otlv = ttlv.build()
-    oba = tba.build()
-    otime = ttime.build()
-    onid1 = tnid1.build()
-    onid2 = tnid2.build()
-    onn = tnn.build()
-    # parse()
-    tstr.parse(ostr)
-    tint1.parse(oint1)
-    tint10k.parse(oint10k)
-    ttlv.parse(otlv)
-    tba.parse(oba)
-    ttime.parse(otime)
-    tnid1.parse(onid1)
-    tnid2.parse(onid2)
-    tnn.parse(onn)
-    # len()
-    print('tstr', len(tstr), tstr, tstr.tlv_type(), tstr.value(), hexlify(ostr))
-    print('tint1', len(tint1), tint1, tint1.tlv_type(), tint1.value(), hexlify(oint1))
-    print('tint10k', len(tint10k), tint10k, tint10k.tlv_type(), tint10k.value(), hexlify(oint10k))
-    print('ttlv', len(ttlv), ttlv, ttlv.tlv_type(), ttlv.value(), hexlify(otlv))
-    print('tba', len(tba), tba, tba.tlv_type(), tba.value(), hexlify(oba))
-    print('ttime', len(ttime), ttime, ttime.tlv_type(), ttime.value(), hexlify(otime))
-    print('tnid1', len(tnid1), tnid1, tnid1.tlv_type(), hexlify(tnid1.value()), hexlify(onid1))
-    print('tnid2', len(tnid2), tnid2, tnid2.tlv_type(), hexlify(tnid2.value()), hexlify(onid2))
-    print('tnn', len(tnn), tnn, tnn.tlv_type(), tnn.value(), hexlify(onn))
-    # == succeeds
-    print('tstr==ttlv', tstr == ttlv)
-    print('tnid1==tnid2', tnid1 == tnid2)
-    # == fails
-    print('tstr==tint1', tstr == tint1)
-    return tstr,tint1,tint10k,ttlv,tba,ttime,tnid1,tnid2,tnn,ostr,oint1,oint10k,otlv,oba,otime,onid1,onid2,onn
+class TestTlvMethods(unittest.TestCase):
+    def setUp(self):
+        self.tstr = TagTlv(tlv_types.STRING, b'abc')
+        self.ttlv = TagTlv(self.tstr)
+        pass
 
-def test_tlv_list():
-    # tagtlvlist.__init__()
-    #    stringtype
-    tlstr = TagTlvList('/foo/bar')
-    #    tagtlvlist
-    tllist = TagTlvList(tlstr)
-    #    bytearray
-    tlba = TagTlvList(bytearray.fromhex(b'01037461670104706f6c6c'))
-    #    list of tuples
-    tltups = TagTlvList([(tlv_types.STRING, 'baz'),(tlv_types.STRING,'zob')])
-    #    list of tagtlvs
-    tltlvs = TagTlvList([TagTlv(tlv_types.STRING,'abc'),TagTlv(tlv_types.INTEGER, 1)])
-    # build()
-    olstr = tlstr.build()
-    ollist = tllist.build()
-    oltlvs = tltlvs.build()
-    oltups = tltups.build()
-    olba = tlba.build()
-    # parse()
-    tlstr.parse(olstr)
-    tllist.parse(ollist)
-    tltlvs.parse(oltlvs)
-    tltups.parse(oltups)
-    tlba.parse(olba)
-    # endswith()
-    # pkt_len()
-    print('tlstr', len(tlstr), tlstr.pkt_len(), tlstr, hexlify(olstr))
-    print('tllist', len(tllist), tllist.pkt_len(), tllist, hexlify(ollist))
-    print('tltlvs', len(tltlvs), tltlvs.pkt_len(), tltlvs, hexlify(oltlvs))
-    print('tltups', len(tltups), tltups.pkt_len(), tltups, hexlify(oltups))
-    print('tlba', len(tlba), tlba.pkt_len(), tlba, hexlify(olba))
-    # startswith()
-    print('startswith', tllist, tlstr, tllist.startswith(tlstr))
-    print('startswith', tlstr, tllist, tlstr.startswith(tllist))
-    # append()
-    a = TagTlvList('')
-    print('append', a, 'string baz', a.append((tlv_types.STRING, 'baz')))
-    # extend()
-    print('extend', a, tlba, a.extend(tlba))
-    # insert()
-    print('insert')
-    # __add__()
-    print('add')
-    print(olstr)
-    return tlstr,tllist,tltups,tltlvs,tlba,olstr
+    def tearDown(self):
+        del self.tstr
+        del self.ttlv
+        pass
 
-def tagtlv_test():
-    test_tlv()
-    test_tlv_list()
+#    @unittest.skip("skip  ")
+    def test_tlv_string(self):
+        ostr = self.tstr.build()
+        xstr = TagTlv(ostr)
+        self.assertEqual(xstr, self.tstr)
+        self.assertIsNot(xstr, self.tstr)
+        self.assertEqual(xstr.tlv_type(), tlv_types.STRING)
+        self.assertEqual(xstr.value(), 'abc')
+        self.assertEqual(len(xstr), 5)
+
+#    @unittest.skip("skip  ")
+    def test_tlv_integer(self):
+        tint1 = TagTlv(tlv_types.INTEGER, 1)
+        tint10k = TagTlv(tlv_types.INTEGER, 10000)
+        oint1 = tint1.build()
+        oint10k = tint10k.build()
+        tint1.parse(oint1)
+        tint10k.parse(oint10k)
+        self.assertNotEqual(self.tstr, tint1)
+        self.assertEqual(tint1.value(), 1)
+        self.assertEqual(tint10k.value(), 10000)
+        self.assertEqual(len(tint1), 3)
+        self.assertEqual(len(tint10k), 4)
+
+#    @unittest.skip("skip gps")
+    def test_tlv_gps(self):
+#        (lat:37.04903, lon:-122.02625, elev:191.14464)
+#        (x:-2702906, y:-4321156, z:3821852)
+        pass
+
+#    @unittest.skip("skip datetime")
+    def test_tlv_datetime(self):
+        tm = datetime.now().strftime("%c")
+        ttime = TagTlv(tlv_types.TIME, tm)
+        otime = ttime.build()
+        xstr = TagTlv(otime)
+        self.assertEqual(xstr.value(), tm)
+
+#    @unittest.skip("skip node id")
+    def test_tlv_node_id(self):
+        tnid1 = TagTlv(tlv_types.NODE_ID, get_mac())
+        tnid2 = TagTlv(tlv_types.NODE_ID, ''.join('%02X' % ((get_mac() >> 8*i) & 0xff) \
+                                                  for i in xrange(6)))
+        self.assertEqual(hexlify(tnid1.value()), hexlify(tnid2.value()))
+        self.assertEqual(tnid1, tnid2)
+        onid1 = tnid1.build()
+        onid2 = tnid2.build()
+        self.assertEqual(onid1, onid2)
+        self.assertEqual(tnid1, TagTlv(onid1))
+        self.assertEqual(tnid2, TagTlv(onid2))
+
+#    @unittest.skip("skip node name")
+    def test_tlv_node_name(self):
+        tnn =  TagTlv(tlv_types.NODE_NAME, platform.node())
+        onn = tnn.build()
+        self.assertEqual(tnn.value(), platform.node())
+        self.assertEqual(tnn, TagTlv(onn))
+        tnn.parse(self.tstr.build())
+        self.assertNotEqual(tnn, TagTlv(onn))
+
+#    @unittest.skip("skip offset")
+    def test_tlv_offset(self):
+        tof =  TagTlv(tlv_types.OFFSET, 129000)
+        oof = tof.build()
+        self.assertEqual(tof.value(), 129000)
+        self.assertEqual(tof, TagTlv(oof))
+        tof.parse(self.tstr.build())
+        self.assertNotEqual(tof.tlv_type(), TagTlv(oof).tlv_type())
+
+#    @unittest.skip("skip size")
+    def test_tlv_size(self):
+        tsz =  TagTlv(tlv_types.SIZE, 12345678)
+        osz = tsz.build()
+        self.assertEqual(tsz.value(), 12345678)
+        self.assertEqual(tsz, TagTlv(osz))
+        tsz.parse(self.tstr.build())
+        self.assertNotEqual(tsz.value(), TagTlv(osz).value())
+
+#    @unittest.skip("skip eof")
+    def test_tlv_eof(self):
+        teof = TagTlv(tlv_types.EOF)
+        oeof = teof.build()
+        self.assertEqual(teof.tlv_type(), tlv_types.EOF)
+        self.assertEqual(teof.value(), TagTlv(oeof).value())
+        self.assertEqual(teof.value(), bytearray(b''))
+
+#    @unittest.skip("skip version")
+    def test_tlv_error(self):
+        vers = (1, 16, 0)
+        vtlv = TagTlv(tlv_types.ERROR, tlv_errors.ENOMEM)
+        self.assertEqual(tlv_errors.ENOMEM, vtlv.value())
+        ovtlv = vtlv.build()
+        self.assertEqual(tlv_errors.ENOMEM, TagTlv(ovtlv).value())
+
+#    @unittest.skip("skip version")
+    def test_tlv_version(self):
+        vers = (1, 16, 0)
+        vtlv = TagTlv(tlv_types.VERSION, vers)
+        self.assertEqual(list(vers), vtlv.value())
+        vers = [1, 16, 0]
+        vtlv = TagTlv(tlv_types.VERSION, vers)
+        self.assertEqual(vers, vtlv.value())
+        ovtlv = vtlv.build()
+        self.assertEqual(vers, TagTlv(ovtlv).value())
+
+#    @unittest.skip("skip block")
+    def test_tlv_block(self):
+        import pickle
+        blocks = pickle.dumps(self.tstr)
+        tbl = TagTlv(tlv_types.BLOCK, blocks)
+        obl = tbl.build()
+        self.assertEqual(tbl.value(), TagTlv(obl).value())
+        blocko = pickle.loads(TagTlv(obl).value())
+        self.assertEqual(self.tstr, blocko)
+
+#    @unittest.skip("skip __init__ using tlv")
+    def test_tlv_init_tlv(self):
+        ttlv = TagTlv(self.tstr)
+        tclv = TagTlv(ttlv)
+        self.assertEqual(ttlv, tclv)
+
+#    @unittest.skip("skip __init__ using bytearray")
+    def test_tlv_init_bytearray(self):
+        tba = TagTlv(bytearray.fromhex(b'0103746167'))
+        self.assertEqual(tba.tlv_type(), tlv_types.STRING)
+        self.assertEqual(tba.value(), 'tag')
+
+class TestTlvListMethods(unittest.TestCase):
+    def setUp(self):
+        self.tlempty = TagTlvList('')
+        self.tlstr = TagTlvList('/foo/bar')
+        self.olstr = self.tlstr.build()
+        self.tlba = TagTlvList(bytearray.fromhex(b'01037461670104706f6c6c'))
+        self.tllist = TagTlvList(self.tlstr)
+
+    def tearDown(self):
+        del self.tlempty
+        del self.tlstr
+        del self.olstr
+        del self.tlba
+        del self.tllist
+        pass
+
+#    @unittest.skip("skip  __init__ string")
+    def test_tlvlist_init_string(self):
+        self.assertEqual(self.tlstr, TagTlvList(self.olstr))
+
+#    @unittest.skip("skip __init__ using tlvlist")
+    def test_tlvlist_init_tlvlist(self):
+        self.assertEqual(self.tlstr, self.tllist)
+
+#    @unittest.skip("skip __init__ using byte array")
+    def test_tlvlist_init_bytearray(self):
+        self.assertEqual(self.tlba, TagTlvList(self.tlba.build()))
+
+#    @unittest.skip("skip __init__ using list of tuples")
+    def test_tlvlist_init_tuples(self):
+        tltups = TagTlvList([(tlv_types.STRING, 'bang'),
+                             (tlv_types.STRING,'woof woof'),
+                             ])
+        self.assertEqual(tltups, TagTlvList(tltups.build()))
+
+#    @unittest.skip("skip __init__ using list of tlvs")
+    def test_tlvlist_init_tlvs(self):
+        lst = [TagTlv(tlv_types.STRING,'abc'),
+               TagTlv(tlv_types.INTEGER, 1),
+               TagTlv(tlv_types.GPS, (-2702906, -4321156, 3821852)),
+               ]
+        tltlvs = TagTlvList(lst)
+        lst = [TagTlv(tlv_types.TIME, "time"),
+               TagTlv(tlv_types.NODE_NAME, platform.node()),
+               ]
+        tltlvs = TagTlvList(lst)
+        lst = [TagTlv(tlv_types.NODE_ID, get_mac()),
+               ]
+        tltlvs = TagTlvList(lst)
+        lst = [TagTlv(tlv_types.STRING,'abc'),
+               TagTlv(tlv_types.OFFSET, 45678),
+               TagTlv(tlv_types.SIZE, 12345678),
+               TagTlv(tlv_types.EOF),
+               ]
+        tltlvs = TagTlvList(lst)
+        lst = [TagTlv(tlv_types.STRING,'abc'),
+               TagTlv(tlv_types.VERSION, (121, 16, 0)),
+               TagTlv(tlv_types.BLOCK, bytearray('abc')),
+               ]
+        tltlvs = TagTlvList(lst)
+        self.assertEqual(tltlvs, TagTlvList(tltlvs.build()))
+
+#    @unittest.skip("skip __init__ using multiple parameters")
+    def test_tlvlist_init_params(self):
+        tl = TagTlvList('foo','bar')
+        self.assertEqual(self.tlstr, tl)
+        tl += [TagTlv(tlv_types.VERSION, (1,16,0))]
+        ol = tl.build()
+        tl2 = TagTlvList('foo','bar', (tlv_types.VERSION, (1,16,0)))
+        self.assertEqual(TagTlvList(ol), tl2)
+
+
+#    @unittest.skip("skip append to tlvlist")
+    def test_tlvlist_append(self):
+        tl = TagTlvList('/')
+        tl.append(TagTlv('foo'))
+        tl.append(TagTlv('bar'))
+        self.assertEqual(self.tlstr, tl)
+        tl = TagTlvList()
+        tl.append(TagTlv('foo'))
+        tl.append(TagTlv('bar'))
+        self.assertEqual(self.tlstr, tl)
+        tl = TagTlvList('')
+        tl.append(TagTlv('foo'))
+        tl.append(TagTlv('bar'))
+        self.assertNotEqual(self.tlstr, tl)
+
+#    @unittest.skip("skip extend a tlvlist")
+    def test_tlvlist_extend(self):
+        tl = TagTlvList('foo')
+        tl.extend([TagTlv('bar')])
+        self.assertEqual(self.tlstr, tl)
+
+#    @unittest.skip("skip add to tlvlist ")
+    def test_tlvlist_add(self):
+        tl = TagTlvList('foo')
+        tl += [TagTlv('bar')]
+        self.assertEqual(self.tlstr, tl)
+
 
 if __name__ == '__main__':
-    tagtlv_test()
+    unittest.main()

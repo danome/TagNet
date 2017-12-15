@@ -73,6 +73,7 @@ Types of TLVs
 Directory Content
 -----------------
 
+- tagdef.py       contains tagnet_message_header_s, tlv_types, and misc header constants
 - tagtlv.py       contains TagTlv and TagTlvList classes
                            tlv_types
 - tagnames.py     contains TagName class
