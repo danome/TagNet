@@ -1,0 +1,9 @@
+.DS_Store
+*~
+*\.pyc
+_trial_temp*
+*\.pdf
+*\.html
+dist
+build
+MANIFEST
