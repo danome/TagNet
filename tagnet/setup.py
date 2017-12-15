@@ -22,7 +22,7 @@ setup(
     name             = 'tagnet',
     version          = get_version(),
     description      = DESCRIPTION,
-    license          = "MIT",
+    license          = 'LICENSE.txt',
     long_description ="""\
 A protocol for named data objects in an ad hoc network of constraint-based nodes using low-power sub-GHz radios.""",
     url              = 'https://github.com/dmaltbie/Tagnet/tagnet',
@@ -33,7 +33,8 @@ A protocol for named data objects in an ad hoc network of constraint-based nodes
     packages         = ['tagnet',
                         'tagnet.test'],
     keywords         = ['tagnet', 'twisted', 'dbus'],
-    classifiers      = ['Development Status :: 4 - Beta',
+    classifiers      = ['License :: OSI Approved :: MIT License',
+                        'Development Status :: 4 - Beta',
                         'Framework :: Twisted',
                         'Intended Audience :: Developers',
                         'License :: OSI Approved :: MIT License',
@@ -42,4 +43,3 @@ A protocol for named data objects in an ad hoc network of constraint-based nodes
                         'Topic :: Software Development :: Libraries',
                         'Topic :: System :: Networking'],
     )
-

@@ -34,7 +34,7 @@ setup(
     name             = 'si446x',
     version          = get_version(),
     description      = DESCRIPTION,
-    license          = "MIT",
+    licence          = ['LICENSE.txt'],
     long_description ="""\
 Packet level driver for si446x radio chip""",
     url              = 'https://github.com/dmaltbie/Tagnet/si446x',
@@ -46,7 +46,8 @@ Packet level driver for si446x radio chip""",
                         'si446x.test'],
     ext_modules      = [config_strings],
     keywords         = ['si446x', 'twisted', 'spidev', 'dbus'],
-    classifiers      = ['Development Status :: 4 - Beta',
+    classifiers      = ['License :: OSI Approved :: MIT License',
+                        'Development Status :: 4 - Beta',
                         'Framework :: Twisted',
                         'Intended Audience :: Developers',
                         'License :: OSI Approved :: MIT License',
@@ -55,4 +56,3 @@ Packet level driver for si446x radio chip""",
                         'Topic :: Software Development :: Libraries',
                         'Topic :: System :: Networking'],
     )
-
