@@ -12,6 +12,6 @@ from .si446xFSM    import Events, Actions, States, table
 from .si446xradio  import *
 from .si446xcfg    import *
 from .si446xtrace  import *
+from .si446xvers   import __version__
 
-__all__ = (si446xdvr.__all__ + si446xact.__all__ + si446xradio.__all__ + si446xtrace.__all__)
-
+#__all__ = (si446xdvr.__all__ + si446xact.__all__ + si446xradio.__all__ + si446xtrace.__all__)
