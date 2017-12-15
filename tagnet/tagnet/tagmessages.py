@@ -17,6 +17,8 @@ from tagtlv import tlv_types
 #
 from tagtlv import *
 
+__all__ = ['TagMessage', 'TagPoll', 'TagBeacon',
+           'TagGet', 'TagPut', 'TagHead', 'TagDelete', 'TagResponse']
 
 MAX_TAGNET_PKT_SIZE = 254
 
