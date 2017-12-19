@@ -222,9 +222,9 @@ class TagHead(TagMessage):
     """
     def __init__(self, name, pl=None, hop_count=None):
         if (pl):
-            super(TagPut,self).__init__(name, pl)
+            super(TagHead,self).__init__(name, pl)
         else:
-            super(TagPut,self).__init__(name)
+            super(TagHead,self).__init__(name)
         self.header.options.message_type = 'HEAD'
         if (hop_count):
             self.hop_count(hop_count)

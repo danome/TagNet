@@ -13,7 +13,7 @@ from fuse import FUSE, FuseOSError, Operations, LoggingMixIn
 
 from tagagg import *
 
-from Si446xDblk import si446x_device_enable, get_dblk_bytes
+from Si446xDblk import si446x_device_enable, dblk_get_bytes, dblk_update_attrs
 
 if not hasattr(__builtins__, 'bytes'):
     bytes = str
@@ -21,7 +21,7 @@ if not hasattr(__builtins__, 'bytes'):
 class node_details(object):
     def __init__(self, ntype, mode, nlinks):
         self.attrs = dict(st_mode=(ntype | mode), st_nlink=nlinks,
-                          st_size=1000000, st_ctime=time(), st_mtime=time(),
+                          st_size=4096, st_ctime=time(), st_mtime=time(),
                           st_atime=time())
         self.data = bytes()
 
@@ -51,7 +51,7 @@ class TagFuse(LoggingMixIn, Operations):
 
     def __init__(self):
         self.fd = 0
-        now = time()
+        self.start = time()
         self.radio = si446x_device_enable()
 
     def chmod(self, path, mode):
@@ -64,9 +64,16 @@ class TagFuse(LoggingMixIn, Operations):
         self.fd += 1
         return self.fd
 
+    def fsync(self, path, datasync, fip):
+        print(path, datasync, fip)
+        # zzz add resync command (next word/sector)
+        return 0
+
     def getattr(self, path, fh=None):
         meta = get_meta(file_tree, path)
         if (meta):
+            if ((meta.attrs['st_mode'] & S_IFREG) == S_IFREG):
+                return dblk_update_attrs(self.radio, meta.attrs)
             return meta.attrs
         raise FuseOSError(ENOENT)
 
@@ -90,13 +97,14 @@ class TagFuse(LoggingMixIn, Operations):
 
     def open(self, path, flags):
         self.fd += 1
-        return self.fd
+        return 0
+#        return self.fd # direct_io doesn't expect a fileno
 
     def read(self, path, size, offset, fh):
         meta = get_meta(file_tree, path)
         if (meta):
-            buf, eof = get_dblk_bytes(self.radio, size, offset)
-            print(len(buf),eof)
+            buf, eof = dblk_get_bytes(self.radio, size, offset)
+#            print(len(buf),eof)
             if (eof):
                 raise FuseOSError(ENODATA)
 #            return 'this string works'
@@ -154,7 +162,7 @@ class TagFuse(LoggingMixIn, Operations):
                unsigned long  f_namemax;  /* Maximum filename length */
            };
         '''
-        return dict(f_bsize=512, f_blocks=0, f_bavail=0)
+        return dict(f_bsize=512, f_frsize=512, f_blocks=0, f_bavail=0)
 #        path = os.path.abspath(os.path.realpath(path))
 #        print(path)
 #        stv = os.statvfs(path)
@@ -202,8 +210,13 @@ if __name__ == '__main__':
         print('usage: %s <mountpoint>' % argv[0])
         exit(1)
 
-    options = {'max_write': 512, 'max_read': 512, 'max_readahead': 512}
+    options = {'max_write':     0,
+               'max_read':      512,
+               'max_readahead': 1024,
+               'kernel_cache':  True,
+               'direct_io':     True,
+    }
 
     logging.basicConfig(level=logging.INFO)
-#    logging.basicConfig(level=logging.DEBUG)
-    fuse = FUSE(TagFuse(), argv[1], nothreads=True, foreground=True, **options)
+    # zzz logging.basicConfig(level=logging.DEBUG) # output FUSE related debug info
+    fuse = FUSE(TagFuse(), argv[1], nothreads=True, raw_fi=True, foreground=True, **options)

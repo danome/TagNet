@@ -11,6 +11,7 @@ from binascii import hexlify
 import os.path
 import sys
 from collections import defaultdict, OrderedDict
+from time import time
 
 sys.path.append("../si446x/si446x")
 sys.path.append("../tagnet/tagnet")
@@ -53,21 +54,7 @@ def si446x_device_enable():
     return radio
 
 
-def _dblk_request_msg(amount_to_get, file_offset):
-    # / "tag" / "sd" / <node_id> / "0" / "dblk" / "0"
-    dblk_bytes_name = TagName ('/tag/sd')
-    dblk_bytes_name += [TagTlv(tlv_types.NODE_ID, -1),
-                        TagTlv(0),
-                        TagTlv('dblk'),
-                        TagTlv(0),
-                        TagTlv(tlv_types.OFFSET, file_offset),
-                        TagTlv(tlv_types.SIZE, amount_to_get),
-                       ]
-    get_dblk = TagGet(dblk_bytes_name)
-#    print(get_dblk.name)
-    return get_dblk.build()
-
-def dblk_payload2dict(payload):
+def dblk_payload2dict(payload, keynames):
     '''
     extract variable number of parameters in payload and then
     filter for the parameters of interest.
@@ -78,7 +65,7 @@ def dblk_payload2dict(payload):
     ddblk = OrderedDict(plist)
 #    print(ddblk)
     plist = []
-    for item in [tlv_types.OFFSET, tlv_types.SIZE, tlv_types.BLOCK, tlv_types.EOF, tlv_types.ERROR]:
+    for item in keynames:
         try:
             plist.append(ddblk[item])
         except:
@@ -86,13 +73,32 @@ def dblk_payload2dict(payload):
     return plist
 
 
-def get_dblk_bytes(radio, amount_to_get, file_offset):
+def dblk_get_bytes(radio, amount_to_get, file_offset):
     '''
     Dblk Byte Data Transfer function
     '''
     accum_bytes = bytearray()
+    eof = False
+    dblk_rsp_pl_types = [tlv_types.OFFSET,
+                         tlv_types.SIZE,
+                         tlv_types.BLOCK,
+                         tlv_types.EOF,
+                         tlv_types.ERROR]
+
+    def _dblk_bytes_msg(amount_to_get, file_offset):
+        # / <node_id> / "tag" / "sd" / "0" / "dblk" / "0"
+        dblk_name = TagName ('/tag/sd')
+        dblk_name += [TagTlv(tlv_types.NODE_ID, -1),
+                            TagTlv(0),
+                            TagTlv('dblk'),
+                            TagTlv(0),
+                            TagTlv(tlv_types.OFFSET, file_offset),
+                            TagTlv(tlv_types.SIZE, amount_to_get),
+        ]
+        return TagGet(dblk_name).build()
+
     while (amount_to_get):
-        req_msg = _dblk_request_msg(amount_to_get, file_offset)
+        req_msg = _dblk_bytes_msg(amount_to_get, file_offset)
         si446x_device_send_msg(radio, req_msg, RADIO_POWER);
         rsp_msg, rssi, status = si446x_device_receive_msg(radio, MAX_RECV, 5)
         if(rsp_msg):
@@ -100,8 +106,9 @@ def get_dblk_bytes(radio, amount_to_get, file_offset):
             rsp = TagMessage(rsp_msg)
 #            print("{}".format(rsp.header.options.param.error_code))
             #        print(rsp.payload)
-            offset, amt2get, block, eof, err = dblk_payload2dict(rsp.payload)
-            print('offset: {}, amount remaining: {}'.format(offset, amt2get))
+            offset, amt2get, block, eof, err = dblk_payload2dict(rsp.payload,
+                                                                 dblk_rsp_pl_types)
+#            print('read pos:{}, len:{}'.format(offset, amt2get))
             if (block):
                 accum_bytes   += block
                 file_offset   += len(block)
@@ -133,5 +140,36 @@ def get_dblk_bytes(radio, amount_to_get, file_offset):
         else:
             print('TIMEOUT')
             break
-    print()
+    # zzz print('read p/l:{}/{}'.format(file_offset-len(accum_bytes), len(accum_bytes)))
     return accum_bytes, eof
+
+def dblk_update_attrs(radio, attrs):
+    dblk_rsp_pl_types = [tlv_types.SIZE,
+                         tlv_types.INTEGER,
+                         # zzz tlv_types.UTC_TIME,
+    ]
+
+    def _dblk_attr_msg():
+        # / <node_id> / "tag" / "sd" / "0" / "dblk" / "0"
+        dblk_name = TagName ('/tag/sd')
+        dblk_name += [TagTlv(tlv_types.NODE_ID, -1),
+                      TagTlv(0),
+                      TagTlv('dblk'),
+                      TagTlv(0),
+        ]
+        return TagHead(dblk_name).build()
+
+    req_msg = _dblk_attr_msg()
+    si446x_device_send_msg(radio, req_msg, RADIO_POWER);
+    rsp_msg, rssi, status = si446x_device_receive_msg(radio, MAX_RECV, 5)
+    if(rsp_msg):
+        # zzz print(hexlify(rsp_msg))
+        rsp = TagMessage(rsp_msg)
+        # zzz print("{}".format(rsp.header.options.param.error_code))
+        # zzz
+        # zzz print(rsp.payload)
+        filesize, file_time = dblk_payload2dict(rsp.payload,
+                                                dblk_rsp_pl_types)
+        attrs['st_size']  = filesize
+        attrs['st_mtime'] = time()
+    return attrs
