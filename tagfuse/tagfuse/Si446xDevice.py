@@ -17,10 +17,10 @@ UNIT_TESTING = False
 import types
 from binascii import hexlify
 
-
-os.path.abspath(os.getcwd())
-for p in sys.path:
-    print(p)
+# zzz debugging
+# os.path.abspath(os.getcwd())
+# for p in sys.path:
+#     print(p)
 
 
 # ## Get Device Driver Version
