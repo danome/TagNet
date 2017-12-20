@@ -24,22 +24,24 @@ class node_details(object):
                           st_size=4096, st_ctime=time(), st_mtime=time(),
                           st_atime=time())
         self.data = bytes()
-
+        self.flags = None
+        self.mode = None
 
 dblk_tree = aggie(OrderedDict([
-    ('',         atom(node_details(S_IFDIR, 0o755, 4))),
-    ('0',        atom(node_details(S_IFREG, 0o666, 1))),
-    ('1',        atom(node_details(S_IFREG, 0o666, 1))),
+    ('',         atom(node_details(S_IFDIR, 0o751, 4))),
+    ('0',        atom(node_details(S_IFREG, 0o664, 1))),
+    ('1',        atom(node_details(S_IFREG, 0o664, 1))),
+    ('notes',    atom(node_details(S_IFREG, 0o220, 1))),
 ]))
 
 panic_tree = aggie(OrderedDict([
-    ('',         atom(node_details(S_IFDIR, 0o755, 4))),
-    ('0',        atom(node_details(S_IFREG, 0o666, 1))),
-    ('1',        atom(node_details(S_IFREG, 0o666, 1))),
+    ('',         atom(node_details(S_IFDIR, 0o751, 4))),
+    ('0',        atom(node_details(S_IFREG, 0o664, 1))),
+    ('1',        atom(node_details(S_IFREG, 0o664, 1))),
 ]))
 
 file_tree = aggie(OrderedDict([
-    ('',         atom(node_details(S_IFDIR, 0o755, 4))),
+    ('',         atom(node_details(S_IFDIR, 0o751, 4))),
     ('dblk',     dblk_tree),
     ('panic',    panic_tree),
 ]))
@@ -200,10 +202,10 @@ class TagFuse(LoggingMixIn, Operations):
 
     def write(self, path, data, offset, fh):
         meta = get_meta(file_tree, path)
+        amt = 0
         if (meta):
-            meta.data += data
-            meta.attrs['st_size'] = len(meta.data)
-        return len(data)
+            amt = dblk_write_note(self.radio, data)
+        return amt
 
 if __name__ == '__main__':
     if len(argv) != 2:
