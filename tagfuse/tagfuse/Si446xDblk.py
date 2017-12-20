@@ -184,13 +184,13 @@ def dblk_write_note(radio, note):
     ]
 
     def _dblk_note_msg(note):
-        # / <node_id> / "tag" / "sd" / "0" / "dblk" / "0"
-        dblk_name = TagName ('/tag/sd')
-        dblk_name += [TagTlv(tlv_types.NODE_ID, -1),
-                      TagTlv(0),
-                      TagTlv('dblk'),
-                      TagTlv('note'),
-        ]
+        # / <node_id> / "tag" / "sd" / 0 / "dblk" / "note"
+        dblk_name = TagName([TagTlv(tlv_types.NODE_ID, -1),
+                     TagTlv('tag'),
+                     TagTlv('sd'),
+                     TagTlv(0),
+                     TagTlv('dblk'),
+                     TagTlv('note'),])
         msg = TagPut(dblk_name, pl=bytearray(note))
         return msg.build()
 
@@ -202,9 +202,10 @@ def dblk_write_note(radio, note):
         # zzz print(hexlify(rsp_msg))
         rsp = TagMessage(rsp_msg)
         # zzz print("{}".format(rsp.header.options.param.error_code))
-        # zzz print(rsp.payload)
+        # zzz
+        print(rsp.payload)
         amt, error = dblk_payload2dict(rsp.payload,
                                        dblk_rsp_pl_types)
-        if (not error):
+        if (error == tlv_errors.SUCCESS):
             return amt
     return 0

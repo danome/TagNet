@@ -13,7 +13,7 @@ from fuse import FUSE, FuseOSError, Operations, LoggingMixIn
 
 from tagagg import *
 
-from Si446xDblk import si446x_device_enable, dblk_get_bytes, dblk_update_attrs
+from Si446xDblk import si446x_device_enable, dblk_get_bytes, dblk_update_attrs, dblk_write_note
 
 if not hasattr(__builtins__, 'bytes'):
     bytes = str
@@ -223,6 +223,7 @@ class TagFuse(LoggingMixIn, Operations):
         meta = get_meta(file_tree, path)
         amt = 0
         if (meta):
+            # zzz need to check file first
             amt = dblk_write_note(self.radio, data)
         return amt
 
