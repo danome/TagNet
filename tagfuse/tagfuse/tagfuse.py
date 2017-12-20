@@ -89,7 +89,8 @@ class TagFuse(LoggingMixIn, Operations):
         meta = get_meta(file_tree, path)
         if (meta):
             if ((meta.attrs['st_mode'] & S_IFREG) == S_IFREG):
-                return dblk_update_attrs(self.radio, meta.attrs)
+                # zzz need to handle different files
+                return dblk_update_attrs(self.radio, 0, meta.attrs)
             return meta.attrs
         raise FuseOSError(ENOENT)
 
@@ -124,7 +125,8 @@ class TagFuse(LoggingMixIn, Operations):
         print(fh)
         meta = get_meta(file_tree, path)
         if (meta):
-            buf, eof = dblk_get_bytes(self.radio, size, offset)
+            # need to handle different files
+            buf, eof = dblk_get_bytes(self.radio, 0, size, offset)
 #            print(len(buf),eof)
             if (eof):
                 raise FuseOSError(ENODATA)

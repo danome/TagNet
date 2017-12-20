@@ -73,7 +73,7 @@ def dblk_payload2dict(payload, keynames):
     return plist
 
 
-def dblk_get_bytes(radio, amount_to_get, file_offset):
+def dblk_get_bytes(radio, fileno, amount_to_get, file_offset):
     '''
     Dblk Byte Data Transfer function
     '''
@@ -85,20 +85,22 @@ def dblk_get_bytes(radio, amount_to_get, file_offset):
                          tlv_types.EOF,
                          tlv_types.ERROR]
 
-    def _dblk_bytes_msg(amount_to_get, file_offset):
-        # / <node_id> / "tag" / "sd" / "0" / "dblk" / "0"
-        dblk_name = TagName ('/tag/sd')
-        dblk_name += [TagTlv(tlv_types.NODE_ID, -1),
-                            TagTlv(0),
-                            TagTlv('dblk'),
-                            TagTlv(0),
-                            TagTlv(tlv_types.OFFSET, file_offset),
-                            TagTlv(tlv_types.SIZE, amount_to_get),
-        ]
+    def _dblk_bytes_msg(fileno, amount_to_get, file_offset):
+        # / <node_id> / "tag" / "sd" / 0 / "dblk" / fileno
+        dblk_name = TagName([TagTlv(tlv_types.NODE_ID, -1),
+                     TagTlv('tag'),
+                     TagTlv('sd'),
+                     TagTlv(0),
+                     TagTlv('dblk'),
+                     TagTlv(fileno),
+                     TagTlv(tlv_types.OFFSET, file_offset),
+                     TagTlv(tlv_types.SIZE, amount_to_get),])
         return TagGet(dblk_name).build()
 
     while (amount_to_get):
-        req_msg = _dblk_bytes_msg(amount_to_get, file_offset)
+        req_msg = _dblk_bytes_msg(fileno, amount_to_get, file_offset)
+        # zzz
+        print(hexlify(req_msg))
         si446x_device_send_msg(radio, req_msg, RADIO_POWER);
         rsp_msg, rssi, status = si446x_device_receive_msg(radio, MAX_RECV, 5)
         if(rsp_msg):
@@ -144,20 +146,20 @@ def dblk_get_bytes(radio, amount_to_get, file_offset):
     # zzz print('read p/l:{}/{}'.format(file_offset-len(accum_bytes), len(accum_bytes)))
     return accum_bytes, eof
 
-def dblk_update_attrs(radio, attrs):
+def dblk_update_attrs(radio, fileno, attrs):
     dblk_rsp_pl_types = [tlv_types.SIZE,
                          # zzz tlv_types.UTC_TIME,
                          tlv_types.ERROR,
     ]
 
     def _dblk_attr_msg():
-        # / <node_id> / "tag" / "sd" / "0" / "dblk" / "0"
-        dblk_name = TagName ('/tag/sd')
-        dblk_name += [TagTlv(tlv_types.NODE_ID, -1),
-                      TagTlv(0),
-                      TagTlv('dblk'),
-                      TagTlv(0),
-        ]
+        # / <node_id> / "tag" / "sd" / 0 / "dblk" / fileno
+        dblk_name = TagName([TagTlv(tlv_types.NODE_ID, -1),
+                             TagTlv('tag'),
+                             TagTlv('sd'),
+                             TagTlv(0),
+                             TagTlv('dblk'),
+                             TagTlv(fileno),])
         return TagHead(dblk_name).build()
 
     req_msg = _dblk_attr_msg()
