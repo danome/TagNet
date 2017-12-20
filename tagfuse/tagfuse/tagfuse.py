@@ -49,10 +49,19 @@ file_tree = aggie(OrderedDict([
 class TagFuse(LoggingMixIn, Operations):
     '''
     Exposes Tag SD Storage as Fuse Filesystem
+
+    Both buffered and direct_io operation is supported
+
+    Direct_io read is accessed in the following way:
+      f = os.open('foo/dblk/0',  os.O_DIRECT | os.O_RDONLY)
+      buf = os.read(f, 10)
+      os.lseek(f, fpos, 0)
+      fpos = os.lseek(f, 0, 1)  # returns current file position
     '''
 
     def __init__(self):
-        self.fd = 0
+        self.create_count = 0
+        self.open_count = 0
         self.start = time()
         self.radio = si446x_device_enable()
 
@@ -63,8 +72,13 @@ class TagFuse(LoggingMixIn, Operations):
         pass
 
     def create(self, path, mode):
-        self.fd += 1
-        return self.fd
+        print(mode)
+        meta = get_meta(file_tree, path)
+        if (meta):
+            meta.mode = mode
+        self.create_count += 1
+        return 0
+#        return self.fd # raw_io doesn't expect a fileno
 
     def fsync(self, path, datasync, fip):
         print(path, datasync, fip)
@@ -98,11 +112,16 @@ class TagFuse(LoggingMixIn, Operations):
         raise FuseOSError(ENOENT)
 
     def open(self, path, flags):
-        self.fd += 1
+#        print(flags['direct_io'])
+        meta = get_meta(file_tree, path)
+        if (meta):
+            meta.flags = flags
+        self.open_count += 1
         return 0
-#        return self.fd # direct_io doesn't expect a fileno
+#        return self.fd # raw_io doesn't expect a fileno
 
     def read(self, path, size, offset, fh):
+        print(fh)
         meta = get_meta(file_tree, path)
         if (meta):
             buf, eof = dblk_get_bytes(self.radio, size, offset)
