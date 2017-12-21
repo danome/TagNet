@@ -10,3 +10,6 @@ build
 MANIFEST
 *egg-info*
 .ipynb_checkpoints
+*\.backup
+Thumbs.db
+.venv
