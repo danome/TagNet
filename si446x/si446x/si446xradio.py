@@ -16,7 +16,7 @@ except RuntimeError as e:
     print(e)
 
 from si446xdef import *
-from si446xcfg import get_config_wds, get_config_local
+from si446xcfg import get_config_wds, get_config_device
 import si446xtrace
 
 __all__ = ['SpiInterface', 'Si446xRadio', 'si446xradio_test']
@@ -453,7 +453,7 @@ class Si446xRadio(object):
         concatenated together, terminating in a zero-length string.
         See radioconfig/si446xcfg.c for more details.
         """
-        return [get_config_wds, get_config_local]
+        return [get_config_wds, get_config_device]
     #end def
 
     def get_cts(self):

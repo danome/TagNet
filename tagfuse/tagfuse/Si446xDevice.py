@@ -127,11 +127,11 @@ def si446x_device_show_config(config):
 
 # ## Get Compiled Radio Configuration
 
-from si446x import get_config_wds, get_config_local
+from si446x import get_config_wds, get_config_device
 
 def si446x_device_get_raw_config():
     rl = []
-    for l in [get_config_wds, get_config_local]:
+    for l in [get_config_wds, get_config_device]:
         x = 0
         while (True):
             s = l(x)
