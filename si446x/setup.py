@@ -34,7 +34,7 @@ setup(
     name             = 'si446x',
     version          = get_version(),
     description      = DESCRIPTION,
-    licence          = ['LICENSE.txt'],
+    license          = ['LICENSE.txt'],
     long_description ="""\
 Packet level driver for si446x radio chip""",
     url              = 'https://github.com/dmaltbie/Tagnet/si446x',
