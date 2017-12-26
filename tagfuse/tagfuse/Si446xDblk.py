@@ -189,7 +189,6 @@ def dblk_update_attrs(radio, filename, attrs):
         # zzz print(hexlify(rsp_msg))
         rsp = TagMessage(rsp_msg)
         # zzz print("{}".format(rsp.header.options.param.error_code))
-        # zzz
         # zzz print(rsp.payload)
         dblk_rsp_pl_types = [tlv_types.SIZE,
                              # zzz tlv_types.UTC_TIME,
@@ -197,8 +196,9 @@ def dblk_update_attrs(radio, filename, attrs):
         ]
         filesize, err = dblk_payload2dict(rsp.payload,
                                           dblk_rsp_pl_types)
-        if (err is not tlv_errors.SUCCESS):
+        if err and err is not tlv_errors.SUCCESS:
             print('dblk_attr error in response: {}'.format(err))
+            filesize = 0
         attrs['st_size']  = filesize
         attrs['st_mtime'] = time()
     return attrs
