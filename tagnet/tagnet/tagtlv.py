@@ -437,7 +437,7 @@ class _Tlv(object):
                 return None
 
         if (len(ba) < 2):
-            raise TlvBadException(t, v)
+            raise TlvBadException(ba, None)
         t = int_to_tlv_type(ba[0])
         l = ba[1]
         v = ba[2:]

@@ -11,6 +11,6 @@ from tagmessages import *
 from tagdef import *
 from tagtlv import *
 
-__version__ = '0.0.12'
+__version__ = '0.0.13'
 
 print 'tagnet driver version {}'.format(__version__)

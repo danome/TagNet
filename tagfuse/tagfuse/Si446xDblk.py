@@ -79,11 +79,6 @@ def dblk_get_bytes(radio, fileno, amount_to_get, file_offset):
     '''
     accum_bytes = bytearray()
     eof = False
-    dblk_rsp_pl_types = [tlv_types.OFFSET,
-                         tlv_types.SIZE,
-                         tlv_types.BLOCK,
-                         tlv_types.EOF,
-                         tlv_types.ERROR]
 
     def _dblk_bytes_msg(fileno, amount_to_get, file_offset):
         # / <node_id> / "tag" / "sd" / 0 / "dblk" / fileno
@@ -99,16 +94,19 @@ def dblk_get_bytes(radio, fileno, amount_to_get, file_offset):
 
     while (amount_to_get):
         req_msg = _dblk_bytes_msg(fileno, amount_to_get, file_offset)
-        # zzz
-        print(hexlify(req_msg))
+        # zzz print(hexlify(req_msg))
         si446x_device_send_msg(radio, req_msg, RADIO_POWER);
         rsp_msg, rssi, status = si446x_device_receive_msg(radio, MAX_RECV, 5)
         if(rsp_msg):
-            # zzz
-            print(hexlify(rsp_msg))
+            # zzz print(hexlify(rsp_msg))
             rsp = TagMessage(rsp_msg)
             # zzz print("{}".format(rsp.header.options.param.error_code))
             # zzz print(rsp.payload)
+            dblk_rsp_pl_types = [tlv_types.OFFSET,
+                                 tlv_types.SIZE,
+                                 tlv_types.BLOCK,
+                                 tlv_types.EOF,
+                                 tlv_types.ERROR]
             offset, amt2get, block, eof, err = dblk_payload2dict(rsp.payload,
                                                                  dblk_rsp_pl_types)
             # zzz print('read pos:{}, len:{}'.format(offset, amt2get))
@@ -146,36 +144,61 @@ def dblk_get_bytes(radio, fileno, amount_to_get, file_offset):
     # zzz print('read p/l:{}/{}'.format(file_offset-len(accum_bytes), len(accum_bytes)))
     return accum_bytes, eof
 
-def dblk_update_attrs(radio, fileno, attrs):
-    dblk_rsp_pl_types = [tlv_types.SIZE,
-                         # zzz tlv_types.UTC_TIME,
-                         tlv_types.ERROR,
-    ]
+def dblk_update_attrs(radio, filename, attrs):
+    '''
+    # / <node_id> / "tag" / "sd" / 0 / "dblk" / fileno
+    '''
+    def get_file_tlv(filename):
+        try:
+            return TagTlv(tlv_types.INTEGER, int(filename))
+        except ValueError:
+            pass
+#        try:
+#            return TagTlv(tlv_types.INTEGER, int(filename,16))
+#        except ValueError:
+#            pass
+        try:
+            return TagTlv(tlv_types.STRING, bytearray(filename,'utf-8'))
+        except ValueError:
+            print('file name not valid: {}'.format(fn))
+            return None
 
-    def _dblk_attr_msg():
-        # / <node_id> / "tag" / "sd" / 0 / "dblk" / fileno
+    def _dblk_attr_msg(ftlv):
         dblk_name = TagName([TagTlv(tlv_types.NODE_ID, -1),
                              TagTlv('tag'),
                              TagTlv('sd'),
                              TagTlv(0),
                              TagTlv('dblk'),
-                             TagTlv(fileno),])
+                             ftlv,])
         return TagHead(dblk_name).build()
 
-    req_msg = _dblk_attr_msg()
-    print(hexlify(req_msg))
+    ftlv = get_file_tlv(filename)
+    # zzz print(ftlv)
+    if (ftlv == None):
+        print('dblk_attr bad name tlv')
+        return attrs
+    req_msg = _dblk_attr_msg(ftlv)
+    if (req_msg == None):
+        print('dblk_attr bad request msg')
+        return attrs
+
+    # zzz print(hexlify(req_msg))
     si446x_device_send_msg(radio, req_msg, RADIO_POWER);
     rsp_msg, rssi, status = si446x_device_receive_msg(radio, MAX_RECV, 5)
     if(rsp_msg):
-        # zzz
-        print(hexlify(rsp_msg))
+        # zzz print(hexlify(rsp_msg))
         rsp = TagMessage(rsp_msg)
         # zzz print("{}".format(rsp.header.options.param.error_code))
         # zzz
-        # zzz
-        print(rsp.payload)
-        filesize, file_time = dblk_payload2dict(rsp.payload,
-                                                dblk_rsp_pl_types)
+        # zzz print(rsp.payload)
+        dblk_rsp_pl_types = [tlv_types.SIZE,
+                             # zzz tlv_types.UTC_TIME,
+                             tlv_types.ERROR,
+        ]
+        filesize, err = dblk_payload2dict(rsp.payload,
+                                          dblk_rsp_pl_types)
+        if (err is not tlv_errors.SUCCESS):
+            print('dblk_attr error in response: {}'.format(err))
         attrs['st_size']  = filesize
         attrs['st_mtime'] = time()
     return attrs
@@ -204,10 +227,10 @@ def dblk_write_note(radio, note):
         # zzz print(hexlify(rsp_msg))
         rsp = TagMessage(rsp_msg)
         # zzz print("{}".format(rsp.header.options.param.error_code))
-        # zzz
-        print(rsp.payload)
+        # zzz print(rsp.payload)
         amt, error = dblk_payload2dict(rsp.payload,
                                        dblk_rsp_pl_types)
+        # zzz print(amt, error)
         if (error == tlv_errors.SUCCESS):
             return amt
     return 0

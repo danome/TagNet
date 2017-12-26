@@ -31,7 +31,7 @@ dblk_tree = aggie(OrderedDict([
     ('',         atom(node_details(S_IFDIR, 0o751, 4))),
     ('0',        atom(node_details(S_IFREG, 0o664, 1))),
     ('1',        atom(node_details(S_IFREG, 0o664, 1))),
-    ('notes',    atom(node_details(S_IFREG, 0o220, 1))),
+    ('note',     atom(node_details(S_IFREG, 0o220, 1))),
 ]))
 
 panic_tree = aggie(OrderedDict([
@@ -82,15 +82,16 @@ class TagFuse(LoggingMixIn, Operations):
 
     def fsync(self, path, datasync, fip):
         print(path, datasync, fip)
-        # zzz add resync command (next word/sector)
+        # zzz use this to trigger tag to search for sync record
         return 0
 
     def getattr(self, path, fh=None):
         meta = get_meta(file_tree, path)
         if (meta):
             if ((meta.attrs['st_mode'] & S_IFREG) == S_IFREG):
-                # zzz need to handle different files
-                return dblk_update_attrs(self.radio, 0, meta.attrs)
+                pathdir, pathfile = os.path.split(path)
+                # zzz print(pathdir,pathfile)
+                return dblk_update_attrs(self.radio, pathfile, meta.attrs)
             return meta.attrs
         raise FuseOSError(ENOENT)
 
