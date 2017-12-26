@@ -39,6 +39,9 @@ key_mgmt=WPA-PSK
 
 1. use ssh to connect to pi@P211.local
 2. load normal packages
+```
+sudo add-apt-repository ppa:openjdk-r/ppa
+
 sudo apt-get update
 sudo apt-get install -qy --force-yes \
     git gitk \
@@ -46,10 +49,11 @@ sudo apt-get install -qy --force-yes \
     openjdk-8-jre openjdk-8-jdk \
     libusb-dev libreadline-dev \
     emacs emacs24-el
+```
 
 # INSTALL ENVIRONMENT dot-files
-
 copy files, including .* files with this command:
+```
 git clone https://github.com/cire831/dot-files.git
 SRC_DIR=./dot-files/
 DST_DIR=~/
@@ -57,9 +61,10 @@ FILES=".bash_aliases .bash_functions .bash_login .bash_logout .bashrc .emacs.d \
 .environment_bash .gdbinit .gitconfig .gitignore .mspdebug"
 echo -e "\n*** dots from $SRC_DIR -> $DST_DIR ***"
 (for i in $FILES; do echo $i; done) | rsync -aiuWr --files-from=- $SRC_DIR $DST_DIR
-
+```
 # INSTALL PYTHON SOFTWARE
 
+```
 git clone https://github.com/doceme/py-spidev.git
 cd py-spidev/
 sudo python setup.py install
@@ -72,12 +77,15 @@ sudo pip install temporenc
 sudo pip install machinist
 sudo pip install pyproj
 sudo pip install gmaps
-
+```
 # SSH CONNECTION TO RPI
-
+```
 ssh -AXY pi@P211
+```
 or
+```
 ssh -AXY pi@P222
+```
 
 # MOUNT SHARED FILE SYSTEM ON MAC
 
@@ -95,14 +103,18 @@ ssh -AXY pi@P222
     * //solar.local/Open /mnt/Open cifs exec,user=pi,pass=raspberry,iocharset=utf8,uid=pi,gid=pi,rw  0 0
 
 ## ONE-TIME:
-* sudo mount -t cifs //solar.local/Open /mnt/Open -o user=pi,pass=raspberry,iocharset=utf8,uid=pi,gid=pi,rw
+```
+sudo mount -t cifs //solar.local/Open /mnt/Open -o user=pi,pass=raspberry,iocharset=utf8,uid=pi,gid=pi,rw
+```
 
 # ADD JUPYTER
 
 see other evernote for more details
 
+```
 sudo pip install jupyter
 sudo apt-get install -y python-seaborn python-pandas
 sudo apt-get install -y ttf-bitstream-vera
 sudo python /usr/local/lib/python2.7/dist-packages/pip install jupyter
- sudo jupyter nbextension enable --py --sys-prefix widgetsnbextension
+sudo jupyter nbextension enable --py --sys-prefix widgetsnbextension
+```
