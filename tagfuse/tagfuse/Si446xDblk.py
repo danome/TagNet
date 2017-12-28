@@ -18,6 +18,7 @@ sys.path.append("../tagnet/tagnet")
 from tagnet import TagMessage, TagGet, TagPut, TagHead
 from tagnet import TagName
 from tagnet import TagTlv, TagTlvList, tlv_types, tlv_errors
+from tagnet.tagtlv import TlvListBadException, TlvBadException
 
 from Si446xDevice import *
 
@@ -98,8 +99,18 @@ def dblk_get_bytes(radio, fileno, amount_to_get, file_offset):
         si446x_device_send_msg(radio, req_msg, RADIO_POWER);
         rsp_msg, rssi, status = si446x_device_receive_msg(radio, MAX_RECV, 5)
         if(rsp_msg):
-            # zzz print(hexlify(rsp_msg))
-            rsp = TagMessage(rsp_msg)
+            # zzz print(len(rsp_msg), hexlify(rsp_msg))
+            try:
+                rsp = TagMessage(rsp_msg)
+            except (TlvListBadException, TlvBadException):
+                print(len(rsp_msg), hexlify(rsp_msg))
+                props = radio.get_property('PKT', 0x0b, 2)
+                print('fifo threshold (rx/tx): {}/{}'.format(props[1],
+                                                             props[0]))
+                props = radio.fifo_info()
+                print('fifo depth:             {}/{}'.format(props[0],
+                                                             props[1]))
+                break
             # zzz print("{}".format(rsp.header.options.param.error_code))
             # zzz print(rsp.payload)
             dblk_rsp_pl_types = [tlv_types.OFFSET,
