@@ -5,11 +5,16 @@ tagfuse:  FUSE Filesystem for accessing Tag Storage
 """
 #print('tagfuse/__main__.py executed')
 
-from tagfuse import storage
+from tagfuse import TagStorage
 from tagfuseargs import parseargs
 
-def main():
-    storage(parseargs())
+def main(argv):
+    print(argv)
+    TagStorage(argv)
 
 if __name__ == '__main__':
-    main()
+    from sys import argv
+    if len(argv) != 2:
+        print('usage: %s <mountpoint>' % argv[0])
+        exit(1)
+    main(argv)

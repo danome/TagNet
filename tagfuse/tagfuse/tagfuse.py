@@ -230,18 +230,20 @@ class TagFuse(LoggingMixIn, Operations):
             amt = dblk_write_note(self.radio, data)
         return amt
 
-if __name__ == '__main__':
-    if len(argv) != 2:
-        print('usage: %s <mountpoint>' % argv[0])
-        exit(1)
-
+def TagStorage(argv):
     options = {'max_write':     0,
                'max_read':      512,
                'max_readahead': 1024,
                'kernel_cache':  True,
                'direct_io':     True,
     }
-
+    # zzz
     logging.basicConfig(level=logging.INFO)
     # zzz logging.basicConfig(level=logging.DEBUG) # output FUSE related debug info
     fuse = FUSE(TagFuse(), argv[1], nothreads=True, raw_fi=True, foreground=True, **options)
+if __name__ == '__main__':
+    from sys import argv
+    if len(argv) != 2:
+        print('usage: %s <mountpoint>' % argv[0])
+        exit(1)
+    TagStorage(argv)
