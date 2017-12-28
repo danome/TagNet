@@ -11,8 +11,9 @@ class atom(object):
     set will set the instance.attribute "val" to the obj
     passed in.
     '''
-    def __init__(self, meta):
+    def __init__(self, meta, action=None):
         self.meta = meta
+        self.action = action
 
     def __len__(self):
         return 1
