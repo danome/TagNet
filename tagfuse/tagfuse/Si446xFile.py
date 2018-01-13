@@ -20,7 +20,6 @@ __all__ = ['show_radio_config',
            'file_update_attrs',
            'dblk_put_note']
 
-sys.path.append("../si446x/si446x")
 from Si446xDevice import *
 
 sys.path.append("../tagnet")
