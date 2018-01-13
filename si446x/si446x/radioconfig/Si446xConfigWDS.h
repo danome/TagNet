@@ -44,9 +44,10 @@
  */
 
 #ifdef RPI_BUILD
-#include "Si446xWDS_4464_30_434_2GFSK_10_20.h"
+#include "Si446xWDS_4463_434_10kb.h"
+//#include "Si446xWDS_4464_30_434_2GFSK_10_20.h"
 #else
-#include <Si446xWDS_4464_30_434_2GFSK_10_20.h>
+//#include <Si446xWDS_4464_30_434_2GFSK_10_20.h>
 #endif
 
 /* define array of pstrings and initialize it with the configuration
