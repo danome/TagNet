@@ -144,13 +144,27 @@ def si446x_device_get_raw_config():
 # ## Get Radio Interrupt Information
 
 def int_status(clr_flags=None, show=False):
-    s_name =  'int_status_rsp_s'
-    p_s = eval(s_name)
+    clr_flags = clr_flags if (clr_flags) else \
+                clr_pend_int_s.parse('\xff' * clr_pend_int_s.sizeof())
+    clr_flags.ph_pend.STATE_CHANGE = False    # always clear this interrupt
+    p_g = radio.get_clear_interrupts(clr_flags)
+    if (show is True):
+        s_name =  'int_status_rsp_s'
+        p_s = eval(s_name)
+        p_d = p_s.build(p_g)
+#        print('{}: {}'.format(s_name, hexlify(p_d)))
+        print(radio_display_structs[p_s](p_s, p_d))
+    return p_g
+
+
+def old_int_status(clr_flags=None, show=False):
     clr_flags = clr_flags if (clr_flags) else clr_pend_int_s.parse('\xff' * clr_pend_int_s.sizeof())
     clr_flags.ph_pend.STATE_CHANGE = False
     p_g = radio.get_clear_interrupts(clr_flags)
-    p_d = p_s.build(p_g)
     if (show is True):
+        s_name =  'int_status_rsp_s'
+        p_s = eval(s_name)
+        p_d = p_s.build(p_g)
 #        print('{}: {}'.format(s_name, hexlify(p_d)))
         print(radio_display_structs[p_s](p_s, p_d))
     return p_g
