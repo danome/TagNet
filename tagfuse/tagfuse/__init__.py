@@ -6,6 +6,6 @@ Tagnet: TagNet Fuse Filesystem for accessing Tag Storage
 
 from tagfuse import *
 
-__version__ = '0.0.1'
+__version__ = '0.0.2'
 
-print 'tagnet FUSE FileSystem driver version {}'.format(__version__)
+print 'TagNet FUSE FileSystem driver version {}'.format(__version__)
