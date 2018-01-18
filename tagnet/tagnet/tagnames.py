@@ -4,12 +4,13 @@ from os.path import normpath, commonprefix
 from tagdef import *
 from tagtlv import *
 
+import copy
 
 class TagName(TagTlvList):
     """
     constructor for tag names, which consist of a list of tag tlv's that represent the hierachical order of
     name components as defined by the list.
-    """    
+    """
     def __init__(self, *args, **kwargs):
         """
         New object can be initailized with following types:
@@ -25,7 +26,7 @@ class TagName(TagTlvList):
         """
         make an exact copy of this name in a new list object
         """
-        return TagName(self)
+        return copy.deepcopy(TagName(self))
 
 #------------ end of class definition ---------------------
 
@@ -40,6 +41,6 @@ def tagnames_test():
     if (not v3.startswith(v1)): print('startswith error: ',v3,v1)
     if (v1.startswith(v3)): print('startswith error: ',v1,v3)
     return (v1,v2,v3)
-    
+
 if __name__ == '__main__':
     tagnames_test()

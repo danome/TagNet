@@ -6,6 +6,8 @@ from uuid import getnode as get_mac
 import platform
 from binascii import hexlify
 
+import copy
+
 from tagdef import *
 
 from tagnames import TagName
@@ -109,7 +111,7 @@ class TagMessage(object):
         make a copy of this message in a new message object
         """
         msg = TagMessage(self)
-        msg.header = self.header
+        msg.header = copy.copy(self.header)
         return msg
 
     def pkt_len(self):
@@ -124,11 +126,11 @@ class TagMessage(object):
             elif isinstance(self.payload, bytearray): l_pl = len(self.payload)
         return sum([tagnet_message_header_s.sizeof(),self.name.pkt_len(),l_pl])
 
-    def payload_free(self):
+    def payload_avail(self):
         used_bytes = self.pkt_len()
         free_bytes = (MAX_TAGNET_PKT_SIZE - used_bytes) \
                      if (used_bytes < MAX_TAGNET_PKT_SIZE) else 0
-        return f_bytes
+        return free_bytes
 
     def hop_count(self, n=None):
         """
