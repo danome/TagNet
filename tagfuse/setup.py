@@ -48,8 +48,8 @@ A FUSE file system driver that translate file accesses into TagNet based network
                         'Topic :: Software Development :: Libraries',
                         'Topic :: System :: Networking'],
     entry_points     = {
-        'console_scripts': ['tagdump=tagdump.__main__:main'],
-    }
+        'console_scripts': ['tagfuse=tagfuse.__main__:main'],
+    },
     package_data     = {
         'tagfuse.': ['*.md'],
     },

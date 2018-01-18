@@ -3,12 +3,11 @@ tagfuse:  FUSE Filesystem for accessing Tag Storage
 
 @author: Dan Maltbie, (c) 2017
 """
-#print('tagfuse/__main__.py executed')
 
-from tagfuse import TagStorage
-from tagfuseargs import parseargs
+#from tagfuseargs import parseargs
 
 def main(argv):
+    from tagfuse import TagStorage
     print(argv)
     TagStorage(argv)
 
