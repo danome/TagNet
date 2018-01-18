@@ -6,14 +6,16 @@ import os
 from collections import defaultdict, OrderedDict
 from errno import ENOENT, ENODATA
 from stat import S_IFDIR, S_IFLNK, S_IFREG
-from sys import argv, exit
+from sys import argv, exit, path
 from time import time
 
 from fuse import FUSE, FuseOSError, Operations, LoggingMixIn
 
-from Si446xFile import si446x_device_enable
+# zzz print(path)
+from Si446xUtils import si446x_device_enable
 
 from taghandlers import *
+from TagFuseTree import TagFuseFileTree
 
 if not hasattr(__builtins__, 'bytes'):
     bytes = str
@@ -30,59 +32,16 @@ class TagFuse(LoggingMixIn, Operations):
       os.lseek(f, fpos, 0)
       fpos = os.lseek(f, 0, 1)  # returns current file position
     '''
-
     def __init__(self):
         self.create_count = 0
         self.open_count = 0
         self.start = time()
         self.radio = si446x_device_enable()
-        self.tag_tree = DirHandler(OrderedDict([
-            ('',         FileHandler(S_IFDIR, 0o751, 4)),
-            ('dblk',     DirHandler(OrderedDict([
-                ('',         FileHandler(S_IFDIR, 0o751, 4)),
-                ('byte',     DirHandler(OrderedDict([
-                    ('',          FileHandler(S_IFDIR, 0o751, 4)),
-                    ('0',         ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)), ]))),
-                ('note',     DblkIONoteHandler(self.radio, S_IFREG, 0o220, 1)),
-            ]))),
-            ('panic',    DirHandler(OrderedDict([
-                ('',         FileHandler(S_IFDIR, 0o751, 3)),
-                ('byte',     DirHandler(OrderedDict([
-                    ('',          FileHandler(S_IFDIR, 0o751, 35)),
-                    ('0',         ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('1',         ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('2',         ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('3',         ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('4',         ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('5',         ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('6',         ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('7',         ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('8',         ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('9',         ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('10',        ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('11',        ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('12',        ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('13',        ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('14',        ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('15',        ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('16',        ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('17',        ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('18',        ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('19',        ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('20',        ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('21',        ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('22',        ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('23',        ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('24',        ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('25',        ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('26',        ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('27',        ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('28',        ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('29',        ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('30',        ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)),
-                    ('31',        ByteIOFileHandler(self.radio, S_IFREG, 0o444, 1)), ]))),
-            ]))),
-        ]))
+        self.tag_tree = PollNetDirHandler(self.radio, OrderedDict([
+            ('',                       FileHandler(S_IFDIR, 0o751, 3)),
+            ('<node_id:0xffffffffffff>', TagFuseFileTree(self.radio)),
+            ]))
+        # zzz print(self.tag_tree)
 
     def path2list(self, path):
         path = os.path.abspath(os.path.realpath(path))
@@ -90,8 +49,12 @@ class TagFuse(LoggingMixIn, Operations):
 
     def LocateNode(self, path):
         if (path == '/'):
+            print('located root')
             return self.tag_tree
         return self.tag_tree.traverse(self.path2list(path), 0)
+
+    def DeleteNode(self, path, node):
+        pass
 
     def chmod(self, path, mode):
         raise FuseOSError(ENOENT)
@@ -100,15 +63,20 @@ class TagFuse(LoggingMixIn, Operations):
     def chown(self, path, uid, gid):
         raise FuseOSError(ENOENT)
 
-    def create(self, path, mode):
-        raise FuseOSError(ENOENT)
-        self.create_count += 1
-        return 0
+    def create(self, path, mode, fh):
+        base, name = os.path.split(path)
+        handler = self.LocateNode(base)
+        print(base, name, handler)
+#        try:
+        return handler.create(self.path2list(path), mode, name)
+#        except:
+#            raise FuseOSError(ENOENT)
+#        return 0
 #        return self.fd # raw_io doesn't expect a fileno
 
     def fsync(self, path, datasync, fip):
-        raise FuseOSError(ENOENT)
         print(path, datasync, fip)
+        raise FuseOSError(ENOENT)
         # zzz use this to trigger tag to search for sync record
         return 0
 
@@ -116,7 +84,7 @@ class TagFuse(LoggingMixIn, Operations):
         handler = self.LocateNode(path)
         try:
             return handler.getattr(self.path2list(path), update=True)
-        except:
+        except AttributeError:
             raise FuseOSError(ENOENT)
 
     def getxattr(self, path, name, position=0):
@@ -152,10 +120,11 @@ class TagFuse(LoggingMixIn, Operations):
 
     def readdir(self, path, fh):
         handler = self.LocateNode(path)
+        # zzz print('readdir, handler type:{}, len: {}'.format(type(handler), len(handler)))
         try:
             return handler.readdir(self.path2list(path))
         except:
-            return []
+            return ['.', '..']
 
     def readlink(self, path):
         raise FuseOSError(ENOENT)
@@ -214,15 +183,24 @@ class TagFuse(LoggingMixIn, Operations):
             raise FuseOSError(ENOENT)
 
     def unlink(self, path):
+        handler = self.LocateNode(path)
+        try:
+            return handler.unlink(self.path2list(path))
+        except:
+            return 0
         raise FuseOSError(ENOENT)
 
     def utimens(self, path, times=None):
         now = time()
         atime, mtime = times if times else (now, now)
         handler = self.LocateNode(path)
+        if isinstance(handler, DirHandler):
+            attrs = handler['']
+        else:
+            attrs = handler
         try:
-            meta.attrs['st_atime'] = atime
-            meta.attrs['st_mtime'] = mtime
+            attrs['st_atime'] = atime
+            attrs['st_mtime'] = mtime
         except:
             pass
 
@@ -232,6 +210,27 @@ class TagFuse(LoggingMixIn, Operations):
             return handler.write(self.path2list(path), data, offset)
         except:
             return 0
+
+    def flush(self, path, fh):
+        return 0
+
+    def release(self, path, fh):
+        print('tag release')
+        handler = self.LocateNode(path)
+        try:
+            base, name = os.path.split(path)
+            ret_val = handler.release(self.path2list(path))
+            dhandler = self.LocateNode(self.path2list(base))
+            dhandler.release(self.path2list(path))
+            return ret_val
+        except:
+            return 0
+
+    def opendir(self, path):
+        return 0
+
+    def releasedir(self, path, fh):
+        return 0
 
 def TagStorage(argv):
     options = {'max_write':     0,

@@ -4,124 +4,320 @@ from __future__ import print_function, absolute_import, division
 import logging
 
 from   collections   import defaultdict, OrderedDict
-from   errno         import ENOENT, ENODATA
+from   errno         import ENOENT, ENODATA, EEXIST
 from   stat          import S_IFDIR, S_IFLNK, S_IFREG
 from   sys           import argv, exit
 from   time          import time
 
 from Si446xFile      import file_get_bytes, file_put_bytes, file_update_attrs, dblk_put_note
+from Si446xImage     import im_get_dir, im_put_file, im_get_file, im_delete_file, im_close_file
+
+base_value = 0
+
+def new_inode():
+    global base_value
+    base_value += 1
+    return base_value
+
+def default_file_attrs(ntype, mode, nlinks, size):
+        return dict(st_mode=(ntype | mode),
+                    st_nlink=nlinks,
+                    st_size=size,
+                    st_ctime=time(),
+                    st_mtime=time(),
+                    st_atime=time())
 
 class FileHandler(OrderedDict):
-      '''
-      Base File Handler class
+    '''
+    Base File Handler class
 
-      Performs all FUSE file related operations.
-      '''
-      def __init__(self, ntype, mode, nlinks):
-            a_dict = dict(st_mode=(ntype | mode),
-                      st_nlink=nlinks,
-                      st_size=1,
-                      st_ctime=time(),
-                      st_mtime=time(),
-                      st_atime=time())
-            super(FileHandler, self).__init__(a_dict)
+    Performs all FUSE file related  operations.
+    '''
+    def __init__(self, ntype, mode, nlinks):
+        a_dict = default_file_attrs(ntype,
+                                    mode,
+                                    nlinks,
+                                    0)
+        super(FileHandler, self).__init__(a_dict)
+        self.inode = new_inode();
 
-      def __len__(self):
-            return 1
+    def __len__(self):
+        return 1
 
-      def getattr(self, path_list, update=False):
-            return self
+    def getattr(self, path_list, update=False):
+        return self
 
-      def truncate(self, path_list, length):
-            return 0
+    def truncate(self, path_list, length):
+        return 0
+
+    def unlink(self, path_list):
+        return 0
 
 class ByteIOFileHandler(FileHandler):
-      def __init__(self, radio, ntype, mode, nlinks):
-            super(ByteIOFileHandler, self).__init__(ntype, mode, nlinks)
-            self.radio = radio
+    '''
+    Byte IO File Handler class
 
-      def getattr(self, path_list, update=False):
-            if (update):
-                  self = file_update_attrs(self.radio, path_list, self)
-            return self
+    Performs Byte IO file specific operations.
+    '''
+    def __init__(self, radio, ntype, mode, nlinks):
+        super(ByteIOFileHandler, self).__init__(ntype, mode, nlinks)
+        self.radio = radio
 
-      def read(self, path_list, size, offset):
-            # zzz print('byte io read, size: {}, offset: {}'.format(size, offset))
-            buf, eof = file_get_bytes(self.radio,
-                                      path_list[-3],
-                                      path_list[-1],
-                                      size,
-                                      offset)
-            # zzz print(len(buf),eof)
-            eof = False
-            if (eof):
-                  raise FuseOSError(ENODATA)
-            return str(buf)
+    def read(self, path_list, size, offset):
+        # zzz print('byte io read, size: {}, offset: {}'.format(size, offset))
+        buf, eof = file_get_bytes(self.radio,
+                          path_list[-3],
+                          path_list[-1],
+                          size,
+                          offset)
+        # zzz print(len(buf),eof)
+        eof = False
+        if (eof):
+            raise FuseOSError(ENODATA)
+        return str(buf)
 
-      def write(self, path_list, buf, offset):
-            # zzz print('byte io write, size: {}, offset: {}'.format(len(buf), offset))
-            return file_put_bytes(self.radio,
-                                  path_list[-3],
-                                  path_list[-1],
-                                  buf,
-                                  offset)
+    def getattr(self, path_list, update=False):
+        if (update):
+            self = file_update_attrs(self.radio, path_list, self)
+        return self
+
+    def write(self, path_list, buf, offset):
+        # zzz print('byte io write, size: {}, offset: {}'.format(len(buf), offset))
+        return file_put_bytes(self.radio,
+                        path_list[-3],
+                        path_list[-1],
+                        buf,
+                        offset)
+
+class ImageIOFileHandler(ByteIOFileHandler):
+    '''
+    Image IO File Handler class
+
+    Performs Image IO file specific operations.
+    '''
+    def __init__(self, radio, ntype, mode, nlinks):
+        super(ImageIOFileHandler, self).__init__(radio, ntype, mode, nlinks)
+        self.radio = radio
+        self.open = False
+
+    def getattr(self, path_list, update=False):
+        return self
+
+    def read(self, path_list, size, offset):
+        # zzz print('image io read, size: {}, offset: {}'.format(size, offset))
+        error, buf, offset = im_get_file(self.radio,
+                               path_list,
+                               size,
+                               offset)
+        # zzz print(len(buf),eof)
+        if (error) and (error is not tlv_errors.SUCCESS):
+            raise FuseOSError(ENODATA)
+        return str(buf)
+
+    def write(self, path_list, buf, offset):
+        # zzz
+        print('image io write, size: {}, offset: {}'.format(len(buf), offset))
+        error, new_offset = im_put_file(self.radio,
+                           path_list,
+                           buf,
+                           offset)
+        if (error) and (error is not tlv_errors.SUCCESS):
+            raise FuseOSError(ENOENT)
+        return len(buf) - (new_offset - offset)
+
+    def release(self, path_list): # close
+        # zzz
+        print('image io release')
+        if im_close_file(self.radio,
+                              path_list):
+            return 0
+        raise FuseOSError(ENOENT)
+
+    def unlink(self, path_list):  # delete
+        # zzz
+        print('image io unlink')
+        if im_delete_file(self.radio,
+                              path_list):
+            return 0
+        raise FuseOSError(ENOENT)
 
 class DblkIONoteHandler(FileHandler):
-      def __init__(self, radio, ntype, mode, nlinks):
-            super(DblkIONoteHandler, self).__init__(ntype, mode, nlinks)
-            self.radio = radio
+    '''
+    Dblk Note IO File Handler class
 
-      def getattr(self, path_list, update=False):
-            if (update):
-                  self = file_update_attrs(self.radio, path_list, self)
-            return self
+    Performs Dblk Note IO file specific operations.
+    '''
+    def __init__(self, radio, ntype, mode, nlinks):
+        super(DblkIONoteHandler, self).__init__(ntype, mode, nlinks)
+        self.radio = radio
 
-      def write(self, path_list, buf, offset):
-            # zzz print('dblk io note, size: {}, offset: {}'.format(len(buf), offset))
-            if (offset) or (len(buf) > 200):
-                  raise FuseOSError(ENODATA)
-            return dblk_put_note(self.radio,
-                                 buf)
+    def getattr(self, path_list, update=False):
+        if (update):
+            self = file_update_attrs(self.radio, path_list, self)
+        return self
+
+    def write(self, path_list, buf, offset):
+        # zzz print('dblk io note, size: {}, offset: {}'.format(len(buf), offset))
+        if (offset) or (len(buf) > 200):
+            raise FuseOSError(ENODATA)
+        return dblk_put_note(self.radio,
+                       buf)
 
 class DirHandler(OrderedDict):
-      '''
-      Base Directory Handler class
+    '''
+    Base Directory Handler class
 
-      Performs all FUSE directory related operations.
-      '''
-      def __init__(self, a_dict):
-            super(self.__class__, self).__init__(a_dict)
-#            self.attrs = self[''].attrs
+    Performs all FUSE directory related operations.
+    '''
+    def __init__(self, a_dict):
+        super(DirHandler, self).__init__(a_dict)
+        self.inode = new_inode()
 
-      def traverse(self, path_list, index):
-            """
-            Traverse the directory tree until reaching the leaf identified
-            by path_list.
-            """
-#            print(path_list)
-            if index < (len(path_list) - 1):        # look in subdirectory
-                  for key, handler in self.iteritems():
-#                        print(key, handler)
-                        if (path_list[index] == key):
-                              if isinstance(handler, DirHandler):
-                                    return handler.traverse(path_list, index + 1)
-                  return None               # no match found
-            else:
-                  for key, handler in self.iteritems():
-#                        print(key, handler)
-                        if (path_list[index] == key):
-                              return handler   # match the terminal name
-                  return None
+    def traverse(self, path_list, index):
+        """
+        Traverse the directory tree until reaching the leaf identified
+        by path_list.
+        """
+        # zzz print(index, path_list)
+        if index < (len(path_list) - 1):      # look in subdirectory
+            for key, handler in self.iteritems():
+                # zzz print(key, handler)
+                if (path_list[index] == key):
+                    if isinstance(handler, DirHandler):
+                        return handler.traverse(path_list, index + 1)
+            return None           # no match found
+        else:
+            for key, handler in self.iteritems():
+                # zzz print(key, handler)
+                if (path_list[index] == key):
+                    return handler   # match the terminal name
+            return None
 
-      def getattr(self, path_list, update=False):
-            return self['']
+    def getattr(self, path_list, update=False):
+        print('getattr', path_list)
+        return self['']
 
-      def readdir(self, path_list):
-            dir_names = []
-            for key  in self.keys():
-                  if (key != ''):
-                        dir_names.append(key)
-            return dir_names
+    def readdir(self, path_list):
+        # zzz print('base class readdir')
+        # zzz print(self)
+        dir_names = ['.','..']
+        for name in self.keys():
+            if (name != ''):
+                dir_names.append(name)
+        # zzz print(dir_names)
+        self['']['st_nlink'] = len(dir_names)
+        return dir_names
 
-      def test(self, param):
-            print(param)
+class PollNetDirHandler(DirHandler):
+    '''
+    Network Polling Directory Handler class
+
+    Performs all FUSE directory related operations.
+    '''
+    def __init__(self, radio, a_dict):
+        super(PollNetDirHandler, self).__init__(a_dict)
+        self.radio = radio
+
+class ImageDirHandler(DirHandler):
+    '''
+    Software Images Directory Handler class
+
+    Performs image directory specific operations.
+    '''
+    def __init__(self, radio, a_dict):
+        # zzz print('init imagedirhandler')
+        super(ImageDirHandler, self).__init__(a_dict)
+        self.radio = radio
+
+    def readdir(self, path_list):
+        # zzz print('image readdir', path_list)
+        dir_list = im_get_dir(self.radio, path_list)
+        # zzz print('image dir list:', dir_list)
+        if (dir_list):
+            for version, state in dir_list:
+                # zzz print(version, state)
+                if state.lower() in 'active backup valid':
+                    file_name = '.'.join(map(str, version))
+                    # zzz print(file_name)
+                    try:
+                        x = self[file_name]
+                        # already exists, don't create again
+                    except:
+                        self[file_name] = ImageIOFileHandler(
+                                                    self.radio,
+                                                    S_IFREG,
+                                                    0o664,
+                                                    1)
+        # zzz print(self)
+        return super(ImageDirHandler, self).readdir(dir_list)
+
+    def create(self, path_list, mode, file_name):
+        print('image create',path_list,mode, file_name)
+        try:
+            x = self[file_name]
+            raise FuseOSError(EEXIST)
+        except:
+            self[file_name] = ImageIOFileHandler(self.radio,
+                                                 S_IFREG,
+                                                 0o664,
+                                                 1)
+        return 0
+
+    def release(self, path_list): # close
+        # zzz
+        print('image dir release')
+        try:
+            del self[path_list[-1]]
+        except:
+            raise FuseOSError(ENOENT)
+        return 0
+
+class SysActiveDirHandler(DirHandler):
+    '''
+    System Active Directory Handler class
+
+    Performs active directory specific operations.
+    '''
+    def __init__(self, radio, a_dict):
+        super(SysActiveDirHandler, self).__init__(a_dict)
+        self.radio = radio
+
+class SysBackupDirHandler(DirHandler):
+    '''
+    System Backup Directory Handler class
+
+    Performs backup directory specific operations.
+    '''
+    def __init__(self, radio, a_dict):
+        super(SysBackupDirHandler, self).__init__(a_dict)
+        self.radio = radio
+
+class SysGoldenDirHandler(DirHandler):
+    '''
+    System Golden Directory Handler class
+
+    Performs Golden directory specific operations.
+    '''
+    def __init__(self, radio, a_dict):
+        super(SysGoldenDirHandler, self).__init__(a_dict)
+        self.radio = radio
+
+class SysNibDirHandler(DirHandler):
+    '''
+    System NIB Directory Handler class
+
+    Performs NIB directory specific operations.
+    '''
+    def __init__(self, radio, a_dict):
+        super(SysNibDirHandler, self).__init__(a_dict)
+        self.radio = radio
+
+class SysRunningDirHandler(DirHandler):
+    '''
+    System Running Directory Handler class
+
+    Performs running directory specific operations.
+    '''
+    def __init__(self, radio, a_dict):
+        super(SysRunningDirHandler, self).__init__(a_dict)
+        self.radio = radio

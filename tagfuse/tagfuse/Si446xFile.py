@@ -13,14 +13,13 @@ import sys
 from collections import defaultdict, OrderedDict
 from time import time
 
-__all__ = ['show_radio_config',
-           'si446x_device_enable',
-           'file_get_bytes',
+__all__ = ['file_get_bytes',
            'file_put_bytes',
            'file_update_attrs',
            'dblk_put_note']
 
 from Si446xDevice import *
+from Si446xUtils import file_payload2dict, path2tlvs
 
 sys.path.append("../tagnet")
 from tagnet import TagMessage, TagGet, TagPut, TagHead
@@ -29,60 +28,18 @@ from tagnet import TagTlv, TagTlvList, tlv_types, tlv_errors
 from tagnet.tagtlv import TlvListBadException, TlvBadException
 
 # default paramters
-MAX_WAIT            = 10
+MAX_WAIT            = .3
 MAX_RECV            = 255
 MAX_PAYLOAD         = 254
 MAX_RETRIES         = 10
 RADIO_POWER         = 100
 SHORT_DELAY         = 0
 
-def show_radio_config(radio, config):
-    si446x_device_show_config(radio.dump_radio())
-    total = 0
-    print('\n=== const config strings:')
-    for s in config:
-        print((hexlify(s)))
-        total += len(s) - 4
-    print('\n total: {}'.format(total))
-    # ## Get Chip Status
-    print(radio.get_chip_status())
-
-def si446x_device_enable():
-    # ##  Start up Radio
-    radio = si446x_device_start_radio()
-#    si446x_device_show_config(radio.dump_radio())
-    # ## Check for Command Error
-    status = radio.get_chip_status()
-    if (status.chip_pend.CMD_ERROR):
-        print(status)
-    # ##  Configure Radio
-    config = si446x_device_config_radio(radio)
-#    show_radio_config(radio, config)
-    return radio
-
-
-def file_payload2dict(payload, keynames):
-    '''
-    extract variable number of parameters in payload and then
-    filter for the parameters of interest.
-    '''
-    plist = []
-    for tv in payload:
-        plist.append((tv.tlv_type(), tv.value()))
-    dfile = OrderedDict(plist)
-    # zzz  print(dfile)
-    plist = []
-    for item in keynames:
-        try:
-            plist.append(dfile[item])
-        except:
-            plist.append(None)
-    return plist
-
 def file_get_bytes(radio, devname, fileno, amount_to_get, file_offset):
     '''
     File Byte Data Transfer function
     '''
+    global RADIO_POWER, MAXR_RETRIES
     accum_bytes = bytearray()
     eof = False
 
@@ -175,32 +132,16 @@ def file_update_attrs(radio, path_list, attrs):
      filename = "byte" | "note"
     '''
 
-    def make_tlv(v):
-        try:    return TagTlv(int(str(v)))
-        except: pass
-        try:    return TagTlv(v)
-        except: pass
-        try:    return TagTlv(v.encode('ascii','ignore'))
-        except: return None
-
     def _file_attr_msg(path_list):
-        tlv_list = [TagTlv(tlv_types.NODE_ID, -1),
-                    TagTlv('tag'),
-                    TagTlv('sd'),
-                    TagTlv(0)]
-        for v in path_list:
-            tlv = make_tlv(v)
-            if (tlv):
-                tlv_list.append(tlv)
-        tname = TagName(tlv_list)
-        # zzz print(tname)
+        tname = TagName(path2tlvs(path_list))
+        # zzz
+        print('file update attrs', path_list, tname)
         return TagHead(tname).build()
 
     req_msg = _file_attr_msg(path_list)
     if (req_msg == None):
         print('file_attr bad request msg')
         return attrs
-
     # zzz print(hexlify(req_msg))
     si446x_device_send_msg(radio, req_msg, RADIO_POWER);
     rsp_msg, rssi, status = si446x_device_receive_msg(radio, MAX_RECV, 5)
@@ -208,13 +149,12 @@ def file_update_attrs(radio, path_list, attrs):
         # zzz print(hexlify(rsp_msg))
         rsp = TagMessage(rsp_msg)
         # zzz print("{}".format(rsp.header.options.param.error_code))
-        # zzz print(rsp.payload)
-        file_rsp_pl_types = [tlv_types.SIZE,
-                             # zzz tlv_types.UTC_TIME,
-                             tlv_types.ERROR,
-        ]
+        # zzz
+        print(rsp.payload)
         filesize, err = file_payload2dict(rsp.payload,
-                                          file_rsp_pl_types)
+                                          [tlv_types.SIZE,
+                                           # zzz tlv_types.UTC_TIME,
+                                           tlv_types.ERROR,])
         if err and err is not tlv_errors.SUCCESS:
             print('file_attr error in response: {}'.format(err))
             filesize = 0
