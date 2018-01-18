@@ -108,13 +108,20 @@ sudo mount -t cifs //solar.local/Open /mnt/Open -o user=pi,pass=raspberry,iochar
 ```
 
 # ADD JUPYTER
+Get Jupyter running on RPi using the following commands.
 
-see other evernote for more details
-
+This installs packages Jupyter requires. Console shows the
+URL needed to access the Jupyter web server from user's system.
 ```
 sudo pip install jupyter
 sudo apt-get install -y python-seaborn python-pandas
 sudo apt-get install -y ttf-bitstream-vera
 sudo python /usr/local/lib/python2.7/dist-packages/pip install jupyter
 sudo jupyter nbextension enable --py --sys-prefix widgetsnbextension
+```
+
+Also, requires establishing an ssh tunnel from user system
+
+```
+ssh -N -f -L localhost:8889:localhost:8889 pi@P222.local -o ServerAliveInterval=30
 ```
