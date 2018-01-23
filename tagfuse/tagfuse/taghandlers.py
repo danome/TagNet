@@ -1,16 +1,35 @@
 #!/usr/bin/env python
 from __future__ import print_function, absolute_import, division
+from builtins import *                  # python3 types
+
+import os
+import sys
 
 import logging
 
 from   collections   import defaultdict, OrderedDict
 from   errno         import ENOENT, ENODATA, EEXIST
 from   stat          import S_IFDIR, S_IFLNK, S_IFREG
-from   sys           import argv, exit
 from   time          import time
 
-from Si446xFile      import file_get_bytes, file_put_bytes, file_update_attrs, dblk_put_note
-from Si446xImage     import im_get_dir, im_put_file, im_get_file, im_delete_file, im_close_file
+# If we are running from the source directory, try
+# to load the module from there first.
+basedir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+print('{} init: argv:{}, basedir:{}'.format(os.path.basename(basedir),
+                                            sys.argv[0],
+                                            basedir,))
+if (os.path.exists(basedir)
+    and os.path.exists(os.path.join(basedir, 'setup.py'))):
+    add_dirs = [basedir,
+                os.path.join(basedir, '../si446x'),
+                os.path.join(basedir, '../tagnet')]
+    for ndir in add_dirs:
+        if (ndir not in sys.path):
+            sys.path.insert(0,ndir)
+    # zzz print('\n'.join(sys.path))
+
+from radiofile   import file_get_bytes, file_put_bytes, file_update_attrs, dblk_put_note
+from radioimage  import im_get_dir, im_put_file, im_get_file, im_delete_file, im_close_file
 
 base_value = 0
 
@@ -84,8 +103,7 @@ class ByteIOFileHandler(FileHandler):
     def write(self, path_list, buf, offset):
         # zzz print('byte io write, size: {}, offset: {}'.format(len(buf), offset))
         return file_put_bytes(self.radio,
-                        path_list[-3],
-                        path_list[-1],
+                        path_list,
                         buf,
                         offset)
 
@@ -130,16 +148,16 @@ class ImageIOFileHandler(ByteIOFileHandler):
         print('image io release')
         if im_close_file(self.radio,
                               path_list):
-            return 0
+            return True
         raise FuseOSError(ENOENT)
 
     def unlink(self, path_list):  # delete
         # zzz
         print('image io unlink')
-        if im_delete_file(self.radio,
-                              path_list):
-            return 0
-        raise FuseOSError(ENOENT)
+        path_list[-1] = '<version:'+'.'.join(path_list[-1].split('.'))+'>'
+        # zzz print(path_list)
+        return im_delete_file(self.radio,
+                              path_list)
 
 class DblkIONoteHandler(FileHandler):
     '''
@@ -153,7 +171,10 @@ class DblkIONoteHandler(FileHandler):
 
     def getattr(self, path_list, update=False):
         if (update):
-            self = file_update_attrs(self.radio, path_list, self)
+            attrs = file_update_attrs(self.radio, path_list, self)
+            print('dblk get attrs',attrs)
+            if (attrs):
+                self = attrs
         return self
 
     def write(self, path_list, buf, offset):
@@ -232,7 +253,8 @@ class ImageDirHandler(DirHandler):
     def readdir(self, path_list):
         # zzz print('image readdir', path_list)
         dir_list = im_get_dir(self.radio, path_list)
-        # zzz print('image dir list:', dir_list)
+        # zzz
+        print('image dir list:', dir_list)
         if (dir_list):
             for version, state in dir_list:
                 # zzz print(version, state)
@@ -256,21 +278,30 @@ class ImageDirHandler(DirHandler):
         try:
             x = self[file_name]
             raise FuseOSError(EEXIST)
-        except:
+        except KeyError:
             self[file_name] = ImageIOFileHandler(self.radio,
                                                  S_IFREG,
                                                  0o664,
                                                  1)
-        return 0
+        return True
+
+    def unlink(self, path_list):
+        base, name = os.path.split(path)
+        print('image dir unlink', path_list, name)
+        try:
+            del self[name]
+            return True
+        except KeyError:
+            return False
 
     def release(self, path_list): # close
         # zzz
-        print('image dir release')
-        try:
-            del self[path_list[-1]]
-        except:
-            raise FuseOSError(ENOENT)
-        return 0
+        print('image dir release', path_list)
+#        try:
+#            del self[path_list[-1]]
+#        except:
+#            raise FuseOSError(ENOENT)
+#        return 0
 
 class SysActiveDirHandler(DirHandler):
     '''

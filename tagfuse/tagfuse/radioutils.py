@@ -5,48 +5,180 @@
 # This notebook explores the Si446xRadio class, which handles the direct access to operating system provided SPI bus and GPIO interface pins that connect to the Si446x device. This provides the command and control interface provided by the device.
 
 from __future__ import print_function
+from builtins import *                  # python3 types
 import RPi.GPIO as GPIO
 import sys
 import os
-sys.path.append("../si446x") # go to parent dir
-sys.path.append("../") # go to parent dir
-from si446x import *
+from datetime import datetime, timedelta
+from time import sleep
 
 UNIT_TESTING = False
+
+__all__ = ['name2version',
+           'payload2values',
+           'msg_exchange',
+           'radio_show_config',
+           'file_payload2dict',
+           'path2tlvs',
+           'path2list',
+           'radio_start',
+           'radio_config',
+           'radio_get_group',
+           'radio_get_property',
+           'radio_format_group',
+           'radio_show_config',
+           'radio_get_raw_config',
+           'radio_receive_msg',
+           'radio_send_msg',]
+
+# If we are running from the source package directory, try
+# to load the module from there first.
+basedir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+print('{} init: argv:{}, basedir:{}'.format(os.path.basename(basedir),
+                                            sys.argv[0],
+                                            basedir,))
+if (os.path.exists(basedir)
+    and os.path.exists(os.path.join(basedir, 'setup.py'))):
+    add_dirs = [basedir,
+                os.path.join(basedir, '../si446x'),
+                os.path.join(basedir, '../tagnet')]
+    for ndir in add_dirs:
+        if (ndir not in sys.path):
+            sys.path.insert(0,ndir)
+    # zzz print '\n'.join(sys.path)
+
+from si446x import Si446xRadio
+from si446x import clr_pend_int_s, radio_config_cmd_ids, radio_config_group_ids
+
+from tagnet import TagTlv, TagTlvList, tlv_types, tlv_errors
+from tagnet import TagMessage
+from tagnet import TlvListBadException, TlvBadException
 
 import types
 from binascii import hexlify
 
-# zzz debugging
-# os.path.abspath(os.getcwd())
-# for p in sys.path:
-#     print(p)
-
-
-# ## Get Device Driver Version
-
-from si446x import __version__
-
-def si446x_device_version():
-    return __version__
-
+# initialize global radio
 
 radio = None
 
-# ##  Start up Radio
+# default paramters
+MAX_WAIT            = 1
+MAX_RECV            = 255
+MAX_PAYLOAD         = 254
+MAX_RETRIES         = 10
+RADIO_POWER         = 100
+SHORT_DELAY         = .1
 
-def si446x_device_start_radio():
-    global radio
-    print('Si446x Radio Device Driver Version: {}'.format(si446x_device_version()))
-    radio=Si446xRadio(0)
-    radio.unshutdown()
-    radio.power_up()
-    return radio
+def name2version(name):
+    '''
+    convert file name to tuple of version (major,minor,build)
+    return name.split('.')
+    '''
 
+def payload2values(payload, keynames):
+    '''
+    Extract all parameters in payload and then filter for the
+    parameters of interest.
 
-# ## Configure Radio
+    Remove any matched parameters from the payload.
+    '''
+    plist = []
+    for match_key in keynames:
+        for tlv in payload:
+            if match_key == tlv.tlv_type():
+                plist.append(tlv.value())
+                payload.remove(tlv)
+            else:
+                plist.append(None)
+            # zzz print(match_key, tlv, plist)
+    # zzz print(plist)
+    return (plist)
 
-def si446x_device_config_radio(radio):
+def path2tlvs(path_list):
+    '''
+    Convert a list of individual elements in a path into
+    a list of Tag Tlvs
+    '''
+    def _build_tlv(val):
+#        try:                                   # version
+#            key, major, minor, build = \
+#                    re.findall('<(.{1,}):(.{1,}).(.{1,}).(.{1,})>', val)[0]
+#            # zzz print(key, value)
+#            return TagTlv(eval('tlv_types.'+key.upper()),
+#                          (int(major),int(minor),int(build)))
+#        except: pass
+#        try:                                   # node_id
+#            key, value = re.findall('<(.{1,}):(.{1,})>', val)[0]
+#            # zzz print(key, value)
+#            return TagTlv(eval('tlv_types.'+key.upper()),
+#                          value.encode('utf-8'))
+#        except: pass
+        try:                                   # integer
+            return TagTlv(tlv_types.INTEGER, int(val))
+        except: pass
+        try:                                   # string or <type:value>
+            return TagTlv(val.encode('utf-8'))
+        except: pass
+        return TagTlv(val)
+
+    tlist = []
+    for p in path_list:
+        t = _build_tlv(p)
+        if (t):
+            tlist.append(t)
+    return tlist
+
+def path2list(path):
+    path = os.path.abspath(os.path.realpath(path))
+    return path.split('/')[1:]
+
+def msg_exchange(radio, req):
+    '''
+    Send a TagNet request msg and wait for a response.
+
+    checks for error in response and will retry three times
+    if request was not successful.
+    Timeouts on the transmit will also be counted as an error
+    and reported appropriately.
+    '''
+    tries = 3
+    req_msg = req.build()
+    # zzz
+    print(len(req_msg),hexlify(req_msg))
+    while (tries):
+        error = tlv_errors.ERETRY
+        payload = None
+        radio_send_msg(radio, req_msg, RADIO_POWER);
+        rsp_buf, rssi, status = radio_receive_msg(radio, MAX_RECV, MAX_WAIT)
+        if (rsp_buf):
+            # zzz print(len(rsp_buf),hexlify(rsp_buf))
+            rsp = TagMessage(bytearray(rsp_buf))
+            if (rsp.payload):
+                # zzz
+                print(rsp.payload)
+                if (rsp.payload[0].tlv_type() is tlv_types.ERROR):
+                    error = rsp.payload[0].value()
+                    del rsp.payload[0]
+                else:
+                    error = tlv_errors.SUCCESS
+                if (error is tlv_errors.SUCCESS):
+                    payload = rsp.payload
+                    tries = 1
+            # zzz
+            print('msg_exchange, tries: ', tries)
+        else:
+            error = tlv_errors.ETIMEOUT
+            print('timeout')
+        tries -= 1
+    return error, payload
+
+def radio_config(radio):
+    '''
+    Configure Si446x Radio
+
+    Uses the pre-compiled config string lists as well as some
+    additional configuration.
+    '''
     radio.config_frr()
     config_strings = []
     list_of_lists = radio.get_config_lists()
@@ -71,17 +203,47 @@ def si446x_device_config_radio(radio):
     radio.set_property('PKT', 0x0b, '\x10\x10') # tx/rx threshold
     return config_strings
 
+def radio_show_config(radio, config):
+    '''
+    Show Radio device configuration
+    '''
+    radio_show_config(radio.dump_radio())
+    total = 0
+    print('\n=== const config strings:')
+    for s in config:
+        print((hexlify(s)))
+        total += len(s) - 4
+    print('\n total: {}'.format(total))
+    # ## Get Chip Status
+    print(radio.get_chip_status())
 
-# ## Get Radio Property Group
+def radio_start():
+    '''
+    Start up Radio
+    '''
+    global radio
+    radio=Si446xRadio(0)
+    radio.unshutdown()
+    radio.power_up()
+    # Check for Command Error
+    status = radio.get_chip_status()
+    if (status.chip_pend.CMD_ERROR):
+        print(status)
+    # Configure Radio
+    config = radio_config(radio)
+#    radio_show_config(radio, config)
+    return radio
 
-def si446x_device_get_group(radio, g_n):
+# Get Radio Property Group
+
+def radio_get_group(radio, g_n):
     g_s = radio_config_groups[radio_config_group_ids.build(g_n)]
-    return g_s.parse(si446x_device_get_property(radio, g_n, 0, g_s.sizeof()))
+    return g_s.parse(radio_get_property(radio, g_n, 0, g_s.sizeof()))
 
 
-# ## Get Radio Property
+# Get Radio Property
 
-def si446x_device_get_property(radio, g_n, start, limit):
+def radio_get_property(radio, g_n, start, limit):
     prop_x = 0
     prop_b = bytearray()
     while (prop_x < limit):
@@ -96,9 +258,9 @@ def si446x_device_get_property(radio, g_n, start, limit):
     return prop_b
 
 
-# ## Format Radio Property Group
+# Format Radio Property Group
 
-def si446x_device_format_group(gn, data):
+def radio_format_group(gn, data):
     s = ' {} '.format(gn)
     try:
         my_struct = radio_config_groups[radio_config_group_ids.build(gn)]
@@ -112,9 +274,9 @@ def si446x_device_format_group(gn, data):
     return  s
 
 
-# ##  Show Radio Configuration
+#  Show Radio Configuration
 
-def si446x_device_show_config(config):
+def radio_show_config(config):
     total = 0
     for k, v in config.iteritems():
         total += len(v)
@@ -125,11 +287,9 @@ def si446x_device_show_config(config):
     print('\n=== total: {}'.format(total))
 
 
-# ## Get Compiled Radio Configuration
+# Get Compiled Radio Configuration
 
-from si446x import get_config_wds, get_config_device
-
-def si446x_device_get_raw_config():
+def radio_get_raw_config():
     rl = []
     for l in [get_config_wds, get_config_device]:
         x = 0
@@ -141,7 +301,7 @@ def si446x_device_get_raw_config():
     return rl
 
 
-# ## Get Radio Interrupt Information
+# Get Radio Interrupt Information
 
 def int_status(clr_flags=None, show=False):
     clr_flags = clr_flags if (clr_flags) else \
@@ -181,10 +341,6 @@ def show_int_rsp(pend_flags):
     print(radio_display_structs[p_s](p_s, p_d))
 
 
-# ## Send a complete message
-
-from si446x  import clr_pend_int_s
-
 clr_all_flags = clr_pend_int_s.parse('\00' * clr_pend_int_s.sizeof())
 clr_no_flags  = clr_pend_int_s.parse('\ff' * clr_pend_int_s.sizeof())
 
@@ -203,7 +359,7 @@ def msg_chunk_generator(radio, msg):
         index += tranche
 
 
-def si446x_device_send_msg(radio, msg, pwr):
+def radio_send_msg(radio, msg, pwr):
     progress = []
     show_flag = False
 
@@ -254,9 +410,7 @@ def si446x_device_send_msg(radio, msg, pwr):
     return progress
 
 
-# ## Receive a complete message
-
-from datetime import datetime, timedelta
+# Receive a complete message
 
 def drain_rx_fifo(p):
     rx_len, __ = radio.fifo_info()
@@ -268,7 +422,7 @@ def drain_rx_fifo(p):
     if (rx_len): return bytearray(radio.read_rx_fifo(rx_len))
     else:    return ''
 
-def si446x_device_receive_msg(radio, max_recv, wait):
+def radio_receive_msg(radio, max_recv, wait):
     start = datetime.now()
     delta= timedelta(seconds=wait)
     end = start + delta
@@ -340,9 +494,9 @@ def insert_space(st):
 
 
 if (UNIT_TESTING):
-    print('si446x driver version: {}\n'.format(si446x_device_version()))
-    radio = si446x_device_start_radio()
-    config = si446x_device_config_radio(radio)
+    print('si446x driver version: {}\n'.format(radio_version()))
+    radio = radio_start_radio()
+    config = radio_config_radio(radio)
     print('compiled config strings (wdds + local):\n')
     for s in config:
         print('{}'.format(insert_space(s)))
@@ -376,14 +530,14 @@ if (UNIT_TESTING):
 
 
 if (UNIT_TESTING):
-    si446x_device_show_config(radio.dump_radio())
+    radio_show_config(radio.dump_radio())
 
 
 if (UNIT_TESTING):
     for p_n in ['FRR_CTL', 'PA']:
         p_id = radio_config_group_ids.build(p_n)
         p_g = radio_config_groups[p_id]
-        p_da = si446x_device_get_group(radio, p_n)
+        p_da = radio_get_group(radio, p_n)
         p_di = p_g.build(p_da)
         print('{} {}[{}]: ({}) {}'.format(p_n, p_g, hexlify(p_id), p_g.sizeof(), insert_space(p_di)))
         print(radio_display_structs[p_g](p_g, p_di))
@@ -400,7 +554,7 @@ if (UNIT_TESTING):
 
 
 if (UNIT_TESTING):
-    pa_g = si446x_device_get_group(radio, 'PA')
+    pa_g = radio_get_group(radio, 'PA')
     pa_s = radio_config_groups[radio_config_group_ids.build('PA')]
     ps = pa_s.build(pa_g)
     print('{}: {}'.format(pa_s, insert_space(ps)))
@@ -413,14 +567,14 @@ if (UNIT_TESTING):
     for s in config:
         print(insert_space(s))
     print('\n const config strings:')
-    for t in si446x_device_get_raw_config():
+    for t in radio_get_raw_config():
         print(insert_space(t))
     assert(s==t)
 
 
 if (UNIT_TESTING):
     g_name='FRR_CTL'
-    g = si446x_device_get_group(radio, g_name)
+    g = radio_get_group(radio, g_name)
     print('{}: {}'.format(radio_config_groups[radio_config_group_ids.build(g_name)],
                           insert_space(radio_config_groups[radio_config_group_ids.build(g_name)].build(g))))
     print(g)
@@ -429,21 +583,17 @@ if (UNIT_TESTING):
 if (UNIT_TESTING):
     radio.set_power(10)
     g_name = 'PA'
-    g = si446x_device_get_group(radio, g_name)
+    g = radio_get_group(radio, g_name)
     p = radio_config_groups[radio_config_group_ids.build(g_name)].build(g)
-    print(si446x_device_format_group('PA', p))
+    print(radio_format_group('PA', p))
     radio.set_power(32)
-    g = si446x_device_get_group(radio, g_name)
+    g = radio_get_group(radio, g_name)
     p = radio_config_groups[radio_config_group_ids.build(g_name)].build(g)
-    print(si446x_device_format_group('PA', p))
+    print(radio_format_group('PA', p))
 
 
 if (UNIT_TESTING):
-    print(si446x_device_get_group(radio, 'PA'))
-
-
-from time import sleep
-
+    print(radio_get_group(radio, 'PA'))
 
 if (UNIT_TESTING):
     """
@@ -464,7 +614,7 @@ if (UNIT_TESTING):
         radio.set_property('PKT', 0x0b, ss) # tx/rx threshold
         for i in range(80,81,step):
             bb[0] = i + 20
-            pl = si446x_device_send_msg(radio, bb[:i], 6)
+            pl = radio_send_msg(radio, bb[:i], 6)
             print('{} {}'.format(i, ''.join(map(str, pl))))
             print(hexlify(bb[:i]))
             if (pl[-1] == 'e'):

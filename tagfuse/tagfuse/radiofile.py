@@ -4,12 +4,14 @@
 
 from __future__ import print_function
 from builtins import *                  # python3 types
+
+import os
+import sys
+
 from time import sleep
 from datetime import datetime
 import struct as pystruct
 from binascii import hexlify
-import os.path
-import sys
 from collections import defaultdict, OrderedDict
 from time import time
 
@@ -18,14 +20,29 @@ __all__ = ['file_get_bytes',
            'file_update_attrs',
            'dblk_put_note']
 
-from Si446xDevice import *
-from Si446xUtils import file_payload2dict, path2tlvs
+# If we are running from the source directory, try
+# to load the module from there first.
+basedir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+print('{} init: argv:{}, basedir:{}'.format(os.path.basename(basedir),
+                                            sys.argv[0],
+                                            basedir,))
+if (os.path.exists(basedir)
+    and os.path.exists(os.path.join(basedir, 'setup.py'))):
+    add_dirs = [basedir,
+                os.path.join(basedir, '../si446x'),
+                os.path.join(basedir, '../tagnet')]
+    for ndir in add_dirs:
+        if (ndir not in sys.path):
+            sys.path.insert(0,ndir)
+    # zzz print '\n'.join(sys.path)
 
-sys.path.append("../tagnet")
+from radioutils import radio_send_msg, radio_receive_msg
+from radioutils import payload2values, path2tlvs, path2list
+
 from tagnet import TagMessage, TagGet, TagPut, TagHead
 from tagnet import TagName
 from tagnet import TagTlv, TagTlvList, tlv_types, tlv_errors
-from tagnet.tagtlv import TlvListBadException, TlvBadException
+from tagnet import TlvListBadException, TlvBadException
 
 # default paramters
 MAX_WAIT            = .3
@@ -35,7 +52,7 @@ MAX_RETRIES         = 10
 RADIO_POWER         = 100
 SHORT_DELAY         = 0
 
-def file_get_bytes(radio, devname, fileno, amount_to_get, file_offset):
+def file_get_bytes(radio, path_list, amount_to_get, file_offset):
     '''
     File Byte Data Transfer function
     '''
@@ -43,26 +60,22 @@ def file_get_bytes(radio, devname, fileno, amount_to_get, file_offset):
     accum_bytes = bytearray()
     eof = False
 
-    def _file_bytes_msg(devname, fileno, amount_to_get, file_offset):
+    def _file_bytes_msg(path_list, amount_to_get, file_offset):
         # / <node_id> / "tag" / "sd" / 0 / devname / byte [/ fileno]
-        tlv_list = [TagTlv(tlv_types.NODE_ID, -1),
-                    TagTlv('tag'),
-                    TagTlv('sd'),
-                    TagTlv(0),
-                    TagTlv(devname.encode('ascii','ignore')),
-                    TagTlv('byte')]
-        if (int(fileno)): tlv_list.append(TagTlv(tlv_types.INTEGER, int(fileno)))
+        tlv_list = path2tlvs(path_list)
         tlv_list.extend([TagTlv(tlv_types.OFFSET, file_offset),
                          TagTlv(tlv_types.SIZE, amount_to_get)])
         tname = TagName(tlv_list)
-        # zzz print(tname)
+        # zzz
+        print(tname)
         return TagGet(tname).build()
 
-    while (amount_to_get):
-        req_msg = _file_bytes_msg(devname, fileno, amount_to_get, file_offset)
+    tries = 3
+    while (amount_to_get) and (tries):
+        req_msg = _file_bytes_msg(path_list, amount_to_get, file_offset)
         # zzz print(hexlify(req_msg))
-        si446x_device_send_msg(radio, req_msg, RADIO_POWER)
-        rsp_msg, rssi, status = si446x_device_receive_msg(radio, MAX_RECV, 5)
+        radio_send_msg(radio, req_msg, RADIO_POWER)
+        rsp_msg, rssi, status = radio_receive_msg(radio, MAX_RECV, 5)
         if(rsp_msg):
             # zzz print(len(rsp_msg), hexlify(rsp_msg))
             try:
@@ -77,21 +90,23 @@ def file_get_bytes(radio, devname, fileno, amount_to_get, file_offset):
                                                              props[1]))
                 break
             # zzz print("{}".format(rsp.header.options.param.error_code))
-            # zzz print(rsp.payload)
-            file_rsp_pl_types = [tlv_types.OFFSET,
-                                 tlv_types.SIZE,
-                                 tlv_types.BLOCK,
-                                 tlv_types.EOF,
-                                 tlv_types.ERROR]
-            offset, amt2get, block, eof, err = file_payload2dict(rsp.payload,
-                                                                 file_rsp_pl_types)
+            # zzz
+            print('file_get_bytes',rsp.payload)
+            offset, amt2get, block, eof, err = payload2values(rsp.payload,
+                                                              [tlv_types.OFFSET,
+                                                               tlv_types.SIZE,
+                                                               tlv_types.BLOCK,
+                                                               tlv_types.EOF,
+                                                               tlv_types.ERROR])
             # zzz print('read pos: {}, len: {}, error: {}'.format(offset, amt2get, err))
             if (block):
                 accum_bytes   += block
                 file_offset   += len(block)
                 amount_to_get -= len(block)
             if (err):
-                if (err == tlv_errors.EBUSY):
+                if (err == tlv_errors.SUCCESS):
+                    pass
+                elif (err == tlv_errors.EBUSY):
                     # zzz print('busy')
                     continue
                 elif (err == tlv_errors.EODATA):
@@ -104,8 +119,6 @@ def file_get_bytes(radio, devname, fileno, amount_to_get, file_offset):
             if (eof):
                 print('eof: {}'.format(offset))
                 break
-            else:
-                eof = False
             if (offset) and (offset != file_offset):
                 print('bad offset, expected: {}, got: {}'.format(
                     file_offset, offset))
@@ -117,19 +130,13 @@ def file_get_bytes(radio, devname, fileno, amount_to_get, file_offset):
         else:
             print('TIMEOUT')
             break
-    # zzz print('read p/l:{}/{}'.format(file_offset-len(accum_bytes), len(accum_bytes)))
+    # zzz
+    print('read p/l:{}/{}'.format(file_offset-len(accum_bytes), len(accum_bytes)))
     return accum_bytes, eof
 
 def file_update_attrs(radio, path_list, attrs):
     '''
-    Adds devname and filename to end of TagNet path to create reference to a file fact,
-    either:
-     / <node_id> / "tag" / "sd" / 0 / str(devname) / int(filename)
-    or:
-     / <node_id> / "tag" / "sd" / 0 / str(devname) / str(filename)
-    where:
-     devname = "dblk" | "panic"
-     filename = "byte" | "note"
+    Retrieve current attributes of a file from remote tag
     '''
 
     def _file_attr_msg(path_list):
@@ -142,19 +149,21 @@ def file_update_attrs(radio, path_list, attrs):
     if (req_msg == None):
         print('file_attr bad request msg')
         return attrs
-    # zzz print(hexlify(req_msg))
-    si446x_device_send_msg(radio, req_msg, RADIO_POWER);
-    rsp_msg, rssi, status = si446x_device_receive_msg(radio, MAX_RECV, 5)
+    # zzz
+    print(hexlify(req_msg))
+    radio_send_msg(radio, req_msg, RADIO_POWER);
+    print('radiofile message sent')
+    rsp_msg, rssi, status = radio_receive_msg(radio, MAX_RECV, 5)
     if(rsp_msg):
         # zzz print(hexlify(rsp_msg))
         rsp = TagMessage(rsp_msg)
         # zzz print("{}".format(rsp.header.options.param.error_code))
         # zzz
         print(rsp.payload)
-        filesize, err = file_payload2dict(rsp.payload,
-                                          [tlv_types.SIZE,
-                                           # zzz tlv_types.UTC_TIME,
-                                           tlv_types.ERROR,])
+        filesize, err = payload2values(rsp.payload,
+                                       [tlv_types.SIZE,
+                                        # zzz tlv_types.UTC_TIME,
+                                        tlv_types.ERROR,])
         if err and err is not tlv_errors.SUCCESS:
             print('file_attr error in response: {}'.format(err))
             filesize = 0
@@ -162,54 +171,37 @@ def file_update_attrs(radio, path_list, attrs):
         attrs['st_mtime'] = time()
     return attrs
 
-def _put_bytes(radio, fname, buf, offset):
+def _put_bytes(radio, tname, buf, offset):
 
-    def _file_put_msg(fname, buf, offset):
-        # / <node_id> / "tag" / "sd" / 0 / devname / byte [/ fileno]
-        tlv_list = fname
-        tlv_list.extend([TagTlv(tlv_types.OFFSET, offset),
-                         TagTlv(tlv_types.SIZE, len(buf))])
-        tname = TagName(tlv_list)
+    def _file_put_msg(tname, buf, offset):
+        tname.extend([TagTlv(tlv_types.OFFSET, offset),
+                      TagTlv(tlv_types.SIZE, len(buf))])
         msg = TagPut(tname, pl=bytearray(buf))
         return msg.build()
 
-    req_msg = _file_put_msg(fname, buf, offset)
+    req_msg = _file_put_msg(tname, buf, offset)
     # zzz print(hexlify(req_msg))
-    si446x_device_send_msg(radio, req_msg, RADIO_POWER);
-    rsp_msg, rssi, status = si446x_device_receive_msg(radio, MAX_RECV, 5)
+    radio_send_msg(radio, req_msg, RADIO_POWER);
+    rsp_msg, rssi, status = radio_receive_msg(radio, MAX_RECV, 5)
     if(rsp_msg):
         # zzz print(hexlify(rsp_msg))
         rsp = TagMessage(rsp_msg)
         # zzz print("{}".format(rsp.header.options.param.error_code))
         # zzz print(rsp.payload)
-        file_rsp_pl_types = [tlv_types.SIZE,
-                             tlv_types.ERROR,
-        ]
-        amt, error = file_payload2dict(rsp.payload,
-                                       file_rsp_pl_types)
+        amt, error = payload2values(rsp.payload,
+                                    [tlv_types.SIZE,
+                                     tlv_types.ERROR])
         # zzz print(amt, error)
         if (error == tlv_errors.SUCCESS):
             return len(buf) - amt
     return 0
 
-def file_put_bytes(radio, devname, fileno, buf, offset):
-    # / <node_id> / "tag" / "sd" / 0 / devname / byte [/ fileno]
-    tlv_list = [TagTlv(tlv_types.NODE_ID, -1),
-                TagTlv('tag'),
-                TagTlv('sd'),
-                TagTlv(0),
-                TagTlv(devname.encode('ascii','ignore')),
-                TagTlv('byte')]
-    if (int(fileno)): tlv_list.append(TagTlv(tlv_types.INTEGER, int(fileno)))
-    return _put_bytes(radio, tlv_list, buf, offset)
+def file_put_bytes(radio, path_list, buf, offset):
+    tname = TagName(path2tlvs(path_list))
+    return _put_bytes(radio, tname, buf, offset)
+
 
 def dblk_put_note(radio, note):
-    # / <node_id> / "tag" / "sd" / 0 / "dblk" / "note"
-    tlv_list = [TagTlv(tlv_types.NODE_ID, -1),
-                TagTlv('tag'),
-                TagTlv('sd'),
-                TagTlv(0),
-                TagTlv('dblk'),
-                TagTlv('note')]
-    _put_bytes(radio, tlv_list, note, 0)
+    tname = TagName(path2tlvs(path_list))
+    _put_bytes(radio, tname, note, 0)
     return len(note)
