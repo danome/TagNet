@@ -112,6 +112,7 @@ def TagFuseFileTree(radio):
                     ('gps',   DirHandler(OrderedDict([
                         ('',    FileHandler(S_IFDIR, 0o751, 4)),
                         ('xyz', FileHandler(S_IFREG, 0o660, 1)),
+                        ('cmd', ByteIOFileHandler(radio, S_IFREG, 0o660, 1)),
                     ]))),
                 ]))),
             ]))),
