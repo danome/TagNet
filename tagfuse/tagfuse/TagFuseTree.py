@@ -2,10 +2,27 @@ from __future__ import print_function, absolute_import, division
 
 import logging
 import os
+import sys
+
 from collections import defaultdict, OrderedDict
 import copy
 from stat import S_IFDIR, S_IFLNK, S_IFREG
 from time import time
+
+# If we are running from the source directory, try
+# to load the module from there first.
+basedir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+print('{} init: argv:{}, basedir:{}'.format(os.path.basename(basedir),
+                                            sys.argv[0],
+                                            basedir,))
+if (os.path.exists(basedir)
+    and os.path.exists(os.path.join(basedir, 'setup.py'))):
+    add_dirs = [basedir,
+                os.path.join(basedir, '../si446x'),
+                os.path.join(basedir, '../tagnet')]
+    for ndir in add_dirs:
+        if (ndir not in sys.path):
+            sys.path.insert(0,ndir)
 
 from taghandlers import *
 

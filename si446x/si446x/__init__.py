@@ -4,11 +4,29 @@ Si446x Packet Driver: Native Python implementation for Si446x Radio Device
 @author: Dan Maltbie
 """
 
-from .si446xact    import *
-from .si446xdef    import *
-from .si446xdvr    import *
-from .si446xFSM    import Events, Actions, States, table
-from .si446xradio  import *
-from .si446xcfg    import get_config_wds, get_config_device
-from .si446xtrace  import *
-from .si446xvers   import __version__
+import os,sys
+# If we are running from the source directory, try
+# to load the module from there first.
+basedir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+print('{} init: argv:{}, basedir:{}'.format(os.path.basename(basedir),
+                                            sys.argv[0],
+                                            basedir,))
+if (os.path.exists(basedir)
+    and os.path.exists(os.path.join(basedir, 'setup.py'))):
+    add_dirs = [os.path.join(basedir, os.path.basename(basedir)),]
+    for ndir in add_dirs:
+        if (ndir not in sys.path):
+            sys.path.insert(0,ndir)
+    # zzz
+    print('\n'.join(sys.path))
+
+from si446xvers   import __version__
+print('si446x init: ', __version__)
+
+from si446xcfg    import get_config_wds, get_config_device
+from si446xact    import *
+from si446xdef    import *
+from si446xradio  import *
+from si446xdvr    import *
+from si446xFSM    import *
+from si446xtrace  import *

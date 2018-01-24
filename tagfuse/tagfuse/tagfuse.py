@@ -1,19 +1,35 @@
 #!/usr/bin/env python
 from __future__ import print_function, absolute_import, division
+from builtins import *                  # python3 types
 
-import logging
 import os
+import sys
+import logging
+
 from collections import defaultdict, OrderedDict
 from errno import ENOENT, ENODATA
 from stat import S_IFDIR, S_IFLNK, S_IFREG
-from sys import argv, exit, path
 from time import time
 
 from fuse import FUSE, FuseOSError, Operations, LoggingMixIn
 
-# zzz print(path)
-from Si446xUtils import si446x_device_enable
+# If we are running from the source directory, try
+# to load the module from there first.
+basedir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+print('{} init: argv:{}, basedir:{}'.format(os.path.basename(basedir),
+                                            sys.argv[0],
+                                            basedir,))
+if (os.path.exists(basedir)
+    and os.path.exists(os.path.join(basedir, 'setup.py'))):
+    add_dirs = [basedir,
+                os.path.join(basedir, '../si446x'),
+                os.path.join(basedir, '../tagnet')]
+    for ndir in add_dirs:
+        if (ndir not in sys.path):
+            sys.path.insert(0,ndir)
+    # zzz print '\n'.join(sys.path)
 
+from radioutils  import radio_start
 from taghandlers import *
 from TagFuseTree import TagFuseFileTree
 
@@ -232,21 +248,18 @@ class TagFuse(LoggingMixIn, Operations):
     def releasedir(self, path, fh):
         return 0
 
-def TagStorage(argv):
+def TagStorage(args):
     options = {'max_write':     0,
                'max_read':      512,
                'max_readahead': 8192,
                'kernel_cache':  True,
                'direct_io':     True,
     }
+    # zzz logging.basicConfig(level=logging.INFO)
     # zzz
-    logging.basicConfig(level=logging.INFO)
-    # zzz logging.basicConfig(level=logging.DEBUG) # output FUSE related debug info
-    fuse = FUSE(TagFuse(), argv[1], nothreads=True, raw_fi=True, foreground=True, **options)
+    logging.basicConfig(level=logging.DEBUG) # output FUSE related debug info
+    fuse = FUSE(TagFuse(), args.mountpoint, nothreads=True, raw_fi=True, foreground=True, **options)
 
 if __name__ == '__main__':
-    from sys import argv
-    if len(argv) != 2:
-        print('usage: %s <mountpoint>' % argv[0])
-        exit(1)
-    TagStorage(argv)
+    import tagfuseargs
+    TagStorage(tagfuseargs.parseargs(argv))
