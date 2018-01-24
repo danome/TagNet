@@ -18,7 +18,6 @@ __all__ = ['name2version',
            'payload2values',
            'msg_exchange',
            'radio_show_config',
-           'file_payload2dict',
            'path2tlvs',
            'path2list',
            'radio_start',
@@ -223,6 +222,8 @@ def radio_start():
     '''
     global radio
     radio=Si446xRadio(0)
+    if (radio == None):
+        print('radio_start: could not instantiate radio')
     radio.unshutdown()
     radio.power_up()
     # Check for Command Error
