@@ -52,10 +52,10 @@ class TagFuse(LoggingMixIn, Operations):
         self.create_count = 0
         self.open_count = 0
         self.start = time()
-        self.radio = si446x_device_enable()
+        self.radio = None
         self.tag_tree = PollNetDirHandler(self.radio, OrderedDict([
             ('',                       FileHandler(S_IFDIR, 0o751, 3)),
-            ('<node_id:0xffffffffffff>', TagFuseFileTree(self.radio)),
+            ('<node_id:ffffffffffff>', TagFuseFileTree(self.radio)),
             ]))
         # zzz print(self.tag_tree)
 
@@ -83,12 +83,17 @@ class TagFuse(LoggingMixIn, Operations):
         base, name = os.path.split(path)
         handler = self.LocateNode(base)
         print(base, name, handler)
-#        try:
-        return handler.create(self.path2list(path), mode, name)
-#        except:
-#            raise FuseOSError(ENOENT)
-#        return 0
-#        return self.fd # raw_io doesn't expect a fileno
+        # try:
+        if handler.create(self.path2list(path), mode, name):
+            return 0
+        # except:
+        #    raise FuseOSError(ENOENT)
+        #    return 0
+        #    return self.fd # raw_io doesn't expect a fileno
+
+    def destroy(self, path):
+        print('tagfuse destroy')
+        return None
 
     def fsync(self, path, datasync, fip):
         print(path, datasync, fip)
@@ -110,6 +115,10 @@ class TagFuse(LoggingMixIn, Operations):
             return attrs.get('attrs', {})[name]
         except KeyError:
             return ''       # Should return ENOATTR
+
+    def init(self, path):
+        self.radio = radio_start()
+        return None
 
     def listxattr(self, path):
         handler = self.LocateNode(path)
@@ -199,12 +208,14 @@ class TagFuse(LoggingMixIn, Operations):
             raise FuseOSError(ENOENT)
 
     def unlink(self, path):
+        base, name = os.path.split(path)
         handler = self.LocateNode(path)
         try:
-            return handler.unlink(self.path2list(path))
+            if (handler.unlink(self.path2list(path))):
+                dirhandler = self.LocateNode(base)
+                dirhandler.unlink(self.path2list(path))
         except:
-            return 0
-        raise FuseOSError(ENOENT)
+            raise FuseOSError(ENOENT)
 
     def utimens(self, path, times=None):
         now = time()
