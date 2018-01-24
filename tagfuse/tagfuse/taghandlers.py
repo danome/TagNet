@@ -21,6 +21,7 @@ print('{} init: argv:{}, basedir:{}'.format(os.path.basename(basedir),
 if (os.path.exists(basedir)
     and os.path.exists(os.path.join(basedir, 'setup.py'))):
     add_dirs = [basedir,
+                os.path.join(basedir, 'tagfuse'),
                 os.path.join(basedir, '../si446x'),
                 os.path.join(basedir, '../tagnet')]
     for ndir in add_dirs:
@@ -199,17 +200,31 @@ class DirHandler(OrderedDict):
         Traverse the directory tree until reaching the leaf identified
         by path_list.
         """
-        # zzz print(index, path_list)
+        # zzz
+        print(index, path_list)
         if index < (len(path_list) - 1):      # look in subdirectory
             for key, handler in self.iteritems():
-                # zzz print(key, handler)
+                # zzz
+                print('traverse',
+                      path_list[index],
+                      path_list[index] == key,
+                      key,
+                      type(handler),
+                      isinstance(handler, DirHandler),
+                      type(DirHandler))
                 if (path_list[index] == key):
+                    print(isinstance(handler, DirHandler))
                     if isinstance(handler, DirHandler):
                         return handler.traverse(path_list, index + 1)
             return None           # no match found
         else:
             for key, handler in self.iteritems():
-                # zzz print(key, handler)
+                # zzz
+                print('traverse last',
+                      path_list[index],
+                      path_list[index] == key,
+                      key,
+                      type(handler))
                 if (path_list[index] == key):
                     return handler   # match the terminal name
             return None

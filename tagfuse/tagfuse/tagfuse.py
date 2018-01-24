@@ -53,10 +53,7 @@ class TagFuse(LoggingMixIn, Operations):
         self.open_count = 0
         self.start = time()
         self.radio = None
-        self.tag_tree = PollNetDirHandler(self.radio, OrderedDict([
-            ('',                       FileHandler(S_IFDIR, 0o751, 3)),
-            ('<node_id:ffffffffffff>', TagFuseFileTree(self.radio)),
-            ]))
+        self.tag_tree =  None
         # zzz print(self.tag_tree)
 
     def path2list(self, path):
@@ -118,6 +115,7 @@ class TagFuse(LoggingMixIn, Operations):
 
     def init(self, path):
         self.radio = radio_start()
+        self.tag_tree = TagFuseFileTree(self.radio)
         return None
 
     def listxattr(self, path):
