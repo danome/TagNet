@@ -87,7 +87,7 @@ class TagMessage(object):
             elif isinstance(args[0], bytearray):              # input is bytearray
                 self.parse(args[0])
             else:
-                raise TypeError('bad input type')
+                raise TypeError('bad input type: {}, value:'.format(type(args[0]), hexlify(args[0])))
         else:
             raise ValueError('too few/many arguments')
         self.header.frame_length = tagnet_message_header_s.sizeof() - 1

@@ -11,10 +11,16 @@ from uuid import getnode as get_mac
 import copy
 import unittest
 import enum
+import re
 
 # only make these names public
 #
-__all__ = ['TagTlvList', 'TagTlv', 'tlv_types', 'tlv_errors']
+__all__ = ['TagTlvList',
+           'TagTlv',
+           'tlv_types',
+           'tlv_errors',
+           'TlvListBadException',
+           'TlvBadException']
 
 # Fundamental Types of TLV objects
 #
@@ -330,10 +336,13 @@ class _Tlv(object):
         """
         add tlv header to network byte array
         """
+        # zzz print(type(t))
         if isinstance(t, type(tlv_types.NONE)): # match any tlv_type
-            hdr = int(t.value).to_bytes(1,'big') + \
-                  int(len(v)).to_bytes(1,'big')
+            # zzz print('here')
+            hdr = pack('BB', t.value, len(v))
+            # zzz print(hexlify(hdr))
             return bytearray(hdr + bytearray(v))
+        # zzz print('bad tlv')
         raise TlvBadException(t, v)
 
     def _to_tlv_int(self, t, v):
@@ -393,10 +402,15 @@ class _Tlv(object):
         if (t == tlv_types.EOF):    return self._to_tlv(t, bytearray(''))
 
         if (t == tlv_types.VERSION):
+            # zzz print(type(v))
             if isinstance(v, list) or \
                isinstance(v, tuple):
-                ba = pack('HBB', *v)
-                return self._to_tlv(t, bytearray(ba))
+                major, minor, build = v
+                # zzz print(type(major),major,minor,build)
+                ba = pack('HBB', int(build), int(minor), int(major))
+                btlv = self._to_tlv(t, bytearray(ba))
+                # zzz print(btlv)
+                return btlv
 
         if (t == tlv_types.BLOCK) or \
            (t == tlv_types.APP1)  or \
@@ -452,7 +466,9 @@ class _Tlv(object):
         if (t == tlv_types.OFFSET):    return int_to_value(v)
         if (t == tlv_types.SIZE):      return int_to_value(v)
         if (t == tlv_types.EOF):       return bytearray(b'')
-        if (t == tlv_types.VERSION):   return list(unpack('HBB', v))
+        if (t == tlv_types.VERSION):
+            build, minor, major = unpack('HBB', v)
+            return (major, minor, build)
         if (t == tlv_types.BLOCK):     return copy.deepcopy(v)
         if (t == tlv_types.RECNUM):    return int_to_value(v)
         if (t == tlv_types.RECCNT):    return int_to_value(v)
@@ -501,7 +517,8 @@ class TagTlv(object):
                isinstance(t, types.LongType):       # Integer
                 self.mytlv = _Tlv(tlv_types.INTEGER, t)
             elif isinstance(t, types.StringType):     # String
-                self.mytlv = _Tlv(tlv_types.STRING, t)
+                self.mytlv = self._regex_tlv(t) if (t[0] is '<') \
+                      else _Tlv(tlv_types.STRING, t)
             elif isinstance(t, bytearray):            # bytearray
                 self.mytlv = _Tlv(t)
             elif isinstance(t, types.TupleType):      # Tuple
@@ -512,6 +529,32 @@ class TagTlv(object):
                 self.mytlv = _Tlv(t, bytearray(b''))
         if (self.mytlv is None):
             raise TlvBadException(t, v)
+
+    def _regex_tlv(self, buf):
+        # zzz print('regex_tlv', type(buf), buf)
+        try:
+            # zzz print('try version')
+            key, major, minor, build = \
+                re.findall('^<(.{1,}):([0-9]{1,5})\.([0-9]{1,3})\.([0-9]{1,3})>',
+                           buf.upper())[0]
+            # zzz print(key, major, minor, build)
+            if (key == 'VERSION'):
+                return _Tlv(tlv_types.VERSION,
+                            (int(major),int(minor),int(build)))
+        except IndexError, ValueError:
+            pass
+        try:
+            key, value = buf[1:-1].split(':')
+            # zzz print('try node_id')
+            key, value = re.findall('^<(.{1,}):([0-9A-F]+)>',
+                                    buf.upper())[0]
+            # zzz print(key, type(value), value)
+            if (key == 'NODE_ID'):
+                return _Tlv(tlv_types.NODE_ID,
+                            value)
+        except IndexError, ValueError:
+            raise TlvBadException(t, v)
+        return None # shouldn't get here
 
     def copy(self):
         return copy.deepcopy(self)
