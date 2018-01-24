@@ -1,6 +1,8 @@
 from __future__ import print_function   # python3 print function
 from builtins import *
 
+all = ['Events', 'Actions', 'States', 'table']
+
 from twisted.python.constants import Names, NamedConstant
 
 from machinist import TransitionTable, MethodSuffixOutputer, constructFiniteStateMachine
