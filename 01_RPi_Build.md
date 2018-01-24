@@ -49,11 +49,15 @@ sudo apt-get install -qy --force-yes \
     openjdk-8-jre openjdk-8-jdk \
     libusb-dev libreadline-dev \
     emacs emacs24-el
+sudo apt-get install -qy --force-yes \
+    fuse libfuse2 libfuse-dev \
+    python2.7-llfuse python3-llfuse
 ```
 
 # INSTALL ENVIRONMENT dot-files
 copy files, including .* files with this command:
 ```
+cd software
 git clone https://github.com/cire831/dot-files.git
 SRC_DIR=./dot-files/
 DST_DIR=~/
@@ -77,6 +81,8 @@ sudo pip install temporenc
 sudo pip install machinist
 sudo pip install pyproj
 sudo pip install gmaps
+sudo pip install txdbus==1.1.0
+sudo pip install fusepy
 ```
 # SSH CONNECTION TO RPI
 ```
@@ -101,6 +107,7 @@ ssh -AXY pi@P222
 * mkdir /mnt/Open
 * add to /etc/fstab
     * //solar.local/Open /mnt/Open cifs exec,user=pi,pass=raspberry,iocharset=utf8,uid=pi,gid=pi,rw  0 0
+* sudo mount -a
 
 ## ONE-TIME:
 ```
