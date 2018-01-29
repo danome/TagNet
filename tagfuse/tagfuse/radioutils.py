@@ -306,23 +306,10 @@ def radio_get_raw_config():
 
 # Get Radio Interrupt Information
 
-def int_status(clr_flags=None, show=False):
-    clr_flags = clr_flags if (clr_flags) else \
-                clr_pend_int_s.parse('\xff' * clr_pend_int_s.sizeof())
+def int_status(radio, clr_flags=None, show=False):
+    clr_flags = clr_flags if (clr_flags) \
+                else clr_pend_int_s.parse('\xff' * clr_pend_int_s.sizeof())
     clr_flags.ph_pend.STATE_CHANGE = False    # always clear this interrupt
-    p_g = radio.get_clear_interrupts(clr_flags)
-    if (show is True):
-        s_name =  'int_status_rsp_s'
-        p_s = eval(s_name)
-        p_d = p_s.build(p_g)
-#        print('{}: {}'.format(s_name, hexlify(p_d)))
-        print(radio_display_structs[p_s](p_s, p_d))
-    return p_g
-
-
-def old_int_status(clr_flags=None, show=False):
-    clr_flags = clr_flags if (clr_flags) else clr_pend_int_s.parse('\xff' * clr_pend_int_s.sizeof())
-    clr_flags.ph_pend.STATE_CHANGE = False
     p_g = radio.get_clear_interrupts(clr_flags)
     if (show is True):
         s_name =  'int_status_rsp_s'
@@ -342,12 +329,6 @@ def show_int_rsp(radio, pend_flags):
     p_d = p_s.build(p_g)
 #    print('{}: {}'.format(s_name, hexlify(p_d)))
     print(radio_display_structs[p_s](p_s, p_d))
-
-
-clr_all_flags = clr_pend_int_s.parse('\00' * clr_pend_int_s.sizeof())
-clr_no_flags  = clr_pend_int_s.parse('\ff' * clr_pend_int_s.sizeof())
-
-MAX_FIFO_SIZE = 64
 
 
 def msg_chunk_generator(radio, msg):
@@ -374,7 +355,7 @@ def radio_send_msg(radio, msg, pwr):
     __, tx = radio.fifo_info(rx_flush=True, tx_flush=True)
     if (tx != MAX_FIFO_SIZE): print('tx fifo bad: {}'.format(tx))
 
-    chunk, p = next(msg_chunk)
+    chunk, p = msg_chunk.next()
     progress.extend(p)
     radio.write_tx_fifo(chunk)
     radio.start_tx(len(msg))
