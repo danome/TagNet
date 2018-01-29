@@ -164,7 +164,7 @@ class Trace:
                 depth = count if (count < self.rb.len()) else -1
         elif (count == 0):
             count = self.size
-        ds = []
+        recs = []
         for t,where,sig,s_name,index,data in self.rb.peek(depth):
             if (span_d):
                 span_d -= 1
@@ -183,8 +183,8 @@ class Trace:
             self.last_t = t
             if ((not span_d) and (count < 0)):
                 break
-            ds.append((t,where,sig,s_name,index,bytearray(data)))
-        return ds
+            recs.append((t,where,sig,s_name,index,bytearray(data)))
+        return recs
 
     def display(self, entries):
         """
