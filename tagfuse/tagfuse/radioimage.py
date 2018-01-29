@@ -4,26 +4,27 @@
 
 from __future__ import print_function
 from builtins import *                  # python3 types
-import os
-import sys
-
-from collections import defaultdict, OrderedDict
-from time import time, sleep
-from datetime import datetime
-import struct as pystruct
-from binascii import hexlify
 
 __all__ = ['im_put_file',
            'im_get_file',
            'im_get_dir',
-           'im_delete_file']
+           'im_delete_file',
+           'im_close_file',
+           'show_radio_config',
+]
+
+import os
+import sys
+
+from time import time, sleep
+from binascii import hexlify
 
 # If we are running from the source directory, try
 # to load the module from there first.
 basedir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-print('{} init: argv:{}, basedir:{}'.format(os.path.basename(basedir),
-                                            sys.argv[0],
-                                            basedir,))
+# zzz print('{} init: argv:{}, basedir:{}'.format(os.path.basename(basedir),
+#                                            sys.argv[0],
+#                                            basedir,))
 if (os.path.exists(basedir)
     and os.path.exists(os.path.join(basedir, 'setup.py'))):
     add_dirs = [basedir,

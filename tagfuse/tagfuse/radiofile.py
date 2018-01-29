@@ -5,27 +5,23 @@
 from __future__ import print_function
 from builtins import *                  # python3 types
 
-import os
-import sys
-
-from time import sleep
-from datetime import datetime
-import struct as pystruct
-from binascii import hexlify
-from collections import defaultdict, OrderedDict
-from time import time
-
 __all__ = ['file_get_bytes',
            'file_put_bytes',
            'file_update_attrs',
            'dblk_put_note']
 
+import os
+import sys
+
+from time import sleep
+from time import time
+
 # If we are running from the source directory, try
 # to load the module from there first.
 basedir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-print('{} init: argv:{}, basedir:{}'.format(os.path.basename(basedir),
-                                            sys.argv[0],
-                                            basedir,))
+# zzz print('{} init: argv:{}, basedir:{}'.format(os.path.basename(basedir),
+#                                            sys.argv[0],
+#                                            basedir,))
 if (os.path.exists(basedir)
     and os.path.exists(os.path.join(basedir, 'setup.py'))):
     add_dirs = [basedir,
@@ -36,8 +32,9 @@ if (os.path.exists(basedir)
             sys.path.insert(0,ndir)
     # zzz print '\n'.join(sys.path)
 
-from radioutils import radio_send_msg, radio_receive_msg
 from radioutils import payload2values, path2tlvs, path2list
+#from radioutils import radio_send_msg, radio_receive_msg
+from radioutils import msg_exchange
 
 from tagnet import TagMessage, TagGet, TagPut, TagHead
 from tagnet import TagName

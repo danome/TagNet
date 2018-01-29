@@ -23,7 +23,9 @@ if (os.path.exists(basedir)
             sys.path.insert(0,ndir)
     # zzz print('\n'.join(sys.path))
 
-from radioutils import *
+from radioutils  import *
+from radioimage  import *
+from radiofile   import *
 from taghandlers import *
 from TagFuseTree import TagFuseFileTree
 

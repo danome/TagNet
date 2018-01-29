@@ -6,18 +6,12 @@
 
 from __future__ import print_function
 from builtins import *                  # python3 types
-import RPi.GPIO as GPIO
-import sys
-import os
-from datetime import datetime, timedelta
-from time import sleep
 
 UNIT_TESTING = False
 
 __all__ = ['name2version',
            'payload2values',
            'msg_exchange',
-           'radio_show_config',
            'path2tlvs',
            'path2list',
            'radio_start',
@@ -27,8 +21,18 @@ __all__ = ['name2version',
            'radio_format_group',
            'radio_show_config',
            'radio_get_raw_config',
-           'radio_receive_msg',
-           'radio_send_msg',]
+#           'radio_receive_msg',
+#           'radio_send_msg',
+]
+
+import sys
+import os
+
+from datetime import datetime, timedelta
+from time import sleep
+
+import types
+from binascii import hexlify
 
 # If we are running from the source package directory, try
 # to load the module from there first.
