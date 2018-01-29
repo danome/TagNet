@@ -221,7 +221,6 @@ def radio_start():
     '''
     Start up Radio
     '''
-    global radio
     radio=Si446xRadio(0)
     if (radio == None):
         print('radio_start: could not instantiate radio')

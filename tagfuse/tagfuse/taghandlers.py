@@ -101,15 +101,13 @@ class ByteIOFileHandler(FileHandler):
     def read(self, path_list, size, offset):
         # zzz print('byte io read, size: {}, offset: {}'.format(size, offset))
         buf, eof = file_get_bytes(self.radio,
-                          path_list[-3],
-                          path_list[-1],
-                          size,
-                          offset)
+                                  path_list,
+                                  size,
+                                  offset)
         # zzz print(len(buf),eof)
-        eof = False
         if (eof):
             raise FuseOSError(ENODATA)
-        return str(buf)
+        return buf
 
     def getattr(self, path_list, update=False):
         if (update):
@@ -198,7 +196,8 @@ class DblkIONoteHandler(FileHandler):
         if (offset) or (len(buf) > 200):
             raise FuseOSError(ENODATA)
         return dblk_put_note(self.radio,
-                       buf)
+                             path_list,
+                             buf)
 
 class DirHandler(OrderedDict):
     '''

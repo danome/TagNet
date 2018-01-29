@@ -64,54 +64,25 @@ def file_get_bytes(radio, path_list, amount_to_get, file_offset):
         tname = TagName(tlv_list)
         # zzz
         print(tname)
-        return TagGet(tname).build()
+        return TagGet(tname)
 
+    accum_bytes = bytearray()
     tries = 3
     while (amount_to_get) and (tries):
         req_msg = _file_bytes_msg(path_list, amount_to_get, file_offset)
-        # zzz print(hexlify(req_msg))
-        radio_send_msg(radio, req_msg, RADIO_POWER)
-        rsp_msg, rssi, status = radio_receive_msg(radio, MAX_RECV, 5)
-        if(rsp_msg):
-            # zzz print(len(rsp_msg), hexlify(rsp_msg))
-            try:
-                rsp = TagMessage(rsp_msg)
-            except (TlvListBadException, TlvBadException):
-                print(len(rsp_msg), hexlify(rsp_msg))
-                props = radio.get_property('PKT', 0x0b, 2)
-                print('fifo threshold (rx/tx): {}/{}'.format(props[1],
-                                                             props[0]))
-                props = radio.fifo_info()
-                print('fifo depth:             {}/{}'.format(props[0],
-                                                             props[1]))
-                break
-            # zzz print("{}".format(rsp.header.options.param.error_code))
-            # zzz
-            print('file_get_bytes',rsp.payload)
-            offset, amt2get, block, eof, err = payload2values(rsp.payload,
-                                                              [tlv_types.OFFSET,
-                                                               tlv_types.SIZE,
-                                                               tlv_types.BLOCK,
-                                                               tlv_types.EOF,
-                                                               tlv_types.ERROR])
+        # zzz print(req_msg.name)
+        err, payload = msg_exchange(radio, req_msg)
+        if (err == tlv_errors.SUCCESS):
+            offset, amt2get, block = payload2values(payload,
+                                                    [tlv_types.OFFSET,
+                                                     tlv_types.SIZE,
+                                                     tlv_types.BLOCK,
+                                                    ])
             # zzz print('read pos: {}, len: {}, error: {}'.format(offset, amt2get, err))
             if (block):
                 accum_bytes   += block
                 file_offset   += len(block)
                 amount_to_get -= len(block)
-            if (err):
-                if (err == tlv_errors.SUCCESS):
-                    pass
-                elif (err == tlv_errors.EBUSY):
-                    # zzz print('busy')
-                    continue
-                elif (err == tlv_errors.EODATA):
-                    print('end of file, offset: {}'.format(offset))
-                    eof = True
-                    break
-                else:
-                    print('unexpected error: {}, offset: {}'.format(err, offset))
-                    break
             if (eof):
                 print('eof: {}'.format(offset))
                 break
@@ -123,8 +94,15 @@ def file_get_bytes(radio, path_list, amount_to_get, file_offset):
                 print('bad size, expected: {}, got: {}'.format(
                     amount_to_get, amt2get))
                 break
+        elif (err == tlv_errors.EBUSY):
+            # zzz print('busy')
+            continue
+        elif (err == tlv_errors.EODATA):
+            print('end of file, offset: {}'.format(offset))
+            eof = True
+            break
         else:
-            print('TIMEOUT')
+            print('unexpected error: {}, offset: {}'.format(err, offset))
             break
     # zzz
     print('read p/l:{}/{}'.format(file_offset-len(accum_bytes), len(accum_bytes)))
@@ -137,59 +115,52 @@ def file_update_attrs(radio, path_list, attrs):
 
     def _file_attr_msg(path_list):
         tname = TagName(path2tlvs(path_list))
-        # zzz
-        print('file update attrs', path_list, tname)
-        return TagHead(tname).build()
+        # zzz print('file update attrs', path_list, tname)
+        return TagHead(tname)
 
     req_msg = _file_attr_msg(path_list)
     if (req_msg == None):
         print('file_attr bad request msg')
         return attrs
     # zzz
-    print(hexlify(req_msg))
-    radio_send_msg(radio, req_msg, RADIO_POWER);
-    print('radiofile message sent')
-    rsp_msg, rssi, status = radio_receive_msg(radio, MAX_RECV, 5)
-    if(rsp_msg):
-        # zzz print(hexlify(rsp_msg))
-        rsp = TagMessage(rsp_msg)
-        # zzz print("{}".format(rsp.header.options.param.error_code))
-        # zzz
-        print(rsp.payload)
-        filesize, err = payload2values(rsp.payload,
-                                       [tlv_types.SIZE,
-                                        # zzz tlv_types.UTC_TIME,
-                                        tlv_types.ERROR,])
-        if err and err is not tlv_errors.SUCCESS:
-            print('file_attr error in response: {}'.format(err))
-            filesize = 0
-        attrs['st_size']  = filesize
-        attrs['st_mtime'] = time()
+    print(req_msg.name)
+    err, payload = msg_exchange(radio, req_msg)
+    if (err == tlv_errors.SUCCESS):
+        this_time = time()
+        print(payload)
+        offset, filesize = payload2values(payload,
+                                          [tlv_types.OFFSET,
+                                           tlv_types.SIZE,
+                                           # zzz tlv_types.UTC_TIME,
+                                          ])
+        if (filesize == None): filesize = 0
+        if (offset == None): offset = 0
+    else:
+        print('file_attr error in response: {}'.format(err))
+        this_time = time()
+        filesize = 0
+    attrs['st_size']  = filesize
+    attrs['st_mtime'] = this_time
     return attrs
 
 def _put_bytes(radio, tname, buf, offset):
 
     def _file_put_msg(tname, buf, offset):
-        tname.extend([TagTlv(tlv_types.OFFSET, offset),
-                      TagTlv(tlv_types.SIZE, len(buf))])
+        if (offset):
+            tname.append(TagTlv(tlv_types.OFFSET, offset))
         msg = TagPut(tname, pl=bytearray(buf))
-        return msg.build()
+        return msg
 
     req_msg = _file_put_msg(tname, buf, offset)
-    # zzz print(hexlify(req_msg))
-    radio_send_msg(radio, req_msg, RADIO_POWER);
-    rsp_msg, rssi, status = radio_receive_msg(radio, MAX_RECV, 5)
-    if(rsp_msg):
-        # zzz print(hexlify(rsp_msg))
-        rsp = TagMessage(rsp_msg)
-        # zzz print("{}".format(rsp.header.options.param.error_code))
-        # zzz print(rsp.payload)
-        amt, error = payload2values(rsp.payload,
-                                    [tlv_types.SIZE,
-                                     tlv_types.ERROR])
-        # zzz print(amt, error)
-        if (error == tlv_errors.SUCCESS):
-            return len(buf) - amt
+    # zzz print(req_msg.name)
+    err, payload = msg_exchange(radio, req_msg)
+    if (err == tlv_errors.SUCCESS):
+        amt = payload2values(payload,
+                             [tlv_types.SIZE,
+                             ])[0]
+        # zzz
+        print(len(buf), amt, err)
+        return len(buf) - amt
     return 0
 
 def file_put_bytes(radio, path_list, buf, offset):
@@ -197,7 +168,7 @@ def file_put_bytes(radio, path_list, buf, offset):
     return _put_bytes(radio, tname, buf, offset)
 
 
-def dblk_put_note(radio, note):
+def dblk_put_note(radio, path_list, note):
     tname = TagName(path2tlvs(path_list))
-    _put_bytes(radio, tname, note, 0)
-    return len(note)
+    return _put_bytes(radio, tname, note, 0)
+#    return len(note)
