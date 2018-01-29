@@ -64,7 +64,7 @@ def _get_cts_wait(t):
     if (gpio):
         for i in range(t+1):
             r = _get_cts()
-            if (r or (t == 0)):  return r
+            if (r):  return r
             sleep(.001)
     return False
 
