@@ -333,7 +333,7 @@ def old_int_status(clr_flags=None, show=False):
     return p_g
 
 
-def show_int_rsp(pend_flags):
+def show_int_rsp(radio, pend_flags):
     s_name =  'int_status_rsp_s'
     p_s = eval(s_name)
     clr_flags = clr_pend_int_s.parse('\xff' * clr_pend_int_s.sizeof())
@@ -368,7 +368,7 @@ def radio_send_msg(radio, msg, pwr):
 
     msg_chunk = msg_chunk_generator(radio, msg)
 
-    int_status(clr_all_flags, show_flag)
+    int_status(radio, clr_all_flags, show_flag)
     radio.set_power(pwr)
 
     __, tx = radio.fifo_info(rx_flush=True, tx_flush=True)
@@ -379,11 +379,9 @@ def radio_send_msg(radio, msg, pwr):
     radio.write_tx_fifo(chunk)
     radio.start_tx(len(msg))
 
-#    return progress
-
     cflags = clr_no_flags
     while (True):
-        status = int_status(cflags, show_flag)
+        status = int_status(radio, cflags, show_flag)
         cflags = clr_no_flags
         no_action = True
         if (status.ph_pend.TX_FIFO_ALMOST_EMPTY):
@@ -408,14 +406,14 @@ def radio_send_msg(radio, msg, pwr):
             progress.append('w')
 
     progress.extend([':', len(msg)])
-    status = int_status(clr_all_flags)
+#    status = int_status(radio, clr_all_flags)
 
     return progress
 
 
 # Receive a complete message
 
-def drain_rx_fifo(p):
+def drain_rx_fifo(radio, p):
     rx_len, __ = radio.fifo_info()
     if (rx_len > MAX_FIFO_SIZE):
         rx_len = MAX_FIFO_SIZE
@@ -433,10 +431,10 @@ def radio_receive_msg(radio, max_recv, wait):
     progress = []
     show = False
     rssi = -1
-    int_status(clr_all_flags)
+    int_status(radio, clr_all_flags)
     radio.fifo_info(rx_flush=True, tx_flush=True)
     radio.start_rx(0)
-    status = int_status(clr_no_flags)
+    status = int_status(radio, clr_no_flags)
     while (datetime.now() < end):
         cflags = clr_no_flags
         if (status.modem_pend.INVALID_PREAMBLE):
@@ -455,7 +453,7 @@ def radio_receive_msg(radio, max_recv, wait):
         if (status.ph_pend.RX_FIFO_ALMOST_FULL):
             cflags.ph_pend.RX_FIFO_ALMOST_FULL = False
             progress.append('w')
-            msg += drain_rx_fifo(progress)
+            msg += drain_rx_fifo(radio, progress)
             progress.append('.')
             rx, tx = radio.fifo_info()
             progress.append(rx)
@@ -463,7 +461,7 @@ def radio_receive_msg(radio, max_recv, wait):
             rssi = radio.fast_latched_rssi()
             cflags.ph_pend.PACKET_RX = False
             progress.append('f')
-            msg += drain_rx_fifo(progress)
+            msg += drain_rx_fifo(radio, progress)
             progress.append('.')
             rx, tx = radio.fifo_info()
             progress.append(rx)
@@ -473,8 +471,8 @@ def radio_receive_msg(radio, max_recv, wait):
         if (status.chip_pend.FIFO_UNDERFLOW_OVERFLOW_ERROR):
             cflags.chip_pend.FIFO_UNDERFLOW_OVERFLOW_ERROR = False
             break
-        status = int_status(cflags, show)
-    status = int_status()
+        status = int_status(radio, cflags, show)
+    status = int_status(radio)
     pkt_len = radio.get_packet_info()
     if (datetime.now() > end):
         progress.extend(['to','e'])
