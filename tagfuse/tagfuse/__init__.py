@@ -21,8 +21,7 @@ if (os.path.exists(basedir)
     for ndir in add_dirs:
         if (ndir not in sys.path):
             sys.path.insert(0,ndir)
-    # zzz
-    print('\n'.join(sys.path))
+    # zzz print('\n'.join(sys.path))
 
 from radioutils import *
 from taghandlers import *
