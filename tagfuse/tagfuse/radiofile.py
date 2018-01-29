@@ -158,6 +158,7 @@ def _put_bytes(radio, tname, buf, offset):
         amt = payload2values(payload,
                              [tlv_types.SIZE,
                              ])[0]
+        if (amt == None): amt = 0
         # zzz
         print(len(buf), amt, err)
         return len(buf) - amt
