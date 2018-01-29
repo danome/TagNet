@@ -134,6 +134,7 @@ def path2list(path):
     path = os.path.abspath(os.path.realpath(path))
     return path.split('/')[1:]
 
+
 def msg_exchange(radio, req):
     '''
     Send a TagNet request msg and wait for a response.
@@ -145,8 +146,7 @@ def msg_exchange(radio, req):
     '''
     tries = 3
     req_msg = req.build()
-    # zzz
-    print(len(req_msg),hexlify(req_msg))
+    # zzz print(len(req_msg),hexlify(req_msg))
     while (tries):
         error = tlv_errors.ERETRY
         payload = None
@@ -156,8 +156,7 @@ def msg_exchange(radio, req):
             # zzz print(len(rsp_buf),hexlify(rsp_buf))
             rsp = TagMessage(bytearray(rsp_buf))
             if (rsp.payload):
-                # zzz
-                print(rsp.payload)
+                # zzz print(rsp.payload)
                 if (rsp.payload[0].tlv_type() is tlv_types.ERROR):
                     error = rsp.payload[0].value()
                     del rsp.payload[0]
@@ -166,11 +165,10 @@ def msg_exchange(radio, req):
                 if (error is tlv_errors.SUCCESS):
                     payload = rsp.payload
                     tries = 1
-            # zzz
-            print('msg_exchange, tries: ', tries)
+            # zzz print('msg_exchange, tries: ', tries)
         else:
             error = tlv_errors.ETIMEOUT
-            print('timeout')
+            print('msg_exchange: timeout')
         tries -= 1
     return error, payload
 
@@ -234,6 +232,9 @@ def radio_start():
         print(status)
     # Configure Radio
     config = radio_config(radio)
+    status = radio.get_chip_status()
+    if (status.chip_pend.CMD_ERROR):
+        print(status)
 #    radio_show_config(radio, config)
     return radio
 
@@ -365,7 +366,12 @@ def radio_send_msg(radio, msg, pwr):
         status = int_status(radio, cflags, show_flag)
         cflags = clr_no_flags
         no_action = True
-        if (status.ph_pend.TX_FIFO_ALMOST_EMPTY):
+        if (status.chip_pend.CMD_ERROR):
+            cflags.chip_pend.CMD_ERROR = False
+            no_action = False
+            progress.append('E')
+            break
+        elif (status.ph_pend.TX_FIFO_ALMOST_EMPTY):
             cflags.ph_pend.TX_FIFO_ALMOST_EMPTY = False
             no_action = False
             chunk, p = next(msg_chunk)
@@ -388,6 +394,11 @@ def radio_send_msg(radio, msg, pwr):
 
     progress.extend([':', len(msg)])
 #    status = int_status(radio, clr_all_flags)
+
+    if (status.chip_pend.CMD_ERROR):
+        print('radio send command error',status)
+        print(progress)
+        status = int_status(radio, clr_all_flags)
 
     return progress
 
@@ -452,6 +463,10 @@ def radio_receive_msg(radio, max_recv, wait):
         if (status.chip_pend.FIFO_UNDERFLOW_OVERFLOW_ERROR):
             cflags.chip_pend.FIFO_UNDERFLOW_OVERFLOW_ERROR = False
             break
+        if (status.chip_pend.CMD_ERROR):
+            cflags.chip_pend.CMD_ERROR = False
+            print('radio receive cmd error')
+            break
         status = int_status(radio, cflags, show)
     status = int_status(radio)
     pkt_len = radio.get_packet_info()
@@ -459,6 +474,11 @@ def radio_receive_msg(radio, max_recv, wait):
         progress.extend(['to','e'])
     elif ((pkt_len + 1) != len(msg)):
         progress.extend(['e', pkt_len + 1,',',len(msg),'e'])
+
+    if (status.chip_pend.CMD_ERROR):
+        print('radio receive command error', status)
+        print(progress)
+
     return (msg, rssi, progress)
 
 
