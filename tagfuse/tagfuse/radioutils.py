@@ -83,15 +83,17 @@ def payload2values(payload, keynames):
     Remove any matched parameters from the payload.
     '''
     plist = []
+    # zzz print('keynames', keynames)
     for match_key in keynames:
+        item = None
         for tlv in payload:
             if match_key == tlv.tlv_type():
-                plist.append(tlv.value())
+                item = tlv.value()
                 payload.remove(tlv)
-            else:
-                plist.append(None)
-            # zzz print(match_key, tlv, plist)
-    # zzz print(plist)
+                break
+            # zzz print('for tlv', match_key, tlv, plist)
+        plist.append(item)
+    # zzz print('plist', plist)
     return (plist)
 
 def path2tlvs(path_list):
