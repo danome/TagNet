@@ -42,18 +42,17 @@ from tagnet import TagTlv, TagTlvList, tlv_types, tlv_errors
 from tagnet import TlvListBadException, TlvBadException
 
 # default paramters
-MAX_WAIT            = .3
-MAX_RECV            = 255
-MAX_PAYLOAD         = 254
-MAX_RETRIES         = 10
-RADIO_POWER         = 100
-SHORT_DELAY         = 0
+#MAX_WAIT            = .3
+#MAX_RECV            = 255
+#MAX_PAYLOAD         = 254
+#MAX_RETRIES         = 10
+#RADIO_POWER         = 100
+#SHORT_DELAY         = .02
 
 def file_get_bytes(radio, path_list, amount_to_get, file_offset):
     '''
     File Byte Data Transfer function
     '''
-    global RADIO_POWER, MAXR_RETRIES
     accum_bytes = bytearray()
     eof = False
 

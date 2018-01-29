@@ -44,12 +44,12 @@ from tagnet import TagTlv, TagTlvList, tlv_types, tlv_errors
 from tagnet import TlvListBadException, TlvBadException
 
 # default paramters
-MAX_WAIT            = 10
-MAX_RECV            = 255
-MAX_PAYLOAD         = 254
-MAX_RETRIES         = 10
-RADIO_POWER         = 100
-SHORT_DELAY         = 0
+#MAX_WAIT            = 10
+#MAX_RECV            = 255
+#MAX_PAYLOAD         = 254
+#MAX_RETRIES         = 10
+#RADIO_POWER         = 100
+#SHORT_DELAY         = 0
 
 def show_radio_config(radio, config):
     '''

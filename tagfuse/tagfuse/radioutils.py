@@ -57,20 +57,17 @@ from tagnet import TagTlv, TagTlvList, tlv_types, tlv_errors
 from tagnet import TagMessage
 from tagnet import TlvListBadException, TlvBadException
 
-import types
-from binascii import hexlify
-
-# initialize global radio
-
-radio = None
+clr_all_flags = clr_pend_int_s.parse('\00' * clr_pend_int_s.sizeof())
+clr_no_flags  = clr_pend_int_s.parse('\ff' * clr_pend_int_s.sizeof())
 
 # default paramters
+MAX_FIFO_SIZE = 64
 MAX_WAIT            = 1
 MAX_RECV            = 255
 MAX_PAYLOAD         = 254
 MAX_RETRIES         = 10
-RADIO_POWER         = 100
-SHORT_DELAY         = .1
+RADIO_POWER         = 10     # must be low value to work with 4463
+SHORT_DELAY         = .02
 
 def name2version(name):
     '''
