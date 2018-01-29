@@ -29,5 +29,5 @@ from radiofile   import *
 from taghandlers import *
 from TagFuseTree import TagFuseFileTree
 
-__version__ = '0.0.8'
+__version__ = '0.0.9'
 print('tagfuse version: ', __version__)
