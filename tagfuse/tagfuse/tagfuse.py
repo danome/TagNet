@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 from __future__ import print_function, absolute_import, division
-from builtins import *                  # python3 types
+#from builtins import *                  # python3 types
 
 import os
 import sys
@@ -33,8 +33,8 @@ from radioutils  import radio_start
 from taghandlers import *
 from TagFuseTree import TagFuseFileTree
 
-if not hasattr(__builtins__, 'bytes'):
-    bytes = str
+#if not hasattr(__builtins__, 'bytes'):
+#    bytes = str
 
 class TagFuse(LoggingMixIn, Operations):
     '''
@@ -137,9 +137,9 @@ class TagFuse(LoggingMixIn, Operations):
     def read(self, path, size, offset, fh):
         handler = self.LocateNode(path)
         try:
-            return handler.read(self.path2list(path), size, offset)
+            return (str(handler.read(self.path2list(path), size, offset)))
         except:
-            raise FuseOSError(ENOENT)
+            raise
 
     def readdir(self, path, fh):
         handler = self.LocateNode(path)
