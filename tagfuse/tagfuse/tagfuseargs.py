@@ -1,5 +1,6 @@
 import os
 import sys
+import argparse
 
 # If we are running from the source package directory, try
 # to load the module from there first.
@@ -16,7 +17,8 @@ if (os.path.exists(basedir)
     # zzz print('\n'.join(sys.path))
 
 from __init__ import __version__ as VERSION
-import argparse
+print('tagfuse version: ', VERSION)
+
 def parseargs():
     parser = argparse.ArgumentParser(
         description='Tagnet FUSE Filesystem driver v{}'.format(VERSION))

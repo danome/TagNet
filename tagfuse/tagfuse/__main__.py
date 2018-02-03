@@ -4,9 +4,6 @@ tagfuse:  FUSE Filesystem for accessing Tag Storage
 @author: Dan Maltbie, (c) 2017
 """
 
-__version__ = '0.0.9'
-print('tagfuse version: ', __version__)
-
 import os
 import sys
 
