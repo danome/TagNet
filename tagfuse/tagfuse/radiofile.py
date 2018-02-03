@@ -160,8 +160,10 @@ def _put_bytes(radio, tname, buf, offset):
                              ])[0]
         if (amt == None): amt = 0
         # zzz
-        print(len(buf), amt, err)
-        return len(buf) - amt
+        print('put bytes', len(buf), amt)
+        return amt
+    # zzz
+    print('put bytes', err)
     return 0
 
 def file_put_bytes(radio, path_list, buf, offset):
