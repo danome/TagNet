@@ -63,10 +63,14 @@ def new_inode():
 def default_file_attrs(ntype, mode, nlinks, size):
         return dict(st_mode=(ntype | mode),
                     st_nlink=nlinks,
+                    st_uid=os.getuid(),
+                    st_gid=os.getgid(),
+                    st_blksize=512,
                     st_size=size,
                     st_ctime=time(),
                     st_mtime=time(),
                     st_atime=time())
+
 
 class FileHandler(OrderedDict):
     '''

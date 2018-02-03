@@ -10,8 +10,9 @@ from collections import defaultdict, OrderedDict
 from errno import ENOENT, ENODATA
 from stat import S_IFDIR, S_IFLNK, S_IFREG
 from time import time
+from pwd import getpwnam
 
-from fuse import FUSE, FuseOSError, Operations, LoggingMixIn
+from fuse import FUSE, FuseOSError, Operations, LoggingMixIn, fuse_get_context
 
 # If we are running from the source directory, try
 # to load the module from there first.
@@ -56,9 +57,18 @@ class TagFuse(LoggingMixIn, Operations):
         self.tag_tree =  None
         # zzz print(self.tag_tree)
 
-    def path2list(self, path):
-        path = os.path.abspath(os.path.realpath(path))
-        return path.split('/')[1:]
+        #uid, gid, pid = fuse_get_context()
+        print('tagfuse context', fuse_get_context())
+        print(os.getuid(), os.geteuid())
+        print(os.getgid(), os.getegid())
+
+        self.uid = os.getuid()
+        self.gid = os.getgid()
+
+        #clear up any possible env var diffs
+        os.environ['USER'] = 'pi'
+        os.environ['USERNAME'] = 'pi'
+        os.environ['LOGNAME'] = 'pi'
 
     def LocateNode(self, path):
         if (path == '/'):
