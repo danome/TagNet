@@ -102,19 +102,6 @@ def path2tlvs(path_list):
     a list of Tag Tlvs
     '''
     def _build_tlv(val):
-#        try:                                   # version
-#            key, major, minor, build = \
-#                    re.findall('<(.{1,}):(.{1,}).(.{1,}).(.{1,})>', val)[0]
-#            # zzz print(key, value)
-#            return TagTlv(eval('tlv_types.'+key.upper()),
-#                          (int(major),int(minor),int(build)))
-#        except: pass
-#        try:                                   # node_id
-#            key, value = re.findall('<(.{1,}):(.{1,})>', val)[0]
-#            # zzz print(key, value)
-#            return TagTlv(eval('tlv_types.'+key.upper()),
-#                          value.encode('utf-8'))
-#        except: pass
         try:                                   # integer
             return TagTlv(tlv_types.INTEGER, int(val))
         except: pass
@@ -133,7 +120,6 @@ def path2tlvs(path_list):
 def path2list(path):
     path = os.path.abspath(os.path.realpath(path))
     return path.split('/')[1:]
-
 
 def msg_exchange(radio, req):
     '''

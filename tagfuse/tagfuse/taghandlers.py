@@ -14,6 +14,9 @@ from   errno         import ENOENT, ENODATA, EEXIST
 from   stat          import S_IFDIR, S_IFLNK, S_IFREG
 from   time          import time
 
+from   fuse          import FuseOSError
+
+
 __all__ = ['FileHandler',
            'ByteIOFileHandler',
            'ImageIOFileHandler',
@@ -120,9 +123,7 @@ class ByteIOFileHandler(FileHandler):
                                   path_list,
                                   size,
                                   offset)
-        # zzz print(len(buf),eof)
-        if (eof):
-            raise FuseOSError(ENODATA)
+        # zzz print('read',len(buf),eof)
         return buf
 
     def getattr(self, path_list, update=False):
@@ -136,6 +137,7 @@ class ByteIOFileHandler(FileHandler):
                         path_list,
                         buf,
                         offset)
+
 
 class ImageIOFileHandler(ByteIOFileHandler):
     '''
@@ -189,6 +191,7 @@ class ImageIOFileHandler(ByteIOFileHandler):
         return im_delete_file(self.radio,
                               path_list)
 
+
 class DblkIONoteHandler(FileHandler):
     '''
     Dblk Note IO File Handler class
@@ -202,7 +205,7 @@ class DblkIONoteHandler(FileHandler):
     def getattr(self, path_list, update=False):
         if (update):
             attrs = file_update_attrs(self.radio, path_list, self)
-            print('dblk get attrs',attrs)
+            # zzz print('dblk note attrs',attrs)
             if (attrs):
                 self = attrs
         return self
@@ -242,31 +245,28 @@ class DirHandler(OrderedDict):
         Traverse the directory tree until reaching the leaf identified
         by path_list.
         """
-        # zzz
-        print(index, path_list)
+        # zzz print(index, path_list)
         if index < (len(path_list) - 1):      # look in subdirectory
             for key, handler in self.iteritems():
-                # zzz
-                print('traverse',
-                      path_list[index],
-                      path_list[index] == key,
-                      key,
-                      type(handler),
-                      isinstance(handler, DirHandler),
-                      type(DirHandler))
+                # zzz print('traverse',
+                     # path_list[index],
+                     # path_list[index] == key,
+                     # key,
+                     # type(handler),
+                     # isinstance(handler, DirHandler),
+                     # type(DirHandler))
                 if (path_list[index] == key):
-                    print(isinstance(handler, DirHandler))
+                    # zzz print(isinstance(handler, DirHandler))
                     if isinstance(handler, DirHandler):
                         return handler.traverse(path_list, index + 1)
             return None           # no match found
         else:
             for key, handler in self.iteritems():
-                # zzz
-                print('traverse last',
-                      path_list[index],
-                      path_list[index] == key,
-                      key,
-                      type(handler))
+                # zzz print('traverse last',
+                     # path_list[index],
+                     # path_list[index] == key,
+                     # key,
+                     # type(handler))
                 if (path_list[index] == key):
                     return handler   # match the terminal name
             return None

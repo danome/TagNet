@@ -127,12 +127,11 @@ def file_update_attrs(radio, path_list, attrs):
     if (req_msg == None):
         print('file_attr bad request msg')
         return attrs
-    # zzz
-    print(req_msg.name)
+    # zzz print('file attr', req_msg.name)
     err, payload = msg_exchange(radio, req_msg)
     if (err == tlv_errors.SUCCESS):
         this_time = time()
-        print(payload)
+        # zzz print('file attr rsp', payload)
         offset, filesize = payload2values(payload,
                                           [tlv_types.OFFSET,
                                            tlv_types.SIZE,
