@@ -30,7 +30,7 @@ if (os.path.exists(basedir)
             sys.path.insert(0,ndir)
     # zzz print '\n'.join(sys.path)
 
-from radioutils  import radio_start
+from radioutils  import radio_start, path2list
 from taghandlers import *
 from TagFuseTree import TagFuseFileTree
 
@@ -74,7 +74,7 @@ class TagFuse(LoggingMixIn, Operations):
         if (path == '/'):
             print('located root')
             return self.tag_tree
-        return self.tag_tree.traverse(self.path2list(path), 0)
+        return self.tag_tree.traverse(path2list(path), 0)
 
     def DeleteNode(self, path, node):
         pass
@@ -91,12 +91,12 @@ class TagFuse(LoggingMixIn, Operations):
         handler = self.LocateNode(base)
         print(base, name, handler)
         # try:
-        if handler.create(self.path2list(path), mode, name):
-            return 0
+        if (handler):
+            return handler.create(path2list(path), mode, name)
         # except:
         #    raise FuseOSError(ENOENT)
-        #    return 0
-        #    return self.fd # raw_io doesn't expect a fileno
+        #    return 0       # raw_io doesn't expect a fileno
+        #    return self.fd
 
     def destroy(self, path):
         print('tagfuse destroy')
@@ -111,14 +111,14 @@ class TagFuse(LoggingMixIn, Operations):
     def getattr(self, path, fh=None):
         handler = self.LocateNode(path)
         try:
-            return handler.getattr(self.path2list(path), update=True)
+            return handler.getattr(path2list(path), update=True)
         except AttributeError:
             raise FuseOSError(ENOENT)
 
     def getxattr(self, path, name, position=0):
         handler = self.LocateNode(path)
         try:
-            attrs = handler.getattr(self.path2list(path))
+            attrs = handler.getattr(path2list(path))
             return attrs.get('attrs', {})[name]
         except KeyError:
             return ''       # Should return ENOATTR
@@ -138,11 +138,10 @@ class TagFuse(LoggingMixIn, Operations):
 
     def listxattr(self, path):
         handler = self.LocateNode(path)
-        try:
-            attrs = handler.getattr(self.path2list(path))
+        if (handler):
+            attrs = handler.getattr(path2list(path))
             return attrs.get('attrs', {}).keys()
-        except:
-            raise FuseOSError(ENOENT)
+        raise FuseOSError(ENOENT)
 
     def mkdir(self, path, mode):
         raise FuseOSError(ENOENT)
@@ -154,17 +153,15 @@ class TagFuse(LoggingMixIn, Operations):
 
     def read(self, path, size, offset, fh):
         handler = self.LocateNode(path)
-        try:
-            return (str(handler.read(self.path2list(path), size, offset)))
-        except:
-            raise
+        return (str(handler.read(path2list(path), size, offset)))
 
     def readdir(self, path, fh):
         handler = self.LocateNode(path)
         # zzz print('readdir, handler type:{}, len: {}'.format(type(handler), len(handler)))
-        try:
-            return handler.readdir(self.path2list(path))
-        except:
+        dir_list = handler.readdir(path2list(path))
+        if dir_list:
+            return dir_list
+        else:
             return ['.', '..']
 
     def readlink(self, path):
@@ -173,7 +170,7 @@ class TagFuse(LoggingMixIn, Operations):
     def removexattr(self, path, name):
         handler = self.LocateNode(path)
         try:
-            attrs = handler.getttr(self.path2list(path))
+            attrs = handler.getttr(path2list(path))
             del attrs.get('attrs', {})[name]
         except KeyError:
             pass        # Should return ENOATTR
@@ -188,7 +185,7 @@ class TagFuse(LoggingMixIn, Operations):
         # Ignore options
         handler = self.LocateNode(path)
         try:
-            attrs = handler.getattr(self.path2list(path))
+            attrs = handler.getattr(path2list(path))
             attrs[name] = value
         except:
             raise FuseOSError(ENOENT)
@@ -251,7 +248,7 @@ class TagFuse(LoggingMixIn, Operations):
     def write(self, path, data, offset, fh):
         handler = self.LocateNode(path)
         try:
-            return handler.write(self.path2list(path), data, offset)
+            return handler.write(path2list(path), data, offset)
         except:
             return 0
 
@@ -263,9 +260,9 @@ class TagFuse(LoggingMixIn, Operations):
         handler = self.LocateNode(path)
         try:
             base, name = os.path.split(path)
-            ret_val = handler.release(self.path2list(path))
-            dhandler = self.LocateNode(self.path2list(base))
-            dhandler.release(self.path2list(path))
+            ret_val = handler.release(path2list(path))
+            dhandler = self.LocateNode(path2list(base))
+            dhandler.release(path2list(path))
             return ret_val
         except:
             return 0
