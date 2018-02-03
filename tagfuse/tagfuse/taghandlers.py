@@ -5,6 +5,8 @@ from builtins import *                  # python3 types
 import os
 import sys
 
+from sets import Set
+
 import logging
 
 from   collections   import defaultdict, OrderedDict
@@ -45,7 +47,11 @@ if (os.path.exists(basedir)
     # zzz print('\n'.join(sys.path))
 
 from radiofile   import file_get_bytes, file_put_bytes, file_update_attrs, dblk_put_note
-from radioimage  import im_get_dir, im_put_file, im_get_file, im_delete_file, im_close_file
+from radioimage  import im_put_file, im_get_file, im_delete_file, im_close_file
+from radioimage  import im_get_dir, im_set_version
+from radioutils  import path2list
+
+from tagnet      import tlv_errors
 
 base_value = 0
 
@@ -85,8 +91,14 @@ class FileHandler(OrderedDict):
     def truncate(self, path_list, length):
         return 0
 
-    def unlink(self, path_list):
+    def link(self, link_name, target):
+        print('FileHandler.link', link_name, target)
         return 0
+
+    def unlink(self, path_list):
+        print('FileHandler.unlink', path_list)
+        return 0
+
 
 class ByteIOFileHandler(FileHandler):
     '''
@@ -199,6 +211,18 @@ class DblkIONoteHandler(FileHandler):
                              path_list,
                              buf)
 
+
+class SysFileHandler(FileHandler):
+    '''
+    Dblk Note IO File Handler class
+
+    Performs Dblk Note IO file specific operations.
+    '''
+    def __init__(self, radio, ntype, mode, nlinks):
+        super(SysFileHandler, self).__init__(ntype, mode, nlinks)
+        self.radio = radio
+
+
 class DirHandler(OrderedDict):
     '''
     Base Directory Handler class
@@ -258,6 +282,14 @@ class DirHandler(OrderedDict):
         self['']['st_nlink'] = len(dir_names)
         return dir_names
 
+    def link(self, link_name, target):
+        print('DirHandler.link', link_name, target)
+        return 0
+
+    def unlink(self, path_list):
+        print('DirHandler.unlink', path_list)
+        return 0
+
 class PollNetDirHandler(DirHandler):
     '''
     Network Polling Directory Handler class
@@ -267,6 +299,7 @@ class PollNetDirHandler(DirHandler):
     def __init__(self, radio, a_dict):
         super(PollNetDirHandler, self).__init__(a_dict)
         self.radio = radio
+
 
 class ImageDirHandler(DirHandler):
     '''
@@ -281,26 +314,35 @@ class ImageDirHandler(DirHandler):
 
     def readdir(self, path_list):
         # zzz print('image readdir', path_list)
-        dir_list = im_get_dir(self.radio, path_list)
-        # zzz
-        print('image dir list:', dir_list)
-        if (dir_list):
-            for version, state in dir_list:
-                # zzz print(version, state)
-                if state.lower() in 'active backup valid':
-                    file_name = '.'.join(map(str, version))
-                    # zzz print(file_name)
-                    try:
-                        x = self[file_name]
-                        # already exists, don't create again
-                    except:
-                        self[file_name] = ImageIOFileHandler(
-                                                    self.radio,
-                                                    S_IFREG,
-                                                    0o664,
-                                                    1)
+        tag_dir = im_get_dir(self.radio, path_list)
+        if (tag_dir):
+            # make set of versions found on tag
+            tag_versions = []
+            for version, state in tag_dir:
+                tag_versions.append('.'.join(map(str, version)))
+            tag_set = Set(tag_versions)
+            print('tag_set',tag_set)
+            # make set of version founds on self
+            my_versions = []
+            for version in self.keys():
+                if version is not '':
+                    my_versions.append(version)
+            my_set = Set(my_versions)
+            print('my_set',my_set)
+
+            # add versions on tag but not on self
+            for version in tag_set.difference(my_set):
+                self[version] = ImageIOFileHandler(
+                    self.radio,
+                    S_IFREG,
+                    0o664,
+                    1)
+            # remove versions on self but not on tag
+            for version in my_set.difference(tag_set):
+                del self[version]
+
         # zzz print(self)
-        return super(ImageDirHandler, self).readdir(dir_list)
+        return super(ImageDirHandler, self).readdir(path_list)
 
     def create(self, path_list, mode, file_name):
         print('image create',path_list,mode, file_name)
@@ -315,13 +357,15 @@ class ImageDirHandler(DirHandler):
         return True
 
     def unlink(self, path_list):
-        base, name = os.path.split(path)
-        print('image dir unlink', path_list, name)
-        try:
-            del self[name]
-            return True
-        except KeyError:
-            return False
+        print('image dir unlink', path_list)
+        error = im_delete_file(self.radio, path_list)
+        if (error == tlv_errors.SUCCESS):
+            try:
+                del self[path_list[-1]] # last element is version
+                return True
+            except KeyError:
+                return False
+        return False
 
     def release(self, path_list): # close
         # zzz
@@ -332,52 +376,122 @@ class ImageDirHandler(DirHandler):
 #            raise FuseOSError(ENOENT)
 #        return 0
 
-class SysActiveDirHandler(DirHandler):
+
+class SysDirHandler(DirHandler):
     '''
     System Active Directory Handler class
 
     Performs active directory specific operations.
     '''
     def __init__(self, radio, a_dict):
-        super(SysActiveDirHandler, self).__init__(a_dict)
+        super(SysDirHandler, self).__init__(a_dict)
         self.radio = radio
 
-class SysBackupDirHandler(DirHandler):
+    def readdir(self, path_list):
+        # zzz print('image readdir', path_list)
+        tag_dir = im_get_dir(self.radio, path_list)
+        if (tag_dir):
+            # make set of versions found on tag
+            tag_versions = []
+            for version, state in tag_dir:
+                tag_versions.append('.'.join(map(str, version)))
+            tag_set = Set(tag_versions)
+            print('tag_set',tag_set)
+            # make set of version founds on self
+            my_versions = []
+            for version in self.keys():
+                if version is not '':
+                    my_versions.append(version)
+            my_set = Set(my_versions)
+            print('my_set',my_set)
+
+            # add versions on tag but not on self
+            for version in tag_set.difference(my_set):
+                self[version] = ImageIOFileHandler(
+                    self.radio,
+                    S_IFREG,
+                    0o664,
+                    1)
+            # remove versions on self but not on tag
+            for version in my_set.difference(tag_set):
+                del self[version]
+        # zzz print(self)
+        return super(SysDirHandler, self).readdir(path_list)
+
+
+class SysActiveDirHandler(SysDirHandler):
+    '''
+    System Active Directory Handler class
+
+    Performs active directory specific operations.
+    '''
+    def __init__(self, radio, a_dict):
+        super(SysActiveDirHandler, self).__init__(radio, a_dict)
+
+    def symlink(self, link_name, target):
+        print('SysActive.symlink', link_name, target)
+        return 0
+
+    def link(self, link_name, target):
+        print('SysActive.link', link_name, target)
+        # set new version on tag
+        err = im_set_version(self.radio, path2list(link_name))
+        # retry means the tag is busy rebooting (hopefully)
+        if (err == tlv_errors.SUCCESS) or (err == tlv_errors.ETIMEOUT):
+            # remove existing link(s), if any
+            for version, handler in self.iteritems():
+                if version != '':
+                    del self[version]
+            # add new link
+            base, version = os.path.split(link_name)
+            print('sysactive.link', version)
+            self[version] = SysFileHandler(self.radio,
+                                        S_IFREG,
+                                        0o664,
+                                        1)
+            return 0
+        return 0
+
+    def unlink(self, path_list):
+        print('SysActive.unlink', path_list)
+        return 0
+
+
+class SysBackupDirHandler(SysDirHandler):
     '''
     System Backup Directory Handler class
 
     Performs backup directory specific operations.
     '''
     def __init__(self, radio, a_dict):
-        super(SysBackupDirHandler, self).__init__(a_dict)
-        self.radio = radio
+        super(SysBackupDirHandler, self).__init__(radio, a_dict)
 
-class SysGoldenDirHandler(DirHandler):
+
+class SysGoldenDirHandler(SysDirHandler):
     '''
     System Golden Directory Handler class
 
     Performs Golden directory specific operations.
     '''
     def __init__(self, radio, a_dict):
-        super(SysGoldenDirHandler, self).__init__(a_dict)
-        self.radio = radio
+        super(SysGoldenDirHandler, self).__init__(radio, a_dict)
 
-class SysNibDirHandler(DirHandler):
+
+class SysNibDirHandler(SysDirHandler):
     '''
     System NIB Directory Handler class
 
     Performs NIB directory specific operations.
     '''
     def __init__(self, radio, a_dict):
-        super(SysNibDirHandler, self).__init__(a_dict)
-        self.radio = radio
+        super(SysNibDirHandler, self).__init__(radio, a_dict)
 
-class SysRunningDirHandler(DirHandler):
+
+class SysRunningDirHandler(SysDirHandler):
     '''
     System Running Directory Handler class
 
     Performs running directory specific operations.
     '''
     def __init__(self, radio, a_dict):
-        super(SysRunningDirHandler, self).__init__(a_dict)
-        self.radio = radio
+        super(SysRunningDirHandler, self).__init__(radio, a_dict)

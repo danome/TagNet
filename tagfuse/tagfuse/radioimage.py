@@ -10,6 +10,7 @@ __all__ = ['im_put_file',
            'im_get_dir',
            'im_delete_file',
            'im_close_file',
+           'im_set_version',
            'show_radio_config',
 ]
 
@@ -168,13 +169,31 @@ def im_delete_file(radio, path_list):
         return msg
 
     # zzz
-    print(path_list)
+    print('im_delete_file', path_list)
     delete_req = _delete_msg(path_list)
     # zzz
     print(delete_req.name)
     error, payload = msg_exchange(radio,
                                  delete_req)
-    if (error) and (error != tlv_errors.SUCCESS):
-        return False
     print(payload)
-    return True
+    if (error) and (error != tlv_errors.SUCCESS):
+        err = tlv_errors.SUCCESS
+    print(err)
+    return err
+
+
+def im_set_version(radio, path_list):
+
+    def _set_version_msg(path_list):
+        tlv_list = path2tlvs(path_list[:-1])
+        tlv_list.append(TagTlv(tlv_types.VERSION, path_list[-1].split('.')))
+        req_obj = TagPut(TagName(tlv_list))
+        return req_obj
+
+    req_msg = _set_version_msg(path_list)
+    print('im_set_version', req_msg.name)
+    err, payload = msg_exchange(radio, req_msg)
+    if (err is None):
+        err = tlv_errors.SUCCESS
+    print(err)
+    return err

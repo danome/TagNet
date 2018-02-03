@@ -118,6 +118,14 @@ class TagFuse(LoggingMixIn, Operations):
         self.tag_tree = TagFuseFileTree(self.radio)
         return None
 
+    def link(self, link_name, target):
+        base, name = os.path.split(link_name)
+        print('tagfuse.link',link_name, target, base, name)
+        handler = self.LocateNode(base) # parent node creates context
+        if (handler):
+            return handler.link(link_name, target)
+        raise FuseOSError(ENOENT)
+
     def listxattr(self, path):
         handler = self.LocateNode(path)
         try:
@@ -195,25 +203,26 @@ class TagFuse(LoggingMixIn, Operations):
         '''
         return dict(f_bsize=512, f_frsize=512, f_blocks=0, f_bavail=0)
 
-    def symlink(self, target, source):
+    def symlink(self, link_name, target):
+        handler = self.LocateNode(link_name)
+        if (handler):
+            return handler.symlink(link_name, target)
         raise FuseOSError(ENOENT)
 
     def truncate(self, path, length, fh=None):
         handler = self.LocateNode(path)
-        try:
-            return handler.truncate(self.path2list(path), length)
-        except:
-            raise FuseOSError(ENOENT)
+        if (handler):
+            return handler.truncate(path2list(path), length)
+        raise FuseOSError(ENOENT)
 
     def unlink(self, path):
         base, name = os.path.split(path)
         handler = self.LocateNode(path)
-        try:
-            if (handler.unlink(self.path2list(path))):
-                dirhandler = self.LocateNode(base)
-                dirhandler.unlink(self.path2list(path))
-        except:
-            raise FuseOSError(ENOENT)
+        if (handler) and (handler.unlink(path2list(path))):
+            dirhandler = self.LocateNode(base)
+            dirhandler.unlink(path2list(path))
+            return 0
+        raise FuseOSError(ENOENT)
 
     def utimens(self, path, times=None):
         now = time()

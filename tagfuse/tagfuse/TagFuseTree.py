@@ -94,19 +94,19 @@ def TagFuseFileTree(radio):
                 ('sys',       DirHandler(OrderedDict([
                     ('',        FileHandler(S_IFDIR, 0o751, 7)),
                     ('active',  SysActiveDirHandler(radio, OrderedDict([
-                        ('',      FileHandler(S_IFDIR, 0o751, 4)),]))
+                        ('',      FileHandler(S_IFDIR, 0o775, 4)),]))
                     ),
                     ('backup',  SysBackupDirHandler(radio, OrderedDict([
-                        ('',      FileHandler(S_IFDIR, 0o751, 4)),]))
+                        ('',      FileHandler(S_IFDIR, 0o775, 4)),]))
                     ),
                     ('golden',  SysGoldenDirHandler(radio, OrderedDict([
-                        ('',      FileHandler(S_IFDIR, 0o751, 4)),]))
+                        ('',      FileHandler(S_IFDIR, 0o775, 4)),]))
                     ),
                     ('nib',     SysNibDirHandler(radio, OrderedDict([
-                        ('',      FileHandler(S_IFDIR, 0o751, 4)),]))
+                        ('',      FileHandler(S_IFDIR, 0o775, 4)),]))
                     ),
                     ('running', SysRunningDirHandler(radio, OrderedDict([
-                        ('',      FileHandler(S_IFDIR, 0o751, 4)),]))
+                        ('',      FileHandler(S_IFDIR, 0o775, 4)),]))
                     ),
                 ]))),
                 ('info',      DirHandler(OrderedDict([
