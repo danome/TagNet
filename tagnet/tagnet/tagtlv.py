@@ -465,7 +465,7 @@ class _Tlv(object):
         if (t == tlv_types.NODE_NAME): return bytearray(v)
         if (t == tlv_types.OFFSET):    return int_to_value(v)
         if (t == tlv_types.SIZE):      return int_to_value(v)
-        if (t == tlv_types.EOF):       return bytearray(b'')
+        if (t == tlv_types.EOF):       return True
         if (t == tlv_types.VERSION):
             build, minor, major = unpack('HBB', v)
             return (major, minor, build)
