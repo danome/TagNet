@@ -62,30 +62,38 @@ def file_get_bytes(radio, path_list, amount_to_get, file_offset):
         tlv_list.extend([TagTlv(tlv_types.OFFSET, file_offset),
                          TagTlv(tlv_types.SIZE, amount_to_get)])
         tname = TagName(tlv_list)
-        # zzz
-        print(tname)
+        # zzz print('file bytes name:',tname)
         return TagGet(tname)
 
     accum_bytes = bytearray()
-    tries = 3
-    while (amount_to_get) and (tries):
+    eof = False
+    while (amount_to_get) and not eof:
         req_msg = _file_bytes_msg(path_list, amount_to_get, file_offset)
         # zzz print(req_msg.name)
         err, payload = msg_exchange(radio, req_msg)
-        if (err == tlv_errors.SUCCESS):
+        # zzz print('file bytes response', err, payload)
+        if (err == tlv_errors.SUCCESS) or \
+           (err == tlv_errors.EODATA):
             offset, amt2get, block = payload2values(payload,
                                                     [tlv_types.OFFSET,
                                                      tlv_types.SIZE,
                                                      tlv_types.BLOCK,
                                                     ])
-            # zzz print('read pos: {}, len: {}, error: {}'.format(offset, amt2get, err))
+            # zzz
+            print('read pos: {}, len: {}, bsize: {}, error: {}'.format(offset,
+                                                                       amt2get,
+                                                                       len(block),
+                                                                       err))
             if (block):
                 accum_bytes   += block
                 file_offset   += len(block)
                 amount_to_get -= len(block)
-            if (eof):
-                print('eof: {}'.format(offset))
-                break
+            if (err == tlv_errors.EODATA):
+                print('end of data, f_offset: {}, remaining: {}'.format(file_offset,
+                                                                  amount_to_get))
+                eof = True
+            break
+
             if (offset) and (offset != file_offset):
                 print('bad offset, expected: {}, got: {}'.format(
                     file_offset, offset))
@@ -95,14 +103,11 @@ def file_get_bytes(radio, path_list, amount_to_get, file_offset):
                     amount_to_get, amt2get))
                 break
         elif (err == tlv_errors.EBUSY):
-            # zzz print('busy')
+            # zzz
+            print('busy')
             continue
-        elif (err == tlv_errors.EODATA):
-            print('end of file, offset: {}'.format(offset))
-            eof = True
-            break
         else:
-            print('unexpected error: {}, offset: {}'.format(err, offset))
+            print('unexpected error: {}, f_offset: {}'.format(err, file_offset))
             break
     # zzz
     print('read p/l:{}/{}'.format(file_offset-len(accum_bytes), len(accum_bytes)))

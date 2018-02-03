@@ -144,9 +144,9 @@ def msg_exchange(radio, req):
     Timeouts on the transmit will also be counted as an error
     and reported appropriately.
     '''
-    tries = 3
     req_msg = req.build()
     # zzz print(len(req_msg),hexlify(req_msg))
+    tries = 3
     while (tries):
         error = tlv_errors.ERETRY
         payload = None
@@ -154,18 +154,25 @@ def msg_exchange(radio, req):
         rsp_buf, rssi, status = radio_receive_msg(radio, MAX_RECV, MAX_WAIT)
         if (rsp_buf):
             # zzz print(len(rsp_buf),hexlify(rsp_buf))
-            rsp = TagMessage(bytearray(rsp_buf))
-            if (rsp.payload):
-                # zzz print(rsp.payload)
-                if (rsp.payload[0].tlv_type() is tlv_types.ERROR):
-                    error = rsp.payload[0].value()
-                    del rsp.payload[0]
-                else:
-                    error = tlv_errors.SUCCESS
-                if (error is tlv_errors.SUCCESS):
+            try:
+                rsp = TagMessage(bytearray(rsp_buf))
+                if (rsp.payload):
+                    # zzz print('msg exchange response', rsp.payload)
                     payload = rsp.payload
-                    tries = 1
-            # zzz print('msg_exchange, tries: ', tries)
+                    error, eof = payload2values(rsp.payload,
+                                           [tlv_types.ERROR,
+                                            tlv_types.EOF,
+                                           ])
+                    if (error is None):
+                        error = tlv_errors.SUCCESS
+                    if (eof):
+                        error = tlv_errors.EODATA
+                    if (error is tlv_errors.EODATA) \
+                       or (error is tlv_errors.SUCCESS):
+                        tries = 1
+                # zzz print('msg_exchange, tries: ', tries)
+            except (TlvBadException, TlvListBadException):
+                pass
         else:
             error = tlv_errors.ETIMEOUT
             print('msg_exchange: timeout')
