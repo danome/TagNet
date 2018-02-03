@@ -26,6 +26,40 @@ if (os.path.exists(basedir)
 
 from taghandlers import *
 
+'''
+The TagFuseFileTree function returns a tree (really a dictionary
+of dictionaries) which describes the contents of information
+presented by the TagNet protocol stack in talking with a Tag
+over the radio. It provides the basic framework for associating
+unique processing step needed by the different features of the tag.
+For instance, managing software images requires special handling of
+the file names which are strings converted from the TagNet Version
+type.
+
+FileHandler Classes require three file attributes to be initialized:
+
+File Type:
+  Specifies type of file, we use: S_IFDIR (directory), S_IF_REG (file)
+
+File permissions:
+  This is just like the Linux file permissions. There are three levels,
+  owner, group, and world. The read/write/execute permissions are
+  defined for each level. These are represented as three sets of three
+  bits of any combination of the following values:
+    Read is equivalent to    4
+    Write is equivalent to   2
+    Execute is equivalent to 1
+  See documentation on 'chmod' to get more background.
+
+Number of Links:
+  Number of links to this node.
+  For a directory, used to track the number of entries (including '.'
+  and '..')
+  For a file, typically 1. If a file is linked, then this number is
+  increased by 1 for each independent link. (used to keep track of
+  active and backup software images, for instance).
+'''
+
 def TagFuseFileTree(radio):
     return PollNetDirHandler(radio, OrderedDict([
         ('',                       FileHandler(S_IFDIR, 0o751, 3)),
