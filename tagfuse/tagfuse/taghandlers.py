@@ -182,9 +182,14 @@ class ImageIOFileHandler(ByteIOFileHandler):
                            path_list,
                            buf,
                            offset)
+        print('image io write', error, new_offset)
         if (error) and (error is not tlv_errors.SUCCESS):
             raise FuseOSError(ENOENT)
-        return len(buf) - (new_offset - offset)
+        if (new_offset):
+            return len(buf) - (new_offset - offset)
+        else:
+            return len(buf)
+#        return len(buf) - (new_offset - offset)
 
     def release(self, path_list): # close
         # zzz

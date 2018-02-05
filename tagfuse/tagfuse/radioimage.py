@@ -72,7 +72,8 @@ def im_put_file(radio, path_list, buf, offset):
     Write data to an image file on the Tag
     '''
     def _put_msg(path_list, buf, offset=None):
-        tlv_list = path2tlvs(path_list)
+        tlv_list = path2tlvs(path_list[:-1])
+        tlv_list.append(TagTlv(tlv_types.VERSION, path_list[-1].split('.')))
         if (offset):
             tlv_list.append(TagTlv(tlv_types.OFFSET,
                                    offset))
@@ -82,24 +83,28 @@ def im_put_file(radio, path_list, buf, offset):
         return (msg, len(msg.payload))
 
     amt_to_put = len(buf)
-    while (amt_to_put):
+    while (amt_to_put > 0):
         req_msg, amt_accepted = _put_msg(path_list,
                                          buf[(len(buf)-amt_to_put):],
                                          offset)
         print('im put', req_msg.name)
         error, payload = msg_exchange(radio,
                                      req_msg)
-        print(error, payload)
-        if ((error is not tlv_errors.SUCCESS) or
-            (error is tlv_errors,ERETRY)):
+        print('im put', error, payload)
+        if (error is tlv_errors.ERETRY):
+            continue
+        if (error is not tlv_errors.SUCCESS):
             break
-        if (payload[0].tlv_type() is tlv_types.OFFSET):
-            prev_offset = offset
-            offset = payload[0].value()
+        offset = payload2values(payload,
+                             [tlv_types.OFFSET,
+                             ])[0]
+        print('im put', offset)
+        if (offset):
             amount_to_put -= offset - prev_offset
         else:
-            offset += amt_accepted
             amount_to_put -= amt_accepted
+            offset        += amt_accepted
+        prev_offset    = offset
 
     return error, offset
 
