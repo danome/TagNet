@@ -36,7 +36,7 @@ if (os.path.exists(basedir)
             sys.path.insert(0,ndir)
     # zzz print '\n'.join(sys.path)
 
-from radioutils import path2tlvs, radio_show_config
+from radioutils import payload2values, path2tlvs, radio_show_config
 from radioutils import msg_exchange
 
 from tagnet import TagMessage, TagGet, TagPut, TagHead, TagDelete
