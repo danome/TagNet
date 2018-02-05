@@ -92,7 +92,7 @@ def file_get_bytes(radio, path_list, amount_to_get, file_offset):
                 print('end of data, f_offset: {}, remaining: {}'.format(file_offset,
                                                                   amount_to_get))
                 eof = True
-            break
+                break
 
             if (offset) and (offset != file_offset):
                 print('bad offset, expected: {}, got: {}'.format(
