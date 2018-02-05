@@ -2,6 +2,10 @@
 from __future__ import print_function, absolute_import, division
 #from builtins import *                  # python3 types
 
+print('tagfuse','starting')
+
+__all__ = ['TagStorage',
+           'TagFuse']
 import os
 import sys
 import logging
