@@ -120,12 +120,19 @@ def im_get_dir(radio, path_list, version=None):
     '''
     # zzz print('im_get_dir',path_list)
 
-    def _get_dir_msg(path_list):
-        im_name = TagName(path2tlvs(path_list))
+    def _get_dir_msg(path_list, version):
+        tlv_list = path2tlvs(path_list)
+        if (version):
+            tlv_list.append(TagTlv(tlv_types.VERSION, version))
+        im_name = TagName(tlv_list)
         msg = TagGet(im_name)
         return msg
 
-    dir_req = _get_dir_msg(path_list)
+    if (version):
+        dir_req = _get_dir_msg(path_list, version)
+    else:
+        dir_req = _get_dir_msg(path_list, None)
+
     # zzz
     print('dir_req.name', dir_req.name)
     error, payload = msg_exchange(radio,
