@@ -100,17 +100,23 @@ class FileHandler(OrderedDict):
     def getattr(self, path_list, update=False):
         return self
 
+    def write(self, path_list, buf, offset):
+        raise FuseOSError(EPERM)
+
+    def read(self, path_list, size, offset):
+        raise FuseOSError(ENODATA)
+
     def truncate(self, path_list, length):
         return 0
 
-    def link(self, link_name, target):
-        print('FileHandler.link', link_name, target)
-        return 0
+    def link(self, link_name, target): # hard link
+        raise FuseOSError(EPERM)
 
-    def unlink(self, path_list):
-        print('FileHandler.unlink', path_list)
-        return 0
+    def unlink(self, path_list):       # delete
+        raise FuseOSError(EPERM)
 
+    def release(self, path_list):      # close
+        return 0
 
 class ByteIOFileHandler(FileHandler):
     '''
@@ -193,8 +199,9 @@ class ImageIOFileHandler(ByteIOFileHandler):
         print('image io unlink')
         path_list[-1] = '<version:'+'.'.join(path_list[-1].split('.'))+'>'
         # zzz print(path_list)
-        return im_delete_file(self.radio,
-                              path_list)
+        if im_delete_file(self.radio, path_list):
+            return 0
+        raise FuseOSError(ENOENT)
 
 
 class DblkIONoteHandler(FileHandler):
@@ -463,8 +470,9 @@ class ImageDirHandler(DirHandler):
         # zzz print(self)
         return super(ImageDirHandler, self).readdir(path_list)
 
-    def create(self, path_list, mode, file_name):
-        print('image create',path_list,mode, file_name)
+    def create(self, path_list, mode):
+        file_name = path_list[-1]
+        print('image create',path_list[:-1], oct(mode), file_name)
         try:
             x = self[file_name]
             raise FuseOSError(EEXIST)
@@ -473,7 +481,7 @@ class ImageDirHandler(DirHandler):
                                                  S_IFREG,
                                                  0o664,
                                                  1)
-        return True
+        return 0
 
     def unlink(self, path_list):
         print('image dir unlink', path_list)
@@ -481,10 +489,9 @@ class ImageDirHandler(DirHandler):
         if (error == tlv_errors.SUCCESS):
             try:
                 del self[path_list[-1]] # last element is version
-                return True
             except KeyError:
-                return False
-        return False
+                pass
+        return 0
 
     def release(self, path_list): # close
         # zzz
