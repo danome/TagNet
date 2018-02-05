@@ -155,9 +155,10 @@ def im_get_dir(radio, path_list, version=None):
     return rtn_list
 
 def im_close_file(radio, path_list):
+
     def _close_msg(path_list):
         im_name = TagName(path2tlvs(path_list))
-        msg = TagPut(im_name, pl=[TagTlv(tlv_types.EOF)])
+        msg = TagPut(im_name, pl=TagTlvList([TagTlv(tlv_types.EOF)]))
         return msg
 
     close_req = _close_msg(path_list)
@@ -189,9 +190,9 @@ def im_delete_file(radio, path_list):
                                  delete_req)
     print(payload)
     if (error) and (error != tlv_errors.SUCCESS):
-        err = tlv_errors.SUCCESS
-    print(err)
-    return err
+        error = tlv_errors.SUCCESS
+    print(error)
+    return error
 
 
 def im_set_version(radio, path_list):
