@@ -16,7 +16,7 @@ except RuntimeError as e:
     print(e)
 
 from si446xdef import *
-from si446x import get_config_wds, get_config_device
+from si446xcfg import get_config_wds, get_config_device
 import si446xtrace
 
 __all__ = ['SpiInterface', 'Si446xRadio', 'si446xradio_test']
