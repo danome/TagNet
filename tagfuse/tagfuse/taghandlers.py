@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 from __future__ import print_function, absolute_import, division
-from builtins import *                  # python3 types
+#from builtins import *                  # python3 types
 
 import os
 import sys
@@ -10,14 +10,19 @@ from sets import Set
 import logging
 
 from   collections   import defaultdict, OrderedDict
-from   errno         import ENOENT, ENODATA, EEXIST
+from   errno         import ENOENT, ENODATA, EEXIST, EPERM
 from   stat          import S_IFDIR, S_IFLNK, S_IFREG
 from   time          import time
-
+from   sets          import Set
 from   fuse          import FuseOSError
 
 
 __all__ = ['FileHandler',
+           'TestBaseHandler',
+           'TestEchoHandler',
+           'TestOnesHandler',
+           'TestZerosHandler',
+           'TestSumHandler',
            'ByteIOFileHandler',
            'ImageIOFileHandler',
            'DblkIONoteHandler',
@@ -221,13 +226,123 @@ class DblkIONoteHandler(FileHandler):
 
 class SysFileHandler(FileHandler):
     '''
-    Dblk Note IO File Handler class
+    System Executive File Handler class
 
-    Performs Dblk Note IO file specific operations.
+    Performs file specific operations on System Executive Facts.
+    This class is dynamically created by SysDirHandler when adding
+    image version file names.
     '''
     def __init__(self, radio, ntype, mode, nlinks):
         super(SysFileHandler, self).__init__(ntype, mode, nlinks)
         self.radio = radio
+
+
+class TestBaseHandler(FileHandler):
+    '''
+    '''
+    def __init__(self, ntype, mode, nlinks):
+        super(TestBaseHandler, self).__init__(ntype, mode, nlinks)
+        self.buf   = ''
+        self.total = 0
+        self.sum   = 0
+
+    def getattr(self, path_list, update=False):
+        self['st_size'] = self.total
+        return self
+
+    def release(self, path_list):      # close
+        self.buf   = ''
+        self.total = 0
+        self.sum   = 0
+        return 0
+
+class TestZerosHandler(TestBaseHandler):
+    '''
+    '''
+    def __init__(self, ntype, mode, nlinks):
+        super(TestZerosHandler, self).__init__(ntype, mode, nlinks)
+
+    def read(self, path_list, size, offset):
+        buf = chr(0) * size
+        return buf
+
+    def write(self, path_list, buf, offset):
+        if (buf[0] == 0) and len(Set(buf)) == 1:
+            self.total += len(buf)
+            self.sum   += sum(map(ord,buf))
+            dsize       = len(buf)
+        else:
+            raise FuseOSError(EIO)
+        return dsize
+
+
+class TestOnesHandler(TestBaseHandler):
+    '''
+    '''
+    def __init__(self, ntype, mode, nlinks):
+        super(TestOnesHandler, self).__init__(ntype, mode, nlinks)
+
+    def read(self, path_list, size, offset):
+        buf = chr(0xff) * size
+        return (str(buf))
+
+    def write(self, path_list, buf, offset):
+        if (buf[0] == 0xff) and len(Set(buf)) == 1:
+            self.total += len(buf)
+            self.sum   += sum(map(ord,buf))
+            dsize       = len(buf)
+        else:
+            raise FuseOSError(EIO)
+        return dsize
+
+
+class TestEchoHandler(TestBaseHandler):
+    '''
+    '''
+    def __init__(self, ntype, mode, nlinks):
+        super(TestEchoHandler, self).__init__(ntype, mode, nlinks)
+
+    def read(self, path_list, size, offset):
+        try:
+            buf = self.buf[offset:offset+size]
+        except IndexError:
+            raise FuseOSError(ENODATA)
+        return buf
+
+    def write(self, path_list, buf, offset):
+        print('testecho',offset, len(self.buf))
+        self.buf   += buf
+        self.total += len(buf)
+        self.sum   += sum(map(ord,buf))
+        dsize       = len(buf)
+        print('testecho', len(buf), self.buf)
+        return dsize
+
+    def release(self, path_list):      # close
+        return 0
+
+class TestSumHandler(TestBaseHandler):
+    '''
+    '''
+    def __init__(self, ntype, mode, nlinks):
+        super(TestSumHandler, self).__init__(ntype, mode, nlinks)
+
+    def getattr(self, path_list, update=False):
+        self['st_size'] = self.sum
+        return self
+
+    def read(self, path_list, size, offset):
+        buf = 'S' * size
+        return buf
+
+    def write(self, path_list, buf, offset):
+        if (offset == len(self.buf)):
+            self.total += len(buf)
+            self.sum   += sum(map(ord,buf))
+            dsize       = len(buf)
+        else:
+            raise FuseOSError(EIO)
+        return dsize
 
 
 class DirHandler(OrderedDict):

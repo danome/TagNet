@@ -62,7 +62,14 @@ Number of Links:
 
 def TagFuseFileTree(radio):
     return PollNetDirHandler(radio, OrderedDict([
-        ('',                       FileHandler(S_IFDIR, 0o751, 3)),
+        ('',            FileHandler(S_IFDIR, 0o751, 3)),
+        ('.test',        DirHandler(OrderedDict([
+            ('',           FileHandler(S_IFDIR, 0o751, 6)),
+            ('echo',       TestEchoHandler(S_IFREG, 0o666, 6)),
+            ('ones',       TestOnesHandler(S_IFREG, 0o444, 6)),
+            ('zeros',      TestZerosHandler(S_IFREG, 0o444, 6)),
+            ('sum',        TestSumHandler(S_IFREG, 0o222, 6)),
+        ]))),
         ('<node_id:ffffffffffff>', DirHandler(OrderedDict([
             ('',           FileHandler(S_IFDIR, 0o751, 6)),
             ('tag',        DirHandler(OrderedDict([
