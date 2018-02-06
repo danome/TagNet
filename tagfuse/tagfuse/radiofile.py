@@ -159,13 +159,14 @@ def _put_bytes(radio, tname, buf, offset):
     # zzz print(req_msg.name)
     err, payload = msg_exchange(radio, req_msg)
     if (err == tlv_errors.SUCCESS):
-        amt = payload2values(payload,
+        amtLeft = payload2values(payload,
                              [tlv_types.SIZE,
                              ])[0]
-        if (amt == None): amt = 0
+        if (amtLeft == None):
+            amtLeft = len(buf)
         # zzz
-        print('put bytes', len(buf), amt)
-        return amt
+        print('put bytes', len(buf), amtLeft)
+        return amtLeft
     # zzz
     print('put bytes', err)
     return 0
