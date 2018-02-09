@@ -145,13 +145,12 @@ def im_get_dir(radio, path_list, version=None):
             version =  payload[x].value()
             state = payload[x+1].value()
             print('im get dir, state: {} version: {}'.format(state,version))
-            if (state != 'x'):
-                if   (state == 'a'): state = 'active'
-                elif (state == 'b'): state = 'backup'
-                elif (state == 'g'): state = 'golden'
-                elif (state == 'n'): state = 'NIB'
-                elif (state == 'v'): state = 'valid'
-                rtn_list.append((version, state))
+            if   (state == 'a'): state = 'active'
+            elif (state == 'b'): state = 'backup'
+            elif (state == 'g'): state = 'golden'
+            elif (state == 'n'): state = 'NIB'
+            elif (state == 'v'): state = 'valid'
+            rtn_list.append((version, state))
     return rtn_list
 
 def im_close_file(radio, path_list):
