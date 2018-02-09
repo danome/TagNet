@@ -10,7 +10,7 @@ from sets import Set
 import logging
 
 from   collections   import defaultdict, OrderedDict
-from   errno         import ENOENT, ENODATA, EEXIST, EPERM
+from   errno         import ENOENT, ENODATA, EEXIST, EPERM, EINVAL
 from   stat          import S_IFDIR, S_IFLNK, S_IFREG
 from   time          import time
 from   sets          import Set
@@ -161,6 +161,16 @@ class ImageIOFileHandler(ByteIOFileHandler):
         self.radio = radio
         self.open = False
 
+    def flush(self, path_list): # close
+        # zzz
+        print('image io flush')
+        path_list[-1] = '<version:'+'.'.join(path_list[-1].split('.'))+'>'
+        print(path_list)
+        if im_close_file(self.radio,
+                              path_list):
+            return 0
+        raise FuseOSError(ENOENT)
+
     def getattr(self, path_list, update=False):
         return self
 
@@ -175,6 +185,23 @@ class ImageIOFileHandler(ByteIOFileHandler):
             raise FuseOSError(ENODATA)
         return str(buf)
 
+    def release(self, path_list): # close
+        # zzz
+        print('image io release')
+        # if im_close_file(self.radio,
+        #                  path_list):
+        return 0
+        raise FuseOSError(ENOENT)
+
+    def unlink(self, path_list):  # delete
+        # zzz
+        print('image io unlink')
+        path_list[-1] = '<version:'+'.'.join(path_list[-1].split('.'))+'>'
+        # zzz print(path_list)
+        if im_delete_file(self.radio, path_list):
+            return 0
+        raise FuseOSError(ENOENT)
+
     def write(self, path_list, buf, offset):
         # zzz
         print('image io write, size: {}, offset: {}'.format(len(buf), offset))
@@ -186,27 +213,10 @@ class ImageIOFileHandler(ByteIOFileHandler):
         if (error) and (error is not tlv_errors.SUCCESS):
             raise FuseOSError(ENOENT)
         if (new_offset):
-            return len(buf) - (new_offset - offset)
+            return(new_offset - offset)
         else:
             return len(buf)
 #        return len(buf) - (new_offset - offset)
-
-    def release(self, path_list): # close
-        # zzz
-        print('image io release')
-        if im_close_file(self.radio,
-                              path_list):
-            return True
-        raise FuseOSError(ENOENT)
-
-    def unlink(self, path_list):  # delete
-        # zzz
-        print('image io unlink')
-        path_list[-1] = '<version:'+'.'.join(path_list[-1].split('.'))+'>'
-        # zzz print(path_list)
-        if im_delete_file(self.radio, path_list):
-            return 0
-        raise FuseOSError(ENOENT)
 
 
 class DblkIONoteHandler(FileHandler):
@@ -398,6 +408,9 @@ class DirHandler(OrderedDict):
                     return handler   # match the terminal name
             return None
 
+    def create(self, path_list, mode):
+        raise FuseOSError(EINVAL)
+
     def getattr(self, path_list, update=False):
         print('getattr', path_list)
         return self['']
@@ -450,7 +463,9 @@ class ImageDirHandler(DirHandler):
             # make set of versions found on tag
             tag_versions = []
             for version, state in tag_dir:
-                tag_versions.append('.'.join(map(str, version)))
+                print('img readdir version/state',version,str(state))
+                if (str(state) != 'x'):
+                    tag_versions.append('.'.join(map(str, version)))
             tag_set = Set(tag_versions)
             print('tag_set',tag_set)
             # make set of version founds on self
@@ -470,7 +485,10 @@ class ImageDirHandler(DirHandler):
                     1)
             # remove versions on self but not on tag
             for version in my_set.difference(tag_set):
-                del self[version]
+                try:
+                    del self[version]
+                except KeyError:
+                    pass  # wasn't there, ok
 
         # zzz print(self)
         return super(ImageDirHandler, self).readdir(path_list)
@@ -488,24 +506,15 @@ class ImageDirHandler(DirHandler):
                                                  1)
         return 0
 
-    def unlink(self, path_list):
-        print('image dir unlink', path_list)
-        error = im_delete_file(self.radio, path_list)
-        if (error == tlv_errors.SUCCESS):
-            try:
-                del self[path_list[-1]] # last element is version
-            except KeyError:
-                pass
+    def unlink(self, path_list):  # delete
+        print('image dir delete (unlink)', path_list)
+        del self[path_list[-1]]   # last element is version
         return 0
 
     def release(self, path_list): # close
         # zzz
-        print('image dir release', path_list)
-#        try:
-#            del self[path_list[-1]]
-#        except:
-#            raise FuseOSError(ENOENT)
-#        return 0
+        print('image dir close (release)', path_list)
+        return 0
 
 
 class SysDirHandler(DirHandler):
@@ -518,14 +527,15 @@ class SysDirHandler(DirHandler):
         super(SysDirHandler, self).__init__(a_dict)
         self.radio = radio
 
-    def readdir(self, path_list):
+    def readdir(self, path_list, img_state=''):
         # zzz print('image readdir', path_list)
         tag_dir = im_get_dir(self.radio, path_list)
         if (tag_dir):
             # make set of versions found on tag
             tag_versions = []
             for version, state in tag_dir:
-                tag_versions.append('.'.join(map(str, version)))
+                if (img_state == '') or (img_state == state):
+                    tag_versions.append('.'.join(map(str, version)))
             tag_set = Set(tag_versions)
             print('tag_set',tag_set)
             # make set of version founds on self
@@ -583,6 +593,11 @@ class SysActiveDirHandler(SysDirHandler):
             return 0
         return 0
 
+    def readdir(self, path_list):
+        dir = super(SysActiveDirHandler, self).readdir(path_list, img_state='active')
+        print('SysActive.readdir',dir)
+        return dir
+
     def unlink(self, path_list):
         print('SysActive.unlink', path_list)
         return 0
@@ -596,6 +611,39 @@ class SysBackupDirHandler(SysDirHandler):
     '''
     def __init__(self, radio, a_dict):
         super(SysBackupDirHandler, self).__init__(radio, a_dict)
+
+    def symlink(self, link_name, target):
+        print('SysBackup.symlink', link_name, target)
+        return 0
+
+    def link(self, link_name, target):
+        print('SysBackup.link', link_name, target)
+        # set new version on tag
+        err = im_set_version(self.radio, path2list(link_name))
+        # retry means the tag is busy rebooting (hopefully)
+        if (err == tlv_errors.SUCCESS) or (err == tlv_errors.ETIMEOUT):
+            # remove existing link(s), if any
+            for version, handler in self.iteritems():
+                if version != '':
+                    del self[version]
+            # add new link
+            base, version = os.path.split(link_name)
+            print('sysactive.link', version)
+            self[version] = SysFileHandler(self.radio,
+                                        S_IFREG,
+                                        0o664,
+                                        1)
+            return 0
+        return 0
+
+    def readdir(self, path_list):
+        dir = super(SysBackupDirHandler, self).readdir(path_list, img_state='backup')
+        print('SysBackup.readdir',dir)
+        return dir
+
+    def unlink(self, path_list):
+        print('SysBackup.unlink', path_list)
+        return 0
 
 
 class SysGoldenDirHandler(SysDirHandler):

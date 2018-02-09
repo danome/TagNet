@@ -93,10 +93,10 @@ class TagFuse(LoggingMixIn, Operations):
     def create(self, path, mode, fh):
         base, name = os.path.split(path)
         handler = self.LocateNode(base)
-        print(base, name, handler)
+        print('fuse create', base, name, handler)
         # try:
         if (handler):
-            return handler.create(path2list(path), mode, name)
+            return handler.create(path2list(path), mode)
         # except:
         #    raise FuseOSError(ENOENT)
         #    return 0       # raw_io doesn't expect a fileno
@@ -111,6 +111,12 @@ class TagFuse(LoggingMixIn, Operations):
         raise FuseOSError(ENOENT)
         # zzz use this to trigger tag to search for sync record
         return 0
+
+    def flush(self, path, fh):
+        handler = self.LocateNode(path)
+        if (handler):
+            return handler.flush(path2list(path))
+        raise FuseOSError(ENOENT)
 
     def getattr(self, path, fh=None):
         handler = self.LocateNode(path)
@@ -229,10 +235,10 @@ class TagFuse(LoggingMixIn, Operations):
     def unlink(self, path):
         base, name = os.path.split(path)
         handler = self.LocateNode(path)
-        if (handler) and (handler.unlink(path2list(path))):
+        if (handler) and (handler.unlink(path2list(path)) == 0):
             dirhandler = self.LocateNode(base)
-            dirhandler.unlink(path2list(path))
-            return 0
+            if (dirHandler):
+                return (dirhandler.unlink(path2list(path)) == 0)
         raise FuseOSError(ENOENT)
 
     def utimens(self, path, times=None):
@@ -255,9 +261,6 @@ class TagFuse(LoggingMixIn, Operations):
             return handler.write(path2list(path), data, offset)
         except:
             return 0
-
-    def flush(self, path, fh):
-        return 0
 
     def release(self, path, fh):
         print('tag release')

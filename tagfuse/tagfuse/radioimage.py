@@ -83,14 +83,15 @@ def im_put_file(radio, path_list, buf, offset):
         return (msg, len(msg.payload))
 
     amt_to_put = len(buf)
+    prev_offset    = offset
     while (amt_to_put > 0):
-        req_msg, amt_accepted = _put_msg(path_list,
+        req_msg, amt_sent = _put_msg(path_list,
                                          buf[(len(buf)-amt_to_put):],
                                          offset)
         print('im put', req_msg.name)
         error, payload = msg_exchange(radio,
                                      req_msg)
-        print('im put', error, payload)
+        print('im put rsp error/payload', error, payload)
         if (error is tlv_errors.ERETRY):
             continue
         if (error is not tlv_errors.SUCCESS):
@@ -98,13 +99,13 @@ def im_put_file(radio, path_list, buf, offset):
         offset = payload2values(payload,
                              [tlv_types.OFFSET,
                              ])[0]
-        print('im put', offset)
+        print('im put offset', offset)
         if (offset):
-            amount_to_put -= offset - prev_offset
+            amt_to_put -= offset - prev_offset
         else:
-            amount_to_put -= amt_accepted
-            offset        += amt_accepted
-        prev_offset    = offset
+            amt_to_put -= amt_sent
+            offset     += amt_sent
+        prev_offset     = offset
 
     return error, offset
 
@@ -162,9 +163,10 @@ def im_close_file(radio, path_list):
 
     close_req = _close_msg(path_list)
     # zzz
-    print(close_req.name)
+    print('im close file', close_req.name, close_req.payload)
     error, payload = msg_exchange(radio,
                                  close_req)
+    print('im close file',error,payload)
     if (error) and (error != tlv_errors.SUCCESS):
         return False
     return True
