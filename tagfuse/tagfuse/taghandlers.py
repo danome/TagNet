@@ -263,8 +263,8 @@ class ImageIOFileHandler(ByteIOFileHandler):
         print('image io flush')
         path_list[-1] = '<version:'+'.'.join(path_list[-1].split('.'))+'>'
         print(path_list)
-        if im_close_file(self.radio,
-                              path_list):
+        self['st_size'] = im_close_file(self.radio, path_list)
+        if (self['st_size']):
             return 0
         raise FuseOSError(ENOENT)
 
@@ -285,8 +285,6 @@ class ImageIOFileHandler(ByteIOFileHandler):
     def release(self, path_list): # close
         # zzz
         print('image io release')
-        # if im_close_file(self.radio,
-        #                  path_list):
         return 0
         raise FuseOSError(ENOENT)
 
