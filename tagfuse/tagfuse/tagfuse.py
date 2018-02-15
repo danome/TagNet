@@ -36,7 +36,7 @@ if (os.path.exists(basedir)
 
 from radioutils  import radio_start, path2list
 from taghandlers import *
-from TagFuseTree import TagFuseFileTree
+from TagFuseTree import TagFuseRootTree
 
 #if not hasattr(__builtins__, 'bytes'):
 #    bytes = str
@@ -135,7 +135,7 @@ class TagFuse(LoggingMixIn, Operations):
 
     def init(self, path):
         self.radio = radio_start()
-        self.tag_tree = TagFuseFileTree(self.radio)
+        self.tag_tree = TagFuseRootTree(self.radio)
         return None
 
     def link(self, link_name, target):
