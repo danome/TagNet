@@ -33,21 +33,12 @@ if (os.path.exists(basedir)
     # zzz print '\n'.join(sys.path)
 
 from radioutils import payload2values, path2tlvs, path2list
-#from radioutils import radio_send_msg, radio_receive_msg
 from radioutils import msg_exchange
 
 from tagnet import TagMessage, TagGet, TagPut, TagHead
 from tagnet import TagName
 from tagnet import TagTlv, TagTlvList, tlv_types, tlv_errors
 from tagnet import TlvListBadException, TlvBadException
-
-# default paramters
-#MAX_WAIT            = .3
-#MAX_RECV            = 255
-#MAX_PAYLOAD         = 254
-#MAX_RETRIES         = 10
-#RADIO_POWER         = 100
-#SHORT_DELAY         = .02
 
 def file_get_bytes(radio, path_list, amount_to_get, file_offset):
     '''
@@ -79,11 +70,10 @@ def file_get_bytes(radio, path_list, amount_to_get, file_offset):
                                                      tlv_types.SIZE,
                                                      tlv_types.BLOCK,
                                                     ])
-            # zzz
-            print('read pos: {}, len: {}, bsize: {}, error: {}'.format(offset,
-                                                                       amt2get,
-                                                                       len(block),
-                                                                       err))
+            # zzz print('read pos: {}, len: {}, bsize: {}, error: {}'.format(offset,
+            #                                                           amt2get,
+            #                                                           len(block),
+            #                                                           err))
             if (block):
                 accum_bytes   += block
                 file_offset   += len(block)

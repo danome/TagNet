@@ -5,9 +5,9 @@ import argparse
 # If we are running from the source package directory, try
 # to load the module from there first.
 basedir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-print('{} init: argv:{}, basedir:{}'.format(os.path.basename(basedir),
-                                            sys.argv[0],
-                                            basedir,))
+#print('{} init: argv:{}, basedir:{}'.format(os.path.basename(basedir),
+#                                            sys.argv[0],
+#                                            basedir,))
 if (os.path.exists(basedir)
     and os.path.exists(os.path.join(basedir, 'setup.py'))):
     add_dirs = [os.path.join(basedir, os.path.basename(basedir)),]

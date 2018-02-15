@@ -8,8 +8,11 @@ __all__ = ['TagStorage',
            'TagFuse']
 import os
 import sys
-import logging
+reload(sys)
+#sys.setdefaultencoding('utf-8')
+print('default encoding', sys.getdefaultencoding())
 
+import logging
 from collections import defaultdict, OrderedDict
 from errno import ENOENT, ENODATA
 from stat import S_IFDIR, S_IFLNK, S_IFREG
@@ -161,6 +164,9 @@ class TagFuse(LoggingMixIn, Operations):
         return 0
 #        return self.fd # raw_io doesn't expect a fileno
 
+    def opendir(self, path):
+        return 0
+
     def read(self, path, size, offset, fh):
         handler = self.LocateNode(path)
         return (str(handler.read(path2list(path), size, offset)))
@@ -176,6 +182,21 @@ class TagFuse(LoggingMixIn, Operations):
 
     def readlink(self, path):
         raise FuseOSError(ENOENT)
+
+    def release(self, path, fh):
+        print('tag release')
+        handler = self.LocateNode(path)
+        try:
+            base, name = os.path.split(path)
+            ret_val = handler.release(path2list(path))
+            dhandler = self.LocateNode(path2list(base))
+            dhandler.release(path2list(path))
+            return ret_val
+        except:
+            return 0
+
+    def releasedir(self, path, fh):
+        return 0
 
     def removexattr(self, path, name):
         handler = self.LocateNode(path)
@@ -262,23 +283,6 @@ class TagFuse(LoggingMixIn, Operations):
         except:
             return 0
 
-    def release(self, path, fh):
-        print('tag release')
-        handler = self.LocateNode(path)
-        try:
-            base, name = os.path.split(path)
-            ret_val = handler.release(path2list(path))
-            dhandler = self.LocateNode(path2list(base))
-            dhandler.release(path2list(path))
-            return ret_val
-        except:
-            return 0
-
-    def opendir(self, path):
-        return 0
-
-    def releasedir(self, path, fh):
-        return 0
 
 def TagStorage(args):
     options = {'max_write':     0,

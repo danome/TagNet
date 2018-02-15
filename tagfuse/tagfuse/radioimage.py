@@ -134,8 +134,7 @@ def im_get_dir(radio, path_list, version=None):
     else:
         dir_req = _get_dir_msg(path_list, None)
 
-    # zzz
-    print('dir_req.name', dir_req.name)
+    # zzz print('dir_req.name', dir_req.name)
     error, payload = msg_exchange(radio,
                                  dir_req)
     # zzz print(error, payload)

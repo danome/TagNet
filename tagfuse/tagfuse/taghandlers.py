@@ -103,23 +103,29 @@ class FileHandler(OrderedDict):
     def getattr(self, path_list, update=False):
         return self
 
-    def write(self, path_list, buf, offset):
-        raise FuseOSError(EPERM)
-
-    def read(self, path_list, size, offset):
-        raise FuseOSError(ENODATA)
-
-    def truncate(self, path_list, length):
+    def flush(self, path_list):
         return 0
 
     def link(self, link_name, target): # hard link
         raise FuseOSError(EPERM)
 
-    def unlink(self, path_list):       # delete
-        raise FuseOSError(EPERM)
+    def read(self, path_list, size, offset):
+        raise FuseOSError(ENODATA)
 
     def release(self, path_list):      # close
         return 0
+
+    def truncate(self, path_list, length):
+        return 0
+
+    def truncate(self, path_list, length):
+        return 0
+
+    def unlink(self, path_list):       # delete
+        raise FuseOSError(EPERM)
+
+    def write(self, path_list, buf, offset):
+        raise FuseOSError(EPERM)
 
 class ByteIOFileHandler(FileHandler):
     '''
@@ -538,6 +544,8 @@ class DirHandler(OrderedDict):
         Traverse the directory tree until reaching the leaf identified
         by path_list.
         """
+        #if index == 0:
+        #    path_list[0] = '<node_id:' + path_list[0][2:] + '>'
         # zzz print(index, path_list)
         if index < (len(path_list) - 1):      # look in subdirectory
             for key, handler in self.iteritems():
@@ -599,6 +607,13 @@ class PollNetDirHandler(DirHandler):
     def __init__(self, radio, a_dict):
         super(PollNetDirHandler, self).__init__(a_dict)
         self.radio = radio
+
+#            name = re.match(r'x[0-9a-fA-F]+', node_id),
+#            self['0x'+name] = tagtree()
+#                         ImageIOFileHandler(self.radio,
+#                                            S_IFREG,
+#                                            0o664,
+#                                            1)
 
 
 class ImageDirHandler(DirHandler):
