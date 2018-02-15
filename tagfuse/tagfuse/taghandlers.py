@@ -2,21 +2,6 @@
 from __future__ import print_function, absolute_import, division
 #from builtins import *                  # python3 types
 
-import os
-import sys
-
-from sets import Set
-
-import logging
-
-from   collections   import defaultdict, OrderedDict
-from   errno         import ENOENT, ENODATA, EEXIST, EPERM, EINVAL
-from   stat          import S_IFDIR, S_IFLNK, S_IFREG
-from   time          import time
-from   sets          import Set
-from   fuse          import FuseOSError
-
-
 __all__ = ['FileHandler',
            'TestBaseHandler',
            'TestEchoHandler',
@@ -24,6 +9,7 @@ __all__ = ['FileHandler',
            'TestZerosHandler',
            'TestSumHandler',
            'ByteIOFileHandler',
+           'SparseIOFileHandler',
            'ImageIOFileHandler',
            'DblkIONoteHandler',
            'DirHandler',
@@ -36,6 +22,21 @@ __all__ = ['FileHandler',
            'SysNibDirHandler',
            'SysRunningDirHandler',
 ]
+
+import os
+import sys
+
+from sets import Set
+
+import logging
+
+from   collections   import defaultdict, OrderedDict
+from   errno         import ENOENT, ENODATA, EEXIST, EPERM, EINVAL, EIO
+from   stat          import S_IFDIR, S_IFLNK, S_IFREG
+from   time          import time
+from   sets          import Set
+from   fuse          import FuseOSError
+from   binascii      import hexlify
 
 # If we are running from the source directory, try
 # to load the module from there first.
@@ -60,6 +61,8 @@ from radioimage  import im_get_dir, im_set_version
 from radioutils  import path2list
 
 from tagnet      import tlv_errors
+from sparsefile  import SparseFile
+#from TagFuseTree import TagFuseTagTree
 
 base_value = 0
 
@@ -148,6 +151,100 @@ class ByteIOFileHandler(FileHandler):
                         path_list,
                         buf,
                         offset)
+
+
+class SparseIOFileHandler(ByteIOFileHandler):
+    '''
+    '''
+    def __init__(self, *args, **kwargs):
+        super(SparseIOFileHandler, self).__init__(*args, **kwargs)
+        self.sparse = None
+
+    def _open_sparse(self, fpath):
+        if (self.sparse == None):
+            self.sparse = SparseFile('_'.join(fpath))
+            items = sorted(self.sparse.items())
+            if items:
+                offset, block = items[-1]
+                self['st_size'] = offset + len(block)
+            else:
+                self['st_size'] = 0
+
+    def _close_sparse(self):
+        if self.sparse:
+            self.sparse.flush()
+
+    def _delete_sparse(self):
+        if self.sparse:
+            self.sparse.drop()
+            self.sparse = None
+            self['st_size'] = 0
+
+    def flush(self, *args, **kwargs):
+        print('sparse IO flush', args[0])
+        self._close_sparse()
+        super(SparseIOFileHandler, self).flush(*args, **kwargs)
+        return 0
+
+    def getattr(self, *args, **kwargs):
+        print('sparse IO getattr', args[0])
+        self._open_sparse(args[0])
+        super(SparseIOFileHandler, self).getattr(*args, **kwargs)
+        return self
+
+    def read(self, path_list, size, offset):
+        print('sparse IO read', offset, size, self['st_size'], path_list)
+        if offset >= self['st_size']:
+            raise FuseOSError(ENODATA)
+        self._open_sparse(path_list)
+        retbuf = bytearray()
+        size = min(size, self['st_size'] - offset)
+        work_list = self.sparse.get_bytes_and_holes(offset, size)
+        if (work_list):
+            for item in work_list:
+                if isinstance(item, tuple) or \
+                   isinstance(item, list):
+                    print(item)
+                    first, last = item
+                    last = min(last, self['st_size'])
+                    xbuf, eof  = file_get_bytes(self.radio, path_list,
+                                                last-first, first)
+                    if (xbuf):
+                        retbuf.extend(xbuf)
+                        self.sparse.add_bytes(first, xbuf)
+                    else:
+                        break
+                elif isinstance(item, bytearray) or \
+                     isinstance(item, str):
+                    print('sparfile read', len(item), hexlify(item[:20]))
+                    retbuf.extend(item)
+                else:
+                    raise FuseOSError(EIO)
+            return retbuf
+        elif offset < self['st_size']:
+            print(offset, self['st_size'])
+            size = min(size, self['st_size']-offset)
+            xbuf, eof  = file_get_bytes(self.radio, path_list,
+                                        size, offset)
+            if (xbuf):
+                retbuf.extend(xbuf)
+                self.sparse.add_bytes(offset, xbuf)
+            return retbuf
+        raise FuseOSError(ENODATA)
+
+    def unlink(self, *args, **kwargs):       # delete
+        print('sparse IO unlink', self.sparse)
+        self._delete_sparse()
+        return 0
+
+    def write(self, path_list, buf, offset):
+        print('sparse IO write', offset, len(buf))
+        self._open_sparse(path_list)
+        sz = self.sparse.add_bytes(offset, buf)
+        if (offset + sz) > self['st_size']:
+            self['st_size'] = offset + sz
+        print('sparse IO size',sz)
+        return sz
 
 
 class ImageIOFileHandler(ByteIOFileHandler):
@@ -265,16 +362,11 @@ class TestBaseHandler(FileHandler):
     def __init__(self, ntype, mode, nlinks):
         super(TestBaseHandler, self).__init__(ntype, mode, nlinks)
         self.buf   = ''
-        self.total = 0
+        self['st_size'] = 0
         self.sum   = 0
-
-    def getattr(self, path_list, update=False):
-        self['st_size'] = self.total
-        return self
 
     def release(self, path_list):      # close
         self.buf   = ''
-        self.total = 0
         self.sum   = 0
         return 0
 
@@ -290,7 +382,7 @@ class TestZerosHandler(TestBaseHandler):
 
     def write(self, path_list, buf, offset):
         if (buf[0] == 0) and len(Set(buf)) == 1:
-            self.total += len(buf)
+            self['st_size'] += len(buf)
             self.sum   += sum(map(ord,buf))
             dsize       = len(buf)
         else:
@@ -310,7 +402,7 @@ class TestOnesHandler(TestBaseHandler):
 
     def write(self, path_list, buf, offset):
         if (buf[0] == 0xff) and len(Set(buf)) == 1:
-            self.total += len(buf)
+            self['st_size'] += len(buf)
             self.sum   += sum(map(ord,buf))
             dsize       = len(buf)
         else:
@@ -321,27 +413,93 @@ class TestOnesHandler(TestBaseHandler):
 class TestEchoHandler(TestBaseHandler):
     '''
     '''
-    def __init__(self, ntype, mode, nlinks):
-        super(TestEchoHandler, self).__init__(ntype, mode, nlinks)
+    def __init__(self, *args, **kwargs):
+        super(TestEchoHandler, self).__init__(*args, **kwargs)
+        #super(TestEchoHandler, self).__init__(ntype, mode, nlinks)
+        self.sparse = None
+
+    def _open_sparse(self, fpath):
+        if (self.sparse == None):
+            self.sparse = SparseFile('_'.join(fpath))
+            items = sorted(self.sparse.items())
+            if items:
+                offset, block = items[-1]
+                self['st_size'] = offset + len(block)
+            else:
+                self['st_size'] = 0
+        print(self.sparse)
+
+    def _close_sparse(self):
+        if self.sparse:
+            self.sparse.flush()
+        print(self.sparse)
+
+    def _delete_sparse(self):
+        if self.sparse:
+            self.sparse.drop()
+            self.sparse = None
+            self['st_size'] = 0
+        print(self.sparse)
+
+    def flush(self, path_list):
+        print('testecho flush', path_list)
+        self._close_sparse()
+        return 0
+
+    def getattr(self, *args, **kwargs):
+        print(args)
+        print(kwargs)
+        self._open_sparse(args[0])
+        super(TestEchoHandler, self).getattr(*args, **kwargs)
+        return self
 
     def read(self, path_list, size, offset):
-        try:
-            buf = self.buf[offset:offset+size]
-        except IndexError:
+        print('testecho read', offset, size, path_list)
+        if offset >= self['st_size']:
             raise FuseOSError(ENODATA)
-        return buf
+        self._open_sparse(path_list)
+        retbuf = bytearray()
+        size = min(size, self['st_size'] - offset)
+        work_list = self.sparse.get_bytes_and_holes(offset, size)
+        if (work_list):
+            for item in work_list:
+                if isinstance(item, tuple) or \
+                   isinstance(item, list):
+                    print(item)
+                    first, last = item
+                    last = min(last, self['st_size'])
+                    xbuf = bytearray('\x00' * (last - first))
+                    if (xbuf):
+                        retbuf.extend(xbuf)
+                    else:
+                        break
+                elif isinstance(item, bytearray) or \
+                     isinstance(item, str):
+                    print('testecho read block', len(item), hexlify(item[:24]))
+                    retbuf.extend(item)
+                else:
+                    print(item)
+                    raise FuseOSError(EIO)
+            return retbuf
+        else:
+            retbuf.extend(bytearray('\x00' * size))
+            return retbuf
+        raise FuseOSError(ENODATA)
+
+    def unlink(self, path_list):       # delete
+        print('testecho unlink', self.sparse, path_list)
+        self._delete_sparse()
+        return 0
 
     def write(self, path_list, buf, offset):
-        print('testecho',offset, len(self.buf))
-        self.buf   += buf
-        self.total += len(buf)
-        self.sum   += sum(map(ord,buf))
-        dsize       = len(buf)
-        print('testecho', len(buf), self.buf)
-        return dsize
+        print('testecho write', offset, len(buf))
+        self._open_sparse(path_list)
+        sz = self.sparse.add_bytes(offset, buf)
+        if (offset + sz) > self['st_size']:
+            self['st_size'] = offset + sz
+        print('testecho size',sz)
+        return sz
 
-    def release(self, path_list):      # close
-        return 0
 
 class TestSumHandler(TestBaseHandler):
     '''
@@ -359,7 +517,7 @@ class TestSumHandler(TestBaseHandler):
 
     def write(self, path_list, buf, offset):
         if (offset == len(self.buf)):
-            self.total += len(buf)
+            self['st_size'] += len(buf)
             self.sum   += sum(map(ord,buf))
             dsize       = len(buf)
         else:
