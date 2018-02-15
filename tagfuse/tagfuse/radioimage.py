@@ -167,9 +167,17 @@ def im_close_file(radio, path_list):
     error, payload = msg_exchange(radio,
                                  close_req)
     print('im close file',error,payload)
-    if (error) and (error != tlv_errors.SUCCESS):
-        return False
-    return True
+    if (error) \
+       and (error != tlv_errors.SUCCESS) \
+       and (error != tlv_errors.EODATA):
+        return 0
+    offset = payload2values(payload,
+                            [tlv_types.OFFSET,
+                            ])[0]
+    if (offset):
+        return offset
+    else:
+        return 0
 
 def im_delete_file(radio, path_list):
     """

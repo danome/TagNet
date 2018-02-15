@@ -154,6 +154,7 @@ def msg_exchange(radio, req):
                     if (eof):
                         error = tlv_errors.EODATA
                     if (error is tlv_errors.EODATA) \
+                       or (error is tlv_errors.EALREADY) \
                        or (error is tlv_errors.SUCCESS):
                         tries = 1
                 # zzz print('msg_exchange, tries: ', tries)
