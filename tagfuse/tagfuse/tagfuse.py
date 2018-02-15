@@ -237,8 +237,8 @@ class TagFuse(LoggingMixIn, Operations):
         handler = self.LocateNode(path)
         if (handler) and (handler.unlink(path2list(path)) == 0):
             dirhandler = self.LocateNode(base)
-            if (dirHandler):
-                return (dirhandler.unlink(path2list(path)) == 0)
+            if (dirhandler):
+                return (dirhandler.unlink(path2list(path)))
         raise FuseOSError(ENOENT)
 
     def utimens(self, path, times=None):
