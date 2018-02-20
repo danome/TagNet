@@ -543,34 +543,29 @@ class DirHandler(OrderedDict):
         """
         Traverse the directory tree until reaching the leaf identified
         by path_list.
+
+        returns the handler for which the path_list refers as well
+        as the modified path_list.
+        The path_list may be modified post execution of the base
+        class to handle any required conversion from printable
+        filenames to Tagnet TLV types.
+        Directory keys are printable filenames.
         """
-        #if index == 0:
-        #    path_list[0] = '<node_id:' + path_list[0][2:] + '>'
-        # zzz print(index, path_list)
+        # zzz print('traverse', index, path_list)
         if index < (len(path_list) - 1):      # look in subdirectory
             for key, handler in self.iteritems():
-                # zzz print('traverse',
-                     # path_list[index],
-                     # path_list[index] == key,
-                     # key,
-                     # type(handler),
-                     # isinstance(handler, DirHandler),
-                     # type(DirHandler))
                 if (path_list[index] == key):
                     # zzz print(isinstance(handler, DirHandler))
                     if isinstance(handler, DirHandler):
                         return handler.traverse(path_list, index + 1)
-            return None           # no match found
         else:
             for key, handler in self.iteritems():
-                # zzz print('traverse last',
-                     # path_list[index],
-                     # path_list[index] == key,
-                     # key,
-                     # type(handler))
+                # zzz print('traverse last', key, type(handler))
+                # match the terminal name
                 if (path_list[index] == key):
-                    return handler   # match the terminal name
-            return None
+                    return (handler, path_list)
+        print('traverse fail')
+        return (None, None)           # no match found
 
     def create(self, path_list, mode):
         raise FuseOSError(EINVAL)
@@ -607,6 +602,14 @@ class PollNetDirHandler(DirHandler):
     def __init__(self, radio, a_dict):
         super(PollNetDirHandler, self).__init__(a_dict)
         self.radio = radio
+
+    def traverse(self, path_list, index):
+        handler, path_list = super(PollNetDirHandler, self).traverse(path_list, index)
+        if (path_list[index] is not '') and \
+           (path_list[index][0] is not '.'):
+            path_list[index] = '<node_id:' + path_list[index] + '>'
+        print('poll net dir', index, path_list)
+        return (handler, path_list)
 
 #            name = re.match(r'x[0-9a-fA-F]+', node_id),
 #            self['0x'+name] = tagtree()

@@ -181,5 +181,5 @@ def TagFuseRootTree(radio):
             ('zeros',  TestZerosHandler(S_IFREG, 0o444, 6)),
             ('sum',    TestSumHandler(S_IFREG, 0o222, 6)),
         ]))),
-        ('<node_id:ffffffffffff>', TagFuseTagTree(radio)),
+        ('ffffffffffff', TagFuseTagTree(radio)),
     ]))

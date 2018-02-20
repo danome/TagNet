@@ -78,10 +78,11 @@ class TagFuse(LoggingMixIn, Operations):
         os.environ['LOGNAME'] = 'pi'
 
     def LocateNode(self, path):
+        path_list = path2list(path)
         if (path == '/'):
             print('located root')
-            return self.tag_tree
-        return self.tag_tree.traverse(path2list(path), 0)
+            return self.tag_tree, path_list
+        return self.tag_tree.traverse(path_list, 0)
 
     def DeleteNode(self, path, node):
         pass
@@ -95,11 +96,11 @@ class TagFuse(LoggingMixIn, Operations):
 
     def create(self, path, mode, fh):
         base, name = os.path.split(path)
-        handler = self.LocateNode(base)
+        handler, path_list = self.LocateNode(base)
         print('fuse create', base, name, handler)
         # try:
         if (handler):
-            return handler.create(path2list(path), mode)
+            return handler.create(path_list, mode)
         # except:
         #    raise FuseOSError(ENOENT)
         #    return 0       # raw_io doesn't expect a fileno
@@ -116,22 +117,22 @@ class TagFuse(LoggingMixIn, Operations):
         return 0
 
     def flush(self, path, fh):
-        handler = self.LocateNode(path)
+        handler, path_list = self.LocateNode(path)
         if (handler):
-            return handler.flush(path2list(path))
+            return handler.flush(path_list)
         raise FuseOSError(ENOENT)
 
     def getattr(self, path, fh=None):
-        handler = self.LocateNode(path)
+        handler, path_list = self.LocateNode(path)
         try:
-            return handler.getattr(path2list(path), update=True)
+            return handler.getattr(path_list, update=True)
         except AttributeError:
             raise FuseOSError(ENOENT)
 
     def getxattr(self, path, name, position=0):
-        handler = self.LocateNode(path)
+        handler, path_list = self.LocateNode(path)
         try:
-            attrs = handler.getattr(path2list(path))
+            attrs = handler.getattr(path_list)
             return attrs.get('attrs', {})[name]
         except KeyError:
             return ''       # Should return ENOATTR
@@ -144,15 +145,16 @@ class TagFuse(LoggingMixIn, Operations):
     def link(self, link_name, target):
         base, name = os.path.split(link_name)
         print('tagfuse.link',link_name, target, base, name)
-        handler = self.LocateNode(base) # parent node creates context
+        # parent node creates context for the linked file
+        handler, path_list = self.LocateNode(base)
         if (handler):
             return handler.link(link_name, target)
         raise FuseOSError(ENOENT)
 
     def listxattr(self, path):
-        handler = self.LocateNode(path)
+        handler, path_list = self.LocateNode(path)
         if (handler):
-            attrs = handler.getattr(path2list(path))
+            attrs = handler.getattr(path_list)
             return attrs.get('attrs', {}).keys()
         raise FuseOSError(ENOENT)
 
@@ -168,13 +170,13 @@ class TagFuse(LoggingMixIn, Operations):
         return 0
 
     def read(self, path, size, offset, fh):
-        handler = self.LocateNode(path)
-        return (str(handler.read(path2list(path), size, offset)))
+        handler, path_list = self.LocateNode(path)
+        return (str(handler.read(path_list, size, offset)))
 
     def readdir(self, path, fh):
-        handler = self.LocateNode(path)
+        handler, path_list = self.LocateNode(path)
         # zzz print('readdir, handler type:{}, len: {}'.format(type(handler), len(handler)))
-        dir_list = handler.readdir(path2list(path))
+        dir_list = handler.readdir(path_list)
         if dir_list:
             return dir_list
         else:
@@ -185,12 +187,12 @@ class TagFuse(LoggingMixIn, Operations):
 
     def release(self, path, fh):
         print('tag release')
-        handler = self.LocateNode(path)
+        handler, path_list = self.LocateNode(path)
         try:
             base, name = os.path.split(path)
-            ret_val = handler.release(path2list(path))
-            dhandler = self.LocateNode(path2list(base))
-            dhandler.release(path2list(path))
+            ret_val = handler.release(path_list)
+            dhandler, path_list = self.LocateNode(base)
+            dhandler.release(path_list)
             return ret_val
         except:
             return 0
@@ -199,9 +201,9 @@ class TagFuse(LoggingMixIn, Operations):
         return 0
 
     def removexattr(self, path, name):
-        handler = self.LocateNode(path)
+        handler, path_list = self.LocateNode(path)
         try:
-            attrs = handler.getttr(path2list(path))
+            attrs = handler.getttr(path_list)
             del attrs.get('attrs', {})[name]
         except KeyError:
             pass        # Should return ENOATTR
@@ -214,9 +216,9 @@ class TagFuse(LoggingMixIn, Operations):
 
     def setxattr(self, path, name, value, options, position=0):
         # Ignore options
-        handler = self.LocateNode(path)
+        handler, path_list = self.LocateNode(path)
         try:
-            attrs = handler.getattr(path2list(path))
+            attrs = handler.getattr(path_list)
             attrs[name] = value
         except:
             raise FuseOSError(ENOENT)
@@ -242,30 +244,27 @@ class TagFuse(LoggingMixIn, Operations):
         return dict(f_bsize=512, f_frsize=512, f_blocks=0, f_bavail=0)
 
     def symlink(self, link_name, target):
-        handler = self.LocateNode(link_name)
-        if (handler):
-            return handler.symlink(link_name, target)
         raise FuseOSError(ENOENT)
 
     def truncate(self, path, length, fh=None):
-        handler = self.LocateNode(path)
+        handler, path_list = self.LocateNode(path)
         if (handler):
-            return handler.truncate(path2list(path), length)
+            return handler.truncate(path_list, length)
         raise FuseOSError(ENOENT)
 
     def unlink(self, path):
         base, name = os.path.split(path)
-        handler = self.LocateNode(path)
-        if (handler) and (handler.unlink(path2list(path)) == 0):
-            dirhandler = self.LocateNode(base)
+        handler, path_list = self.LocateNode(path)
+        if (handler) and (handler.unlink(path_list) == 0):
+            dirhandler, _ = self.LocateNode(base)
             if (dirhandler):
-                return (dirhandler.unlink(path2list(path)))
+                return (dirhandler.unlink(path_list))
         raise FuseOSError(ENOENT)
 
     def utimens(self, path, times=None):
         now = time()
         atime, mtime = times if times else (now, now)
-        handler = self.LocateNode(path)
+        handler, path_list = self.LocateNode(path)
         if isinstance(handler, DirHandler):
             attrs = handler['']
         else:
@@ -277,9 +276,9 @@ class TagFuse(LoggingMixIn, Operations):
             pass
 
     def write(self, path, data, offset, fh):
-        handler = self.LocateNode(path)
+        handler, path_list = self.LocateNode(path)
         try:
-            return handler.write(path2list(path), data, offset)
+            return handler.write(path_list, data, offset)
         except:
             return 0
 
