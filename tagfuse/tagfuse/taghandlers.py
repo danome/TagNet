@@ -743,10 +743,6 @@ class SysActiveDirHandler(SysDirHandler):
     def __init__(self, radio, a_dict):
         super(SysActiveDirHandler, self).__init__(radio, a_dict)
 
-    def symlink(self, link_name, target):
-        print('SysActive.symlink', link_name, target)
-        return 0
-
     def link(self, link_name, target):
         print('SysActive.link', link_name, target)
         # set new version on tag
@@ -785,10 +781,6 @@ class SysBackupDirHandler(SysDirHandler):
     '''
     def __init__(self, radio, a_dict):
         super(SysBackupDirHandler, self).__init__(radio, a_dict)
-
-    def symlink(self, link_name, target):
-        print('SysBackup.symlink', link_name, target)
-        return 0
 
     def link(self, link_name, target):
         print('SysBackup.link', link_name, target)
