@@ -131,6 +131,7 @@ def TagFuseSDTree(radio):
                 ('.recnum',   ByteIOFileHandler(radio, S_IFREG, 0o444, 1)),
                 ('.last_rec', ByteIOFileHandler(radio, S_IFREG, 0o444, 1)),
                 ('.last_sync',ByteIOFileHandler(radio, S_IFREG, 0o444, 1)),
+                ('.committed',ByteIOFileHandler(radio, S_IFREG, 0o444, 1)),
             ]))),
             ('panic', DirHandler(OrderedDict([
                 ('',    FileHandler(S_IFDIR, 0o751, 4)),
