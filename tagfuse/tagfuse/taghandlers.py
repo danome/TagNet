@@ -187,19 +187,19 @@ class SparseIOFileHandler(ByteIOFileHandler):
             self['st_size'] = 0
 
     def flush(self, *args, **kwargs):
-        print('sparse IO flush', args[0])
+        print('*** sparse IO flush', args[0])
         self._close_sparse()
         super(SparseIOFileHandler, self).flush(*args, **kwargs)
         return 0
 
     def getattr(self, *args, **kwargs):
-        print('sparse IO getattr', args[0])
+        print('*** sparse IO getattr', args[0])
         self._open_sparse(args[0])
         super(SparseIOFileHandler, self).getattr(*args, **kwargs)
         return self
 
     def read(self, path_list, size, offset):
-        print('sparse IO read', offset, size, self['st_size'], path_list)
+        print('*** sparse IO read', offset, size, self['st_size'], path_list)
         if offset >= self['st_size']:
             raise FuseOSError(ENODATA)
         self._open_sparse(path_list)
@@ -210,7 +210,6 @@ class SparseIOFileHandler(ByteIOFileHandler):
             for item in work_list:
                 if isinstance(item, tuple) or \
                    isinstance(item, list):
-                    print(item)
                     first, last = item
                     last = min(last, self['st_size'])
                     xbuf, eof  = file_get_bytes(self.radio, path_list,
@@ -222,7 +221,7 @@ class SparseIOFileHandler(ByteIOFileHandler):
                         break
                 elif isinstance(item, bytearray) or \
                      isinstance(item, str):
-                    print('sparfile read', len(item), hexlify(item[:20]))
+                    print('*** sparsefile read', len(item), hexlify(item[:20]))
                     retbuf.extend(item)
                 else:
                     raise FuseOSError(EIO)
@@ -564,14 +563,14 @@ class DirHandler(OrderedDict):
                 # match the terminal name
                 if (path_list[index] == key):
                     return (handler, path_list)
-        print('traverse fail')
+        print('*** traverse fail')
         return (None, None)           # no match found
 
     def create(self, path_list, mode):
         raise FuseOSError(EINVAL)
 
     def getattr(self, path_list, update=False):
-        print('getattr', path_list)
+        print('*** getattr', path_list)
         return self['']
 
     def readdir(self, path_list):
@@ -608,7 +607,7 @@ class PollNetDirHandler(DirHandler):
         if (path_list[index] is not '') and \
            (path_list[index][0] is not '.'):
             path_list[index] = '<node_id:' + path_list[index] + '>'
-        print('poll net dir', index, path_list)
+        print('*** poll net dir', index, path_list)
         return (handler, path_list)
 
 #            name = re.match(r'x[0-9a-fA-F]+', node_id),

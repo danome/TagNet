@@ -80,7 +80,7 @@ class TagFuse(LoggingMixIn, Operations):
     def LocateNode(self, path):
         path_list = path2list(path)
         if (path == '/'):
-            print('located root')
+            print('*** located root')
             return self.tag_tree, path_list
         return self.tag_tree.traverse(path_list, 0)
 
@@ -123,7 +123,9 @@ class TagFuse(LoggingMixIn, Operations):
         raise FuseOSError(ENOENT)
 
     def getattr(self, path, fh=None):
+        print('*** getattr: path {}'.format(path))
         handler, path_list = self.LocateNode(path)
+        print('*** getattr: pathlist: {}'.format(path_list))
         try:
             return handler.getattr(path_list, update=True)
         except AttributeError:
