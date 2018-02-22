@@ -604,6 +604,8 @@ class PollNetDirHandler(DirHandler):
 
     def traverse(self, path_list, index):
         handler, path_list = super(PollNetDirHandler, self).traverse(path_list, index)
+        if not path_list:
+            return (handler, path_list)
         if (path_list[index] is not '') and \
            (path_list[index][0] is not '.'):
             path_list[index] = '<node_id:' + path_list[index] + '>'
