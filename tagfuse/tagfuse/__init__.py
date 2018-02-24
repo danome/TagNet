@@ -24,10 +24,13 @@ if (os.path.exists(basedir)
             sys.path.insert(0,ndir)
     # zzz print('\n'.join(sys.path))
 
-# all modules below only export the functions that should be public
-from radioutils  import *
-from radioimage  import *
-from radiofile   import *
-from taghandlers import *
-from TagFuseTree import *
-from sparsefile  import *
+__all__ = ['sparsefile',
+           'radioutils',
+           'radioimage',
+           'radiofile',
+           'taghandlers',
+           'TagFuseTree',
+           'tagfuseargs',
+           '__main__',
+]
+print('*** __init__.py','ending')

@@ -2,9 +2,9 @@
 from __future__ import print_function, absolute_import, division
 #from builtins import *                  # python3 types
 
-__all__ = ['SparseFile']
 
 print('loading sparsefile')
+__all__ = ['SparseFile']
 
 from binascii    import hexlify
 from chest       import Chest

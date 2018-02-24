@@ -29,17 +29,20 @@ basedir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 #                                            basedir,))
 if (os.path.exists(basedir)
     and os.path.exists(os.path.join(basedir, 'setup.py'))):
-    add_dirs = [basedir,
+    add_dirs = [
+        #os.path.join(basedir, os.path.basename(basedir)),
                 os.path.join(basedir, '../si446x'),
                 os.path.join(basedir, '../tagnet')]
     for ndir in add_dirs:
         if (ndir not in sys.path):
             sys.path.insert(0,ndir)
-    # zzz print '\n'.join(sys.path)
+    # zzz
+print('*** tagfuse path:')
+print('\n'.join(sys.path))
 
-from radioutils  import radio_start, path2list
-from taghandlers import *
-from TagFuseTree import TagFuseRootTree
+from tagfuse.radioutils  import radio_start, path2list
+from tagfuse.taghandlers import *
+from tagfuse.TagFuseTree import TagFuseRootTree
 
 #if not hasattr(__builtins__, 'bytes'):
 #    bytes = str

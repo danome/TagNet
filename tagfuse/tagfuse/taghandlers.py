@@ -46,8 +46,7 @@ basedir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 #                                            basedir,))
 if (os.path.exists(basedir)
     and os.path.exists(os.path.join(basedir, 'setup.py'))):
-    add_dirs = [basedir,
-                os.path.join(basedir, 'tagfuse'),
+    add_dirs = [os.path.join(basedir, os.path.basename(basedir)),
                 os.path.join(basedir, '../si446x'),
                 os.path.join(basedir, '../tagnet')]
     for ndir in add_dirs:
@@ -55,14 +54,14 @@ if (os.path.exists(basedir)
             sys.path.insert(0,ndir)
     # zzz print('\n'.join(sys.path))
 
-from radiofile   import file_get_bytes, file_put_bytes, file_update_attrs, dblk_put_note
-from radioimage  import im_put_file, im_get_file, im_delete_file, im_close_file
-from radioimage  import im_get_dir, im_set_version
-from radioutils  import path2list
+from tagfuse.radiofile   import file_get_bytes, file_put_bytes, file_update_attrs, dblk_put_note
+from tagfuse.radioimage  import im_put_file, im_get_file, im_delete_file, im_close_file
+from tagfuse.radioimage  import im_get_dir, im_set_version
+from tagfuse.radioutils  import path2list
 
 from tagnet      import tlv_errors
-from sparsefile  import SparseFile
-#from TagFuseTree import TagFuseTagTree
+from tagfuse.sparsefile  import SparseFile
+#from tagfuse.TagFuseTree import TagFuseTagTree
 
 base_value = 0
 

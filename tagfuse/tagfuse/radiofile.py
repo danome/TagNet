@@ -24,7 +24,7 @@ basedir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 #                                            basedir,))
 if (os.path.exists(basedir)
     and os.path.exists(os.path.join(basedir, 'setup.py'))):
-    add_dirs = [basedir,
+    add_dirs = [os.path.join(basedir, os.path.basename(basedir)),
                 os.path.join(basedir, '../si446x'),
                 os.path.join(basedir, '../tagnet')]
     for ndir in add_dirs:
