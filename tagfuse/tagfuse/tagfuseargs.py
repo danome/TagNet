@@ -2,6 +2,8 @@ import os
 import sys
 import argparse
 
+__version__ = '0.0.17'
+print('tagfuse version: ', __version__)
 # If we are running from the source package directory, try
 # to load the module from there first.
 basedir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -16,17 +18,14 @@ if (os.path.exists(basedir)
             sys.path.insert(0,ndir)
     # zzz print('\n'.join(sys.path))
 
-from __init__ import __version__ as VERSION
-print('tagfuse version: ', VERSION)
-
 def parseargs():
     parser = argparse.ArgumentParser(
-        description='Tagnet FUSE Filesystem driver v{}'.format(VERSION))
+        description='Tagnet FUSE Filesystem driver v{}'.format(__version__))
     parser.add_argument('mountpoint',
                         help='directory To Be Used As Mountpoint')
     parser.add_argument('-V', '--version',
                         action='version',
-                        version='%(prog)s ' + VERSION)
+                        version='%(prog)s ' + __version__)
     # 0v print errors
     # v  also print entr/exit info
     # vv also print execution info
@@ -34,4 +33,9 @@ def parseargs():
                         action='count',
                         default=1,
                         help='increase output verbosity')
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.verbosity:
+        print("verbosity turned on", args.verbosity)
+    return args
+
+print('*** tagfuseargs.py','ending')

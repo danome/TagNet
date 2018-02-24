@@ -4,7 +4,7 @@ DESCRIPTION = 'FUSE file driver for access tagnet Dblk storage'
 
 import os, re
 def get_version():
-    VERSIONFILE = os.path.join('tagfuse', '__init__.py')
+    VERSIONFILE = os.path.join('tagfuse', 'tagfuseargs.py')
     initfile_lines = open(VERSIONFILE, 'rt').readlines()
     VSRE = r"^__version__ = ['\"]([^'\"]*)['\"]"
     for line in initfile_lines:
@@ -27,9 +27,9 @@ A FUSE file system driver that translate file accesses into TagNet based network
     url              = 'https://github.com/dmaltbie/Tagnet/tagfuse',
     author           = 'Dan Maltbie',
     author_email     = 'dmaltbie@daloma.org',
-    install_requires = ['twisted>=10.1',
+    install_requires = ['twisted>=13.1.0',
                         'six',
-                        'temporenc',
+                        'chest',
                         'construct',
                         'uuid',
                         'datetime',

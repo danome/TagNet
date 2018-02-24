@@ -6,8 +6,6 @@ Tagnet: TagNet Fuse Filesystem for accessing Tag Storage
 import os
 import sys
 
-__version__ = '0.0.10'
-
 # If we are running from the source directory, try
 # to load the module from there first.
 basedir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
