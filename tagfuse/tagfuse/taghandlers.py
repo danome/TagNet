@@ -293,11 +293,12 @@ class ImageIOFileHandler(ByteIOFileHandler):
         raise FuseOSError(ENOENT)
 
     def unlink(self, path_list):  # delete
+        version = '<version:'+'.'.join(path_list[-1].split('.'))+'>'
+        new_path_list = path_list[:-1]
+        new_path_list.append(version)
         # zzz
-        print('image io unlink')
-        path_list[-1] = '<version:'+'.'.join(path_list[-1].split('.'))+'>'
-        # zzz print(path_list)
-        if im_delete_file(self.radio, path_list):
+        print('*** image io unlink', new_path_list)
+        if im_delete_file(self.radio, new_path_list):
             return 0
         raise FuseOSError(ENOENT)
 
@@ -743,20 +744,22 @@ class SysActiveDirHandler(SysDirHandler):
     def __init__(self, radio, a_dict):
         super(SysActiveDirHandler, self).__init__(radio, a_dict)
 
-    def link(self, link_name, target):
-        print('SysActive.link', link_name, target)
-        # set new version on tag
-        err = im_set_version(self.radio, path2list(link_name))
-        # retry means the tag is busy rebooting (hopefully)
+    def link(self, ln_l, tg_l):
+        print('*** SysActive.link', ln_l, tg_l)
+        # set new version on tag active directory
+        new_version = tg_l[-1]
+        ln_lv = ln_l
+        ln_lv.append(new_version)
+        err = im_set_version(self.radio, ln_lv)
+        # if a timeout occurs, we assume success. may need to do better
         if (err == tlv_errors.SUCCESS) or (err == tlv_errors.ETIMEOUT):
             # remove existing link(s), if any
             for version, handler in self.iteritems():
                 if version != '':
                     del self[version]
             # add new link
-            base, version = os.path.split(link_name)
-            print('sysactive.link', version)
-            self[version] = SysFileHandler(self.radio,
+            print('*** sysactive.link', new_version)
+            self[new_version] = SysFileHandler(self.radio,
                                         S_IFREG,
                                         0o664,
                                         1)
@@ -782,20 +785,22 @@ class SysBackupDirHandler(SysDirHandler):
     def __init__(self, radio, a_dict):
         super(SysBackupDirHandler, self).__init__(radio, a_dict)
 
-    def link(self, link_name, target):
-        print('SysBackup.link', link_name, target)
-        # set new version on tag
-        err = im_set_version(self.radio, path2list(link_name))
-        # retry means the tag is busy rebooting (hopefully)
+    def link(self, ln_l, tg_l):
+        print('*** SysBackup.link', ln_l, tg_l)
+        # set new version on tag backup directory
+        new_version = tg_l[-1]
+        ln_lv = ln_l
+        ln_lv.append(new_version)
+        err = im_set_version(self.radio, ln_lv)
+        # if a timeout occurs, we assume success. may need to do better
         if (err == tlv_errors.SUCCESS) or (err == tlv_errors.ETIMEOUT):
             # remove existing link(s), if any
             for version, handler in self.iteritems():
                 if version != '':
                     del self[version]
             # add new link
-            base, version = os.path.split(link_name)
-            print('sysactive.link', version)
-            self[version] = SysFileHandler(self.radio,
+            print('*** sysbackup.link', new_version)
+            self[new_version] = SysFileHandler(self.radio,
                                         S_IFREG,
                                         0o664,
                                         1)

@@ -14,7 +14,7 @@ print('default encoding', sys.getdefaultencoding())
 
 import logging
 from collections import defaultdict, OrderedDict
-from errno import ENOENT, ENODATA
+from errno import ENOENT, ENODATA, EPERM
 from stat import S_IFDIR, S_IFLNK, S_IFREG
 from time import time
 from pwd import getpwnam
@@ -147,13 +147,24 @@ class TagFuse(LoggingMixIn, Operations):
         self.tag_tree = TagFuseRootTree(self.radio)
         return None
 
-    def link(self, link_name, target):
-        base, name = os.path.split(link_name)
-        print('tagfuse.link',link_name, target, base, name)
-        # parent node creates context for the linked file
-        handler, path_list = self.LocateNode(base)
-        if (handler):
-            return handler.link(link_name, target)
+    def link(self, link, target):
+        print('*** tagfuse.link', link, target)
+        # make sure target exists
+        target_handler, target_list = self.LocateNode(target)
+        if (not target_handler):
+            print('*** tagfuse.link target doesnt exist')
+            raise FuseOSError(ENOENT)
+        link_base, link_name = os.path.split(link)
+        # make sure version matches
+        target_base, target_name = os.path.split(target)
+        if (link_name != target_name):
+            print('*** tagfuse.link names dont match')
+            raise FuseOSError(EPERM)
+        # link directory handler creates context for linked file
+        link_handler, link_list = self.LocateNode(link_base)
+        if (link_handler):
+            return link_handler.link(link_list, target_list)
+        print('*** tagfuse.link link doesnt exist')
         raise FuseOSError(ENOENT)
 
     def listxattr(self, path):
