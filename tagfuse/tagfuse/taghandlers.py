@@ -609,7 +609,7 @@ class PollNetDirHandler(DirHandler):
         if (path_list[index] is not '') and \
            (path_list[index][0] is not '.'):
             path_list[index] = '<node_id:' + path_list[index] + '>'
-        print('*** poll net dir', index, path_list)
+        # zzz print('*** poll net dir', index, path_list)
         return (handler, path_list)
 
 #            name = re.match(r'x[0-9a-fA-F]+', node_id),
