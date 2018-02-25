@@ -99,11 +99,12 @@ class TagFuse(LoggingMixIn, Operations):
 
     def create(self, path, mode, fh):
         base, name = os.path.split(path)
-        handler, path_list = self.LocateNode(base)
-        print('fuse create', base, name, handler)
+        dirhandler, path_list = self.LocateNode(base)
+        print('fuse create', base, name, dirhandler)
         # try:
-        if (handler):
-            return handler.create(path_list, mode)
+        if (dirhandler):
+            path_list.append(name)
+            return dirhandler.create(path_list, mode)
         # except:
         #    raise FuseOSError(ENOENT)
         #    return 0       # raw_io doesn't expect a fileno
