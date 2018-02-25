@@ -150,10 +150,10 @@ def TagFuseSDTree(radio):
     ]))
 
 def TagFuseInfoTree(radio):
-    DirHandler(OrderedDict([
-        ('',        FileHandler(S_IFDIR, 0o751, 4)),
+    return DirHandler(OrderedDict([
+        ('',        FileHandler(S_IFDIR, 0o751, 3)),
         ('sens',    DirHandler(OrderedDict([
-            ('',      FileHandler(S_IFDIR, 0o751, 4)),
+            ('',      FileHandler(S_IFDIR, 0o751, 3)),
             ('gps',   DirHandler(OrderedDict([
                 ('',    FileHandler(S_IFDIR, 0o751, 4)),
                 ('xyz', FileHandler(S_IFREG, 0o444, 1)),
@@ -164,9 +164,9 @@ def TagFuseInfoTree(radio):
 
 def TagFuseTagTree(radio):
     return DirHandler(OrderedDict([
-        ('',        FileHandler(S_IFDIR, 0o751, 6)),
+        ('',        FileHandler(S_IFDIR, 0o751, 3)),
         ('tag',     DirHandler(OrderedDict([
-            ('',       FileHandler(S_IFDIR, 0o751, 4)),
+            ('',       FileHandler(S_IFDIR, 0o751, 6)),
             ('poll',   TagFusePollTree(radio)),
             ('sd',     TagFuseSDTree(radio)),
             ('sys',    TagFuseSysTree(radio)),
@@ -176,13 +176,15 @@ def TagFuseTagTree(radio):
 
 def TagFuseRootTree(radio):
     return PollNetDirHandler(radio, OrderedDict([
-        ('',        FileHandler(S_IFDIR, 0o751, 3)),
+        ('',        FileHandler(S_IFDIR, 0o751, 4)),
         ('.test',   DirHandler(OrderedDict([
             ('',       FileHandler(S_IFDIR, 0o751, 6)),
-            ('echo',   TestEchoHandler(S_IFREG, 0o666, 6)),
-            ('ones',   TestOnesHandler(S_IFREG, 0o444, 6)),
-            ('zeros',  TestZerosHandler(S_IFREG, 0o444, 6)),
-            ('sum',    TestSumHandler(S_IFREG, 0o222, 6)),
+            ('echo',   TestEchoHandler(S_IFREG, 0o666, 1)),
+            ('ones',   TestOnesHandler(S_IFREG, 0o444, 1)),
+            ('zeros',  TestZerosHandler(S_IFREG, 0o444, 1)),
+            ('sum',    TestSumHandler(S_IFREG, 0o222, 1)),
         ]))),
         ('ffffffffffff', TagFuseTagTree(radio)),
     ]))
+
+print('*** TagFuseTree.py','ending')
