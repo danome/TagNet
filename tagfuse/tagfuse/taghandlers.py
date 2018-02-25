@@ -259,8 +259,6 @@ class ImageIOFileHandler(ByteIOFileHandler):
     '''
     def __init__(self, radio, ntype, mode, nlinks):
         super(ImageIOFileHandler, self).__init__(radio, ntype, mode, nlinks)
-        self.radio = radio
-        self.open = False
 
     def flush(self, path_list): # close
         # zzz
