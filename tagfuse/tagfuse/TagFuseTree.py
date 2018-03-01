@@ -129,7 +129,7 @@ def TagFuseSDTree(radio):
             ('dblk',  DirHandler(OrderedDict([
                 ('',     FileHandler(S_IFDIR, 0o751, 7)),
                 ('byte',    SparseIOFileHandler(radio, S_IFREG, 0o444, 1)),
-                ('note',    DblkIONoteHandler(  radio, S_IFREG, 0o660, 1)),
+                ('note',    SimpleRecHandler(  radio, S_IFREG, 0o660, 1)),
                 ('.recnum',   ByteIOFileHandler(radio, S_IFREG, 0o444, 1)),
                 ('.last_rec', ByteIOFileHandler(radio, S_IFREG, 0o444, 1)),
                 ('.last_sync',ByteIOFileHandler(radio, S_IFREG, 0o444, 1)),
@@ -157,7 +157,7 @@ def TagFuseInfoTree(radio):
             ('gps',   DirHandler(OrderedDict([
                 ('',    FileHandler(S_IFDIR, 0o751, 4)),
                 ('xyz', FileHandler(S_IFREG, 0o444, 1)),
-                ('cmd', ByteIOFileHandler(radio, S_IFREG, 0o660, 1)),
+                ('cmd', SimpleRecHandler(radio, S_IFREG, 0o660, 1)),
             ]))),
         ]))),
     ]))

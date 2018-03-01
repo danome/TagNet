@@ -7,8 +7,7 @@ from builtins import *                  # python3 types
 
 __all__ = ['file_get_bytes',
            'file_put_bytes',
-           'file_update_attrs',
-           'dblk_put_note']
+           'file_update_attrs']
 
 import os
 import sys
@@ -164,9 +163,3 @@ def _put_bytes(radio, tname, buf, offset):
 def file_put_bytes(radio, path_list, buf, offset):
     tname = TagName(path2tlvs(path_list))
     return _put_bytes(radio, tname, buf, offset)
-
-
-def dblk_put_note(radio, path_list, note):
-    tname = TagName(path2tlvs(path_list))
-    return _put_bytes(radio, tname, note, 0)
-#    return len(note)

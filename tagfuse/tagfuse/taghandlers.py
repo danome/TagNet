@@ -11,11 +11,10 @@ __all__ = ['FileHandler',
            'ByteIOFileHandler',
            'SparseIOFileHandler',
            'ImageIOFileHandler',
-           'DblkIONoteHandler',
+           'SimpleRecHandler',
            'DirHandler',
            'PollNetDirHandler',
            'ImageDirHandler',
-           'SysActiveDirHandler',
            'SysActiveDirHandler',
            'SysBackupDirHandler',
            'SysGoldenDirHandler',
@@ -54,7 +53,7 @@ if (os.path.exists(basedir)
             sys.path.insert(0,ndir)
     # zzz print('\n'.join(sys.path))
 
-from tagfuse.radiofile   import file_get_bytes, file_put_bytes, file_update_attrs, dblk_put_note
+from tagfuse.radiofile   import file_get_bytes, file_put_bytes, file_update_attrs
 from tagfuse.radioimage  import im_put_file, im_get_file, im_delete_file, im_close_file
 from tagfuse.radioimage  import im_get_dir, im_set_version
 from tagfuse.radioutils  import path2list
@@ -117,14 +116,12 @@ class FileHandler(OrderedDict):
     def truncate(self, path_list, length):
         return 0
 
-    def truncate(self, path_list, length):
-        return 0
-
     def unlink(self, path_list):       # delete
         raise FuseOSError(EPERM)
 
     def write(self, path_list, buf, offset):
         raise FuseOSError(EPERM)
+
 
 class ByteIOFileHandler(FileHandler):
     '''
@@ -317,14 +314,28 @@ class ImageIOFileHandler(ByteIOFileHandler):
 #        return len(buf) - (new_offset - offset)
 
 
-class DblkIONoteHandler(FileHandler):
-    '''
-    Dblk Note IO File Handler class
+class SimpleRecHandler(FileHandler):
+    '''Simple Record Handler class
 
-    Performs Dblk Note IO file specific operations.
+    Performs Simple Record IO.
+
+    A simple record is an object that is referenced by a record
+    number rather by a byte offset.  The offset is the record number
+    for what ever record we are talking about.
+
+    If we want to write another record to the remote, we have to
+    specific the next record number when we do the write.
+
+    We use the file size (st_size) to remember how many records are in the
+    object.  So if we want to write another record we have specify
+    st_size + 1.
+
+    This also has the nice property of showing up in an 'ls -l note'.  The
+    'file size' of note is the last note number written.
+
     '''
     def __init__(self, radio, ntype, mode, nlinks):
-        super(DblkIONoteHandler, self).__init__(ntype, mode, nlinks)
+        super(SimpleRecHandler, self).__init__(ntype, mode, nlinks)
         self.radio = radio
 
     def getattr(self, path_list, update=False):
@@ -336,12 +347,14 @@ class DblkIONoteHandler(FileHandler):
         return self
 
     def write(self, path_list, buf, offset):
-        # zzz print('dblk io note, size: {}, offset: {}'.format(len(buf), offset))
-        if (offset) or (len(buf) > 200):
-            raise FuseOSError(ENODATA)
-        return dblk_put_note(self.radio,
-                             path_list,
-                             buf)
+        last_seq = self['st_size']
+        print('SRH:  size: {}, offset: {}, last: {}'.format(
+                len(buf), offset, last_seq))
+        if (offset and offset != last_seq) or (len(buf) > 200):
+            raise FuseOSError(EINVAL)
+        self['st_size'] = file_put_bytes(self.radio,
+                              path_list, buf, last_seq + 1)
+        return len(buf)
 
 
 class SysFileHandler(FileHandler):
