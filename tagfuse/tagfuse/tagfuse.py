@@ -107,10 +107,6 @@ class TagFuse(LoggingMixIn, Operations):
         if (dirhandler):
             path_list.append(name)
             return dirhandler.create(path_list, mode)
-        # except:
-        #    raise FuseOSError(ENOENT)
-        #    return 0       # raw_io doesn't expect a fileno
-        #    return self.fd
 
     def destroy(self, path):
         print('tagfuse destroy')
@@ -207,14 +203,14 @@ class TagFuse(LoggingMixIn, Operations):
     def release(self, path, fh):
         print('tag release')
         handler, path_list = self.LocateNode(path)
+        base, name  = os.path.split(path)
+        ret_val     = handler.release(path_list)
+        dhandler, _ = self.LocateNode(base)
         try:
-            base, name = os.path.split(path)
-            ret_val = handler.release(path_list)
-            dhandler, path_list = self.LocateNode(base)
             dhandler.release(path_list)
-            return ret_val
-        except:
-            return 0
+        except AttributeError:
+            pass
+        return ret_val
 
     def releasedir(self, path, fh):
         return 0
@@ -239,7 +235,7 @@ class TagFuse(LoggingMixIn, Operations):
         try:
             attrs = handler.getattr(path_list)
             attrs[name] = value
-        except:
+        except KeyError:
             raise FuseOSError(ENOENT)
 
     def statfs(self, path):
@@ -291,16 +287,12 @@ class TagFuse(LoggingMixIn, Operations):
         try:
             attrs['st_atime'] = atime
             attrs['st_mtime'] = mtime
-        except:
+        except KeyError:
             pass
 
     def write(self, path, data, offset, fh):
         handler, path_list = self.LocateNode(path)
-        try:
-            return handler.write(path_list, data, offset)
-        except:
-            return 0
-
+        return handler.write(path_list, data, offset)
 
 def TagStorage(args):
     global global_args
