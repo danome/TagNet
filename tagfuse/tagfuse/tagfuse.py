@@ -2,10 +2,12 @@
 from __future__ import print_function, absolute_import, division
 #from builtins import *                  # python3 types
 
-print('tagfuse','starting')
+print('*** tagfuse.py','starting')
 
 __all__ = ['TagStorage',
-           'TagFuse']
+           'TagFuse',
+           'global_args']
+
 import os
 import sys
 reload(sys)
@@ -301,6 +303,9 @@ class TagFuse(LoggingMixIn, Operations):
 
 
 def TagStorage(args):
+    global global_args
+    global_args = args
+
     options = {'max_write':     0,
                'max_read':      512,
                'max_readahead': 8192,
@@ -315,3 +320,5 @@ def TagStorage(args):
 if __name__ == '__main__':
     import tagfuseargs
     TagStorage(tagfuseargs.parseargs(argv))
+
+print('*** tagfuse.py','ending')
