@@ -299,7 +299,7 @@ def TagStorage(args):
     global_args = args
 
     options = {'max_write':     0,
-               'max_read':      512,
+               'max_read':      256,
                'max_readahead': 8192,
                'kernel_cache':  True,
                'direct_io':     True,
