@@ -196,6 +196,9 @@ class SparseIOFileHandler(ByteIOFileHandler):
 
     def read(self, path_list, size, offset):
         print('*** sparse IO read', offset, size, self['st_size'], path_list)
+        # refresh the file size if seeking beyond our current size
+        if offset >= self['st_size']:
+            super(SparseIOFileHandler, self).getattr(path_list, update=True)
         if offset >= self['st_size']:
             raise FuseOSError(ENODATA)
         self._open_sparse(path_list)
