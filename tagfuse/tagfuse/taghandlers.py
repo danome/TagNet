@@ -161,13 +161,24 @@ class SparseIOFileHandler(ByteIOFileHandler):
     def __init__(self, *args, **kwargs):
         super(SparseIOFileHandler, self).__init__(*args, **kwargs)
         self.sparse = None
+        print("sparse handler init:", get_cmd_args().sparse_dir)
 
     def _open_sparse(self, fpath):
-        if (self.sparse == None):
-            self.sparse = SparseFile('_'.join(fpath))
-            items = sorted(self.sparse.items())
-            if items:
-                offset, block = items[-1]
+        if self.sparse or get_cmd_args().disable_sparse:
+            return
+        sparse_filename = os.path.join(
+            get_cmd_args().sparse_dir,
+            '_'.join(fpath))
+        print("*** sparse handler file: ", sparse_filename)
+        try:
+            self.sparse = SparseFile(sparse_filename)
+        except:
+            print("sparse handler exception")
+            raise
+        items = sorted(self.sparse.items())
+        if items:
+            offset, block = items[-1]
+            if self['st_size'] < (offset + len(block)):
                 self['st_size'] = offset + len(block)
             else:
                 self['st_size'] = 0

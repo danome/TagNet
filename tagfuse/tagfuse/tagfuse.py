@@ -5,8 +5,7 @@ from __future__ import print_function, absolute_import, division
 print('*** tagfuse.py','starting')
 
 __all__ = ['TagStorage',
-           'TagFuse',
-           'global_args']
+           'TagFuse',]
 
 import os
 import sys
@@ -295,9 +294,6 @@ class TagFuse(LoggingMixIn, Operations):
         return handler.write(path_list, data, offset)
 
 def TagStorage(args):
-    global global_args
-    global_args = args
-
     options = {'max_write':     0,
                'max_read':      256,
                'max_readahead': 8192,
@@ -307,10 +303,15 @@ def TagStorage(args):
     # zzz logging.basicConfig(level=logging.INFO)
     # zzz
     logging.basicConfig(level=logging.DEBUG) # output FUSE related debug info
-    fuse = FUSE(TagFuse(), args.mountpoint, nothreads=True, raw_fi=True, foreground=True, **options)
+    fuse = FUSE(TagFuse(),
+                args.mountpoint,
+                nothreads=True,
+                raw_fi=True,
+                foreground= not args.background,
+                **options)
 
 if __name__ == '__main__':
     import tagfuseargs
-    TagStorage(tagfuseargs.parseargs(argv))
+    TagStorage(tagfuseargs.process_cmd_args(argv))
 
 print('*** tagfuse.py','ending')
