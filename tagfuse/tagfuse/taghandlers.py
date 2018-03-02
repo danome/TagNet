@@ -57,10 +57,11 @@ from tagfuse.radiofile   import file_get_bytes, file_put_bytes, file_update_attr
 from tagfuse.radioimage  import im_put_file, im_get_file, im_delete_file, im_close_file
 from tagfuse.radioimage  import im_get_dir, im_set_version
 from tagfuse.radioutils  import path2list
-
-from tagnet      import tlv_errors
+from tagfuse.tagfuseargs import get_cmd_args
 from tagfuse.sparsefile  import SparseFile
 #from tagfuse.TagFuseTree import TagFuseTagTree
+
+from tagnet              import tlv_errors
 
 base_value = 0
 
@@ -180,8 +181,15 @@ class SparseIOFileHandler(ByteIOFileHandler):
             offset, block = items[-1]
             if self['st_size'] < (offset + len(block)):
                 self['st_size'] = offset + len(block)
-            else:
-                self['st_size'] = 0
+
+    def _get_sparse(self, offset, size):
+        return self.sparse.get_bytes_and_holes(offset, size) \
+            if (self.sparse and not get_cmd_args().disable_sparse_read) else []
+
+    def _add_sparse(self, offset, buf):
+        if self.sparse:
+            return self.sparse.add_bytes(offset, buf)
+        return len(buf)
 
     def _close_sparse(self):
         if self.sparse:
@@ -206,7 +214,8 @@ class SparseIOFileHandler(ByteIOFileHandler):
         return self
 
     def read(self, path_list, size, offset):
-        print('*** sparse IO read', offset, size, self['st_size'], path_list)
+        print('*** sparse IO read, offset: {}, size: {}, eof: {}'.format(
+            offset, size, self['st_size']))
         # refresh the file size if seeking beyond our current size
         if offset >= self['st_size']:
             super(SparseIOFileHandler, self).getattr(path_list, update=True)
@@ -215,7 +224,7 @@ class SparseIOFileHandler(ByteIOFileHandler):
         self._open_sparse(path_list)
         retbuf = bytearray()
         size = min(size, self['st_size'] - offset)
-        work_list = self.sparse.get_bytes_and_holes(offset, size)
+        work_list = self._get_sparse(offset, size)
         if (work_list):
             for item in work_list:
                 if isinstance(item, tuple) or \
@@ -226,24 +235,24 @@ class SparseIOFileHandler(ByteIOFileHandler):
                                                 last-first, first)
                     if (xbuf):
                         retbuf.extend(xbuf)
-                        self.sparse.add_bytes(first, xbuf)
+                        self._add_sparse(first, xbuf)
                     else:
                         break
                 elif isinstance(item, bytearray) or \
                      isinstance(item, str):
-                    print('*** sparsefile read', len(item), hexlify(item[:20]))
+                    # zzz print('*** sparsefile read', len(item), hexlify(item[:20]))
                     retbuf.extend(item)
                 else:
                     raise FuseOSError(EIO)
             return retbuf
         elif offset < self['st_size']:
-            print(offset, self['st_size'])
+            # zzz print(offset, self['st_size'])
             size = min(size, self['st_size']-offset)
             xbuf, eof  = file_get_bytes(self.radio, path_list,
                                         size, offset)
             if (xbuf):
                 retbuf.extend(xbuf)
-                self.sparse.add_bytes(offset, xbuf)
+                self._add_sparse(offset, xbuf)
             return retbuf
         raise FuseOSError(ENODATA)
 
@@ -255,7 +264,7 @@ class SparseIOFileHandler(ByteIOFileHandler):
     def write(self, path_list, buf, offset):
         print('sparse IO write', offset, len(buf))
         self._open_sparse(path_list)
-        sz = self.sparse.add_bytes(offset, buf)
+        sz = self._add_sparse(offset, buf)
         if (offset + sz) > self['st_size']:
             self['st_size'] = offset + sz
         print('sparse IO size',sz)
