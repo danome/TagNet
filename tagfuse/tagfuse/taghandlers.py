@@ -165,12 +165,14 @@ class SparseIOFileHandler(ByteIOFileHandler):
         print("sparse handler init:", get_cmd_args().sparse_dir)
 
     def _open_sparse(self, fpath):
-        if self.sparse or get_cmd_args().disable_sparse:
+        # zzz print("*** _open_sparse input: ", self.sparse, get_cmd_args().disable_sparse)
+        if self.sparse is not None or get_cmd_args().disable_sparse:
+            # zzz print("*** _open_sparse: early exit")
             return
         sparse_filename = os.path.join(
             get_cmd_args().sparse_dir,
             '_'.join(fpath))
-        print("*** sparse handler file: ", sparse_filename)
+        # zzz print("*** _open_sparse filename: {}, object:  {} ".format(sparse_filename, self.sparse))
         try:
             self.sparse = SparseFile(sparse_filename)
         except:
@@ -181,25 +183,30 @@ class SparseIOFileHandler(ByteIOFileHandler):
             offset, block = items[-1]
             if self['st_size'] < (offset + len(block)):
                 self['st_size'] = offset + len(block)
+        # zzz print("*** _open_sparse output: ", len(items), self.sparse)
 
     def _get_sparse(self, offset, size):
-        return self.sparse.get_bytes_and_holes(offset, size) \
-            if (self.sparse and not get_cmd_args().disable_sparse_read) else []
+        if self.sparse is None or get_cmd_args().disable_sparse_read:
+            return []
+        return self.sparse.get_bytes_and_holes(offset, size)
 
     def _add_sparse(self, offset, buf):
-        if self.sparse:
+        if self.sparse is not None:
             return self.sparse.add_bytes(offset, buf)
-        return len(buf)
+        return len(buf) # acknowledge but ignore data
 
     def _close_sparse(self):
-        if self.sparse:
+        if self.sparse is not None:
             self.sparse.flush()
 
     def _delete_sparse(self):
-        if self.sparse:
+        if self.sparse is not None:
+            self.sparse.clear()
+            self.sparse.flush()
             self.sparse.drop()
             self.sparse = None
             self['st_size'] = 0
+            print("*** _delete_sparse deleted")
 
     def flush(self, *args, **kwargs):
         print('*** sparse IO flush', args[0])
@@ -208,20 +215,23 @@ class SparseIOFileHandler(ByteIOFileHandler):
         return 0
 
     def getattr(self, *args, **kwargs):
-        print('*** sparse IO getattr', args[0])
+        # zzz print('*** sparse IO getattr', args[0])
         self._open_sparse(args[0])
         super(SparseIOFileHandler, self).getattr(*args, **kwargs)
         return self
 
     def read(self, path_list, size, offset):
-        print('*** sparse IO read, offset: {}, size: {}, eof: {}'.format(
-            offset, size, self['st_size']))
+        # zzz print('*** sparse IO read, offset: {}, size: {}, eof: {}'.format(
+        #    offset, size, self['st_size']))
         # refresh the file size if seeking beyond our current size
         if offset >= self['st_size']:
             super(SparseIOFileHandler, self).getattr(path_list, update=True)
         if offset >= self['st_size']:
             raise FuseOSError(ENODATA)
-        self._open_sparse(path_list)
+        try:
+            self._open_sparse(path_list)
+        except:
+            raise
         retbuf = bytearray()
         size = min(size, self['st_size'] - offset)
         work_list = self._get_sparse(offset, size)
@@ -281,10 +291,8 @@ class ImageIOFileHandler(ByteIOFileHandler):
         super(ImageIOFileHandler, self).__init__(radio, ntype, mode, nlinks)
 
     def flush(self, path_list): # close
-        # zzz
-        print('image io flush')
         path_list[-1] = '<version:'+'.'.join(path_list[-1].split('.'))+'>'
-        print(path_list)
+        # zzz print('image io flush', path_list)
         self['st_size'] = im_close_file(self.radio, path_list)
         if (self['st_size']):
             return 0
@@ -371,6 +379,7 @@ class SimpleRecHandler(FileHandler):
 
     def write(self, path_list, buf, offset):
         last_seq = self['st_size']
+        # zzz
         print('SRH:  size: {}, offset: {}, last: {}'.format(
                 len(buf), offset, last_seq))
         if (offset and offset != last_seq) or (len(buf) > 200):
@@ -584,7 +593,7 @@ class DirHandler(OrderedDict):
         filenames to Tagnet TLV types.
         Directory keys are printable filenames.
         """
-        # zzz print('traverse', index, path_list)
+        # zzz print('dirhandler.traverse', index, path_list)
         if index < (len(path_list) - 1):      # look in subdirectory
             for key, handler in self.iteritems():
                 if (path_list[index] == key):
@@ -597,7 +606,7 @@ class DirHandler(OrderedDict):
                 # match the terminal name
                 if (path_list[index] == key):
                     return (handler, path_list)
-        print('*** traverse fail')
+        print('*** dirhandler.traverse fail')
         return (None, None)           # no match found
 
     def create(self, path_list, mode):
