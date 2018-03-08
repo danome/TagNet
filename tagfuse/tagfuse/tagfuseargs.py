@@ -2,7 +2,7 @@ import os
 import sys
 import argparse
 
-__version__ = '0.0.17'
+__version__ = '0.0.30'
 print('tagfuse version: ', __version__)
 
 # If we are running from the source package directory, try
