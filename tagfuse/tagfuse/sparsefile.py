@@ -8,6 +8,18 @@ __all__ = ['SparseFile']
 
 from binascii    import hexlify
 from chest       import Chest
+from sets        import Set
+
+class SparseFileException(Exception):
+    def __init__( self, a_s, a_e, b_s, b_e):
+        self.a_s = a_s if a_s is not None else 'None'
+        self.a_e = a_e if a_e is not None else 'None'
+        self.b_s = b_s if b_s is not None else 'None'
+        self.b_e = b_e if b_e is not None else 'None'
+        Exception.__init__(self,
+            'SparseFile Failure: a_s: {}, a_e: {}, b_s: {}, b_e: {}'.format(
+                self.a_s, self.a_e, self.b_s, self.b_e))
+
 
 class SparseFile(Chest):
     '''
@@ -36,6 +48,7 @@ class SparseFile(Chest):
                     if len(common):
                         # zzz
                         print("*** _check_bytes error", common)
+                        raise SparseFileException(a_s, a_e, b_s, b_e)
         else:
             print("*** _check_bytes empty list")
 
@@ -110,6 +123,7 @@ class SparseFile(Chest):
                 continue
             # not expected
             else:
+                raise SparseFileException(a_s, b_s, a_e, b_e)
         self._check_bytes()
 
     def add_bytes(self, offset, buf):
