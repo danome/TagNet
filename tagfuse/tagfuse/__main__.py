@@ -25,11 +25,12 @@ if (os.path.exists(basedir)
     # zzz print('*** __main__ path:')
     # zzz print('\n'.join(sys.path))
 
-from tagfuse     import TagStorage
 from tagfuseargs import process_cmd_args
 
 def main():
-    TagStorage(process_cmd_args())
+    args = process_cmd_args()
+    from tagfuse     import TagStorage
+    TagStorage(args)
 
 if __name__ == '__main__':
     main()

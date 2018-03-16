@@ -2,8 +2,7 @@ import os
 import sys
 import argparse
 
-__version__ = '0.0.30'
-print('tagfuse version: ', __version__)
+__version__ = '0.0.31'
 
 # If we are running from the source package directory, try
 # to load the module from there first.
@@ -61,7 +60,7 @@ def process_cmd_args():
                         action='store_true')
     parser.add_argument('-V', '--version',
                         action='version',
-                        version='%(prog)s ' + __version__)
+                        version='tagfuse: ' + __version__)
     # 0v print errors
     # v  also print entr/exit info
     # vv also print execution info
