@@ -77,6 +77,7 @@ def process_cmd_args():
     print("mountpoint", global_args.mountpoint)
     if global_args.verbosity:
         print("verbosity turned on", global_args.verbosity)
+    global_args.sparse_dir = full_path(global_args.sparse_dir)
     print("sparse files stored here", global_args.sparse_dir)
 
     return global_args
