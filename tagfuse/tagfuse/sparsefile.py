@@ -85,13 +85,13 @@ class SparseFile(Chest):
         '''
         # list is sorted, so b_s (second block) can never be less
         # than a_s (first block) in the comparisons
-        block_list = sorted(self.keys())
         # if self.counts['coalese_count'] % 100:
         print('*** {} sparsefile, cur/max number of blocks: {}/{}, max block size: {}'.format(
                 self.counts['coalesce_count'],
                 len(self), self.counts['max_block_count'],
                 self.counts['max_block_size'],
             ))
+        block_list = sorted(self.iterkeys())
         if block_list is None:
             return
         if (len(self) > self.counts['max_block_count']):
@@ -227,7 +227,7 @@ class SparseFile(Chest):
         self._check_bytes()
         block_list = []
         if len(self):
-            for b_s in sorted(self.keys()):
+            for b_s in sorted(self.iterkeys()):
                 block = self[b_s]
                 b_e = b_s + len(block)
                 # zzz print('*** _overlay', a_s, a_e, b_s, b_e, len(block))
