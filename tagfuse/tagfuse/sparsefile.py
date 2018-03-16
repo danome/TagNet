@@ -9,8 +9,13 @@ __all__ = ['SparseFile']
 from binascii    import hexlify
 from chest       import Chest
 from sets        import Set
+from collections import defaultdict
 
 class SparseFileException(Exception):
+    '''
+    This exception is raised when SparseFile detects inconsistent
+    operation.
+    '''
     def __init__( self, a_s, a_e, b_s, b_e):
         self.a_s = a_s if a_s is not None else 'None'
         self.a_e = a_e if a_e is not None else 'None'
@@ -31,14 +36,15 @@ class SparseFile(Chest):
         super(SparseFile, self).__init__(path=dirname)
 #        Chest.__init__(self, path=dirname)
         self.dirname = dirname
+        self.counts = defaultdict(int)
 
     def _check_bytes(self):
         if len(self):
-            for a_s in sorted(self.keys()):
+            for a_s in sorted(self.iterkeys()):
                 block = self[a_s]
                 a_e = a_s + len(block)
                 set_a = Set(range(a_s, a_e))
-                for b_s in sorted(self.keys()):
+                for b_s in sorted(self.iterkeys()):
                     if a_s == b_s:
                         continue
                     block = self[b_s]
@@ -80,12 +86,23 @@ class SparseFile(Chest):
         # list is sorted, so b_s (second block) can never be less
         # than a_s (first block) in the comparisons
         block_list = sorted(self.keys())
+        # if self.counts['coalese_count'] % 100:
+        print('*** {} sparsefile, cur/max number of blocks: {}/{}, max block size: {}'.format(
+                self.counts['coalesce_count'],
+                len(self), self.counts['max_block_count'],
+                self.counts['max_block_size'],
+            ))
         if block_list is None:
             return
+        if (len(self) > self.counts['max_block_count']):
+            self.counts['max_block_count'] = len(self)
+        self.counts['coalesce_count'] += 1
         a_s   = block_list.pop(0)
         a_blk = self[a_s]
         a_e   = a_s + len(a_blk)
         while (len(block_list)):
+            if (len(a_blk) > self.counts['max_block_size']):
+                self.counts['max_block_size'] = len(a_blk)
             # zzz print('*** coalesce block_list', block_list)
             # first time only, start and end addresses for a_blk
             # start and end address for b_blk
