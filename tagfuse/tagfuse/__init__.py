@@ -21,14 +21,3 @@ if (os.path.exists(basedir)
         if (ndir not in sys.path):
             sys.path.insert(0,ndir)
     # zzz print('\n'.join(sys.path))
-
-__all__ = ['sparsefile',
-           'radioutils',
-           'radioimage',
-           'radiofile',
-           'taghandlers',
-           'TagFuseTree',
-           'tagfuseargs',
-           '__main__',
-]
-print('*** __init__.py','ending')
