@@ -118,12 +118,10 @@ class SparseFile(Chest):
                 a_s   = b_s
                 a_blk = b_blk
                 a_e   = b_e
-                continue
             # case (3.ii) first subsumes second
             elif (a_e >= b_e):
                 # zzz print("coalesce replace", a_s, a_e, b_s, b_e)
                 del self[b_s]
-                continue
             # case (3.iii) first overlaps with beginning of second
             elif (a_e < b_e):
                 # zzz print("coalesce combine",
@@ -137,11 +135,10 @@ class SparseFile(Chest):
                 self[a_s] = a_blk = new_block
                 a_e = b_e
                 del self[b_s]
-                continue
             # not expected
             else:
                 raise SparseFileException(a_s, b_s, a_e, b_e)
-        self._check_bytes()
+        # self._check_bytes()
 
     def add_bytes(self, offset, buf):
         """
@@ -155,7 +152,7 @@ class SparseFile(Chest):
         if len(buf) == 0:
             return 0
 
-        self._check_bytes()
+        # self._check_bytes()
         # zzz print('*** add_bytes, offset/len', offset, len(buf))
         try: # replace if offset exists and buffer is longer
             if len(self[offset]) < len(buf):
@@ -163,7 +160,7 @@ class SparseFile(Chest):
         except KeyError:
             self[offset] = buf  # otherwise add new entry
         self._coalesce()
-        self._check_bytes()
+        # self._check_bytes()
         return len(buf)
 
     def get_bytes_and_holes(self, offset, size):
@@ -188,7 +185,7 @@ class SparseFile(Chest):
         as the associated hole or data block is added to the
         rtn value.
         """
-        self._check_bytes()
+        # self._check_bytes()
         rtn = []
         if len(self):
             a_s = offset
@@ -209,7 +206,7 @@ class SparseFile(Chest):
                     break
             if (a_e > b_e):            # final hole if needed
                 rtn.append([b_e, a_e])
-        self._check_bytes()
+        # self._check_bytes()
         # zzz print(rtn)
         return rtn
 
@@ -224,7 +221,7 @@ class SparseFile(Chest):
         Returns list of (offset, block) tuples of the blocks
         within the range.
         """
-        self._check_bytes()
+        # self._check_bytes()
         block_list = []
         if len(self):
             for b_s in sorted(self.iterkeys()):
@@ -237,7 +234,7 @@ class SparseFile(Chest):
                     break       # done
                 block_list.append((b_s, block)) # block overlaps
         # zzz print('*** overlay block list', len(block_list))
-        self._check_bytes()
+        # self._check_bytes()
         return block_list
 
 if __name__ == '__main__':
