@@ -21,8 +21,8 @@ __all__ = ['name2version',
            'radio_format_group',
            'radio_show_config',
            'radio_get_raw_config',
-#           'radio_receive_msg',
-#           'radio_send_msg',
+           'radio_receive_msg',
+           'radio_send_msg',
 ]
 
 import sys
@@ -51,7 +51,10 @@ if (os.path.exists(basedir)
     # zzz print '\n'.join(sys.path)
 
 from si446x import Si446xRadio
-from si446x import clr_pend_int_s, radio_config_cmd_ids, radio_config_group_ids
+from si446x import clr_pend_int_s
+from si446x import radio_config_cmd_ids, radio_config_commands
+from si446x import radio_config_group_ids, radio_config_groups
+from si446x import radio_display_structs, RadioTraceIds
 
 from tagnet import TagTlv, TagTlvList, tlv_types, tlv_errors
 from tagnet import TagMessage
