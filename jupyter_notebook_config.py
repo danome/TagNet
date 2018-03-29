@@ -172,6 +172,7 @@
 
 ## The IP address the notebook server will listen on.
 #c.NotebookApp.ip = 'localhost'
+c.NotebookApp.ip = '*'
 
 ## Supply extra arguments that will be passed to Jinja environment.
 #c.NotebookApp.jinja_environment_options = {}
@@ -237,7 +238,7 @@ c.NotebookApp.password = u'sha1:d5d44468f96e:86888342f48852feeaf0a07f1e55d6cd3d5
 #c.NotebookApp.password_required = False
 
 ## The port the notebook server will listen on.
-c.NotebookApp.port = 8999
+c.NotebookApp.port = 9000
 
 ## The number of additional ports to try if the specified port is not available.
 #c.NotebookApp.port_retries = 50
