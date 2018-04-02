@@ -242,14 +242,17 @@ class TagPoll(TagMessage):
     Add time-of-day, slot_time, slot_count to payload
     """
     def __init__(self, slot_time=100, slot_count=10):
-        nm = TagName('/tag/poll') \
-                       + TagTlv(tlv_types.NODE_ID, -1) \
-                       + TagTlv(tlv_types.STRING, 'ev')
-        pl = TagTlvList([(tlv_types.TIME,datetime.now()),
-                         (tlv_types.INTEGER,slot_time),
-                         (tlv_types.INTEGER,slot_count),
-                         (tlv_types.NODE_ID, get_mac()),
-                         (tlv_types.NODE_NAME, platform.node())])
+        nm = TagName([TagTlv(tlv_types.NODE_ID, -1),
+                      TagTlv('tag'),
+                      TagTlv('poll'),
+                      TagTlv('ev')])
+        pl = TagTlvList([
+            #(tlv_types.TIME,datetime.now()),
+            (tlv_types.INTEGER,slot_time),
+            (tlv_types.INTEGER,slot_count),
+            (tlv_types.NODE_ID, get_mac()),
+            (tlv_types.NODE_NAME, platform.node()),
+        ])
         super(TagPoll,self).__init__(nm, pl)
         self.header.options.message_type = 'POLL'
         self.hop_count(1)   # never forward this message

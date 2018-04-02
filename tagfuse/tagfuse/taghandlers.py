@@ -53,7 +53,7 @@ if (os.path.exists(basedir)
             sys.path.insert(0,ndir)
     # zzz print('\n'.join(sys.path))
 
-from tagfuse.radiofile   import file_get_bytes, file_put_bytes, file_update_attrs
+from tagfuse.radiofile   import file_get_bytes, file_put_bytes, file_update_attrs, file_poll_tags
 from tagfuse.radioimage  import im_put_file, im_get_file, im_delete_file, im_close_file
 from tagfuse.radioimage  import im_get_dir, im_set_version
 from tagfuse.radioutils  import path2list
