@@ -1,63 +1,127 @@
 # Build BOOT DISK
 
 1. Format SD Card
-    1. sudo diskutil eraseDisk FAT32 TAGPI2 MBRFormat /dev/disk2
-2. Get OS Image to load
-    1. https://www.raspberrypi.org/downloads/raspbian/
-    2. unzip file
-3. Write image to SD Card
-    1. https://etcher.io/
+```
+sudo diskutil eraseDisk FAT32 TAGPI2 MBRFormat /dev/disk2
+```
+Get OS Image to load
+```
+https://www.raspberrypi.org/downloads/raspbian/
+```
+Unzip file and write image to SD Card
+```
+https://etcher.io/
+```
 
+## WPA_SUPPLICANT.CONF
 
-# BASIC RPi CONFIG
-
-1. connect keyboard, mouse, and monitor to RPi
-2. set hostname, country, locale, timezone
-3. enable ssh and SPI
-4. edit to enable connection to wifi
-    * /etc/wpa_supplicant/wpa_supplicant.conf
-    * add:
-        * network={
-ssid=“”
-psk=“”
-key_mgmt=WPA-PSK
-}
-5. can now talk to mac using <hostname>.local
-
-more /etc/wpa_supplicant/wpa_supplicant.conf
+For WiFi access, add access point information to /boot/wpa_supplicant.
+```
 ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
 update_config=1
 country=US
 
 network={
-ssid="BC HOUSE AC"
-psk="nonenone"
-key_mgmt=WPA-PSK
+    ssid="teahouse"
+    psk=""
+    key_mgmt=WPA-PSK
 }
-
-# RPi Package Installation
-
-1. use ssh to connect to pi@P211.local
-2. load normal packages
 ```
-sudo add-apt-repository ppa:openjdk-r/ppa
+```
+cp ~/Downloads/wpa_supplicant.conf /Volumes/boot/
 
+SSH
+
+/boot/ssh
+
+touch /Volumes/boot/ssh
+```
+
+## EJECT MEDIA AND INSERT INTO RASPBERRY PI
+
+1. can now talk to mac using raspberrypi.local
+
+
+BASIC RPi CONFIG
+
+* RUN raspi-config
+    * Interfacing Options
+        * enable SPI
+        * enable SSH
+    * hostname
+    * localization
+        * change locale
+        * change wifi country
+        * change timezone
+
+or
+
+1. enable SPI
+    1. Run this command: sudo nano /boot/config.txt
+    2. Add this at the end of the file: dtparam=spi=on
+    3. Save file pressing: CTRL+X, Y and Enter
+    4. Reboot your system: sudo reboot
+2. set hostname
+    * hostnamectl set-hostname
+                or
+    * sudo nano /etc/hostname
+    * sudo /etc/init.d/hostname.sh
+    * sudo reboot
+1. country
+2. timezone
+    * timedatectl set-timezone America/Los_Angeles
+3. set locale
+    * one way
+        * sudo nano /etc/default/locale
+        * sudo locale-gen --purge it_IT.UTF-8 en_US.UTF-8 && echo "Success"
+        * sudo locale-gen en_US.UTF-8
+        * sudo dpkg-reconfigure locales
+    * another
+$ sudo locale-gen en_US.UTF-8 # Or whatever language you want to use
+$ sudo dpkg-reconfigure locales
+$ sudo nano /etc/default/locale
+LANG="en_US.UTF-8"
+LANGUAGE=“en_US”
+
+
+## RPi Package Installation
+
+Use ssh to connect to pi@raspberrypi.local
+
+```
+ssh -AXY pi@device.local
+```
+
+Run these commands
+
+```
+sudo apt-get remove --purge oracle-java8-jdk
+sudo apt-get install dirmngr
+echo "deb http://ppa.launchpad.net/webupd8team/java/ubuntu trusty main" | sudo tee /etc/apt/sources.list.d/webupd8team-java.list
+echo "deb-src http://ppa.launchpad.net/webupd8team/java/ubuntu trusty main" | sudo tee -a /etc/apt/sources.list.d/webupd8team-java.list
+sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys EEA14886
 sudo apt-get update
-sudo apt-get install -qy --force-yes \
-    git gitk \
+sudo apt-get install oracle-java8-jdk
+java -version
+```
+
+## load application related packages
+```
+sudo apt-get update
+sudo apt-get install -qy \
+    git gitk ntp \
     python-twisted \
-    openjdk-8-jre openjdk-8-jdk \
     libusb-dev libreadline-dev \
     emacs emacs24-el
-sudo apt-get install -qy --force-yes \
+sudo apt-get install -qy \
     fuse libfuse2 libfuse-dev \
     python2.7-llfuse python3-llfuse
 ```
 
-# INSTALL ENVIRONMENT dot-files
-copy files, including .* files with this command:
+## INSTALL ENVIRONMENT dot-files
+
+Set up shell and emacs related files, with this command:
 ```
-cd software
 git clone https://github.com/cire831/dot-files.git
 SRC_DIR=./dot-files/
 DST_DIR=~/
@@ -66,8 +130,8 @@ FILES=".bash_aliases .bash_functions .bash_login .bash_logout .bashrc .emacs.d \
 echo -e "\n*** dots from $SRC_DIR -> $DST_DIR ***"
 (for i in $FILES; do echo $i; done) | rsync -aiuWr --files-from=- $SRC_DIR $DST_DIR
 ```
-# INSTALL PYTHON SOFTWARE
 
+## INSTALL PYTHON SOFTWARE
 ```
 git clone https://github.com/doceme/py-spidev.git
 cd py-spidev/
@@ -81,19 +145,12 @@ sudo pip install temporenc
 sudo pip install machinist
 sudo pip install pyproj
 sudo pip install gmaps
-sudo pip install txdbus==1.1.0
 sudo pip install fusepy
 ```
-# SSH CONNECTION TO RPI
-```
-ssh -AXY pi@P211
-```
-or
-```
-ssh -AXY pi@P222
-```
 
-# MOUNT SHARED FILE SYSTEM ON MAC
+# OPTIONAL DEVELOPMENT CONFIGURATION
+
+## MOUNT SHARED FILE SYSTEM ON MAC
 
 * ON MAC, see https://support.apple.com/en-us/HT204445
     * use finder to connect to server
@@ -101,20 +158,20 @@ ssh -AXY pi@P222
     * specify ‘Open’ as folder to be mounted
     * find the newly mounted folder at /Volumes/Open
 
-# MOUNT SHARED FOLDER WITH SOURCE CODE
+## MOUNT SHARED FOLDER WITH SOURCE CODE
 
-## PERMANENT:
+### PERMANENT:
 * mkdir /mnt/Open
 * add to /etc/fstab
     * //solar.local/Open /mnt/Open cifs exec,user=pi,pass=raspberry,iocharset=utf8,uid=pi,gid=pi,rw  0 0
 * sudo mount -a
 
-## ONE-TIME:
+### ONE-TIME:
 ```
 sudo mount -t cifs //solar.local/Open /mnt/Open -o user=pi,pass=raspberry,iocharset=utf8,uid=pi,gid=pi,rw
 ```
 
-# ADD JUPYTER
+## ADD JUPYTER
 Get Jupyter running on RPi using the following commands.
 
 This installs packages Jupyter requires. Console shows the
@@ -124,11 +181,49 @@ sudo pip install jupyter
 sudo apt-get install -y python-seaborn python-pandas
 sudo apt-get install -y ttf-bitstream-vera
 sudo python /usr/local/lib/python2.7/dist-packages/pip install jupyter
-sudo jupyter nbextension enable --py --sys-prefix widgetsnbextension
 ```
 
-Also, requires establishing an ssh tunnel from user system
+## START JUPYTER
+```
+sudo jupyter nbextension enable --py --sys-prefix widgetsnbextension
+jupyter nbextension enable --py gmaps
+nohup jupyter notebook --browser=false --allow-root --port=9000 &> /dev/null &
+```
+
+## CONNECTION
+
+Requires establishing an ssh tunnel from user system
 
 ```
 ssh -N -f -L localhost:8889:localhost:8889 pi@P222.local -o ServerAliveInterval=30
 ```
+
+
+## GENERATE JUPYTER PASSWORD
+
+```
+$ python
+> from IPython.lib import passwd
+> password = passwd(“dogbreath")
+> password
+u'sha1:d5d44468f96e:86888342f48852feeaf0a07f1e55d6cd3d5876dd'
+> CTL-D
+```
+
+Build the default Jupyter configuration settings (should be in your home directory
+
+```
+jupyter notebook --generate-config
+```
+
+Edit these three lines in jupyter_notebook_config.py (produced in previous step)
+```
+c.NotebookApp.password = u'sha1:d5d44468f96e:86888342f48852feeaf0a07f1e55d6cd3d5876dd'
+c.NotebookApp.ip = '*'
+c.NotebookApp.port = 8999
+```
+
+USING JUPTER
+
+In browser window enter:
+http://localhost:8999
