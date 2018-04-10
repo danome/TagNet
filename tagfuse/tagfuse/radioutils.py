@@ -23,6 +23,15 @@ __all__ = ['name2version',
            'radio_get_raw_config',
            'radio_receive_msg',
            'radio_send_msg',
+           'radio_get_position',
+           'radio_get_rssi',
+           'radio_get_power',
+           'radio_set_power',
+           'radio_read_test',
+           'radio_write_test',
+           'radio_poll',
+           'radio_get_rtctime',
+           'radio_set_rtctime',
 ]
 
 import sys
@@ -30,9 +39,12 @@ import os
 
 from datetime import datetime, timedelta
 from time import sleep
-
+import struct as pystruct
 import types
 from binascii import hexlify
+
+from pyproj import Proj, transform
+
 
 # If we are running from the source package directory, try
 # to load the module from there first.
@@ -57,7 +69,8 @@ from si446x import radio_config_group_ids, radio_config_groups
 from si446x import radio_display_structs, RadioTraceIds
 
 from tagnet import TagTlv, TagTlvList, tlv_types, tlv_errors
-from tagnet import TagMessage
+from tagnet import TagMessage, TagName
+from tagnet import TagPoll, TagGet, TagPut, TagDelete, TagHead
 from tagnet import TlvListBadException, TlvBadException
 
 clr_all_flags = clr_pend_int_s.parse('\00' * clr_pend_int_s.sizeof())
@@ -66,11 +79,52 @@ clr_no_flags  = clr_pend_int_s.parse('\ff' * clr_pend_int_s.sizeof())
 # default paramters
 MAX_FIFO_SIZE = 64
 MAX_WAIT            = 1
-MAX_RECV            = 255
+MAX_RECV            = 2
 MAX_PAYLOAD         = 254
-MAX_RETRIES         = 10
-RADIO_POWER         = 10     # must be low value to work with 4463
-SHORT_DELAY         = .02
+MAX_RETRIES         = 3
+RADIO_POWER         = 20
+SHORT_DELAY         = 1
+
+
+#WGS84   EPSG:4326     World Geodetic System 1984 (lat/lon)
+#ECEF    EPSG:4978     SirfBin X.Y.Z
+#        EPSG:3857     ??? Psuedo-Mercator Google Maps
+wgs84= Proj(init='epsg:4326')
+ecef = Proj(init='epsg:4978')
+psdo = Proj(init='epsg:3857')
+
+#(gdb) p GPSmonitorP__m_xyz
+#$7 = {ts = 0x229927d, tow = 0x2ee8d04, x = 0xffd6c1bf, y = 0xffbe1099, z = 0x3a5104,
+#           week = 0x3b4, mode1 = 0x4, hdop = 0x4, nsats = 0x8}
+#(gdb) p GPSmonitorP__m_geo
+#$8 = {ts = 0x2299260, tow = 0x1d518228, week_x = 0x7b4, nsats = 0x8, additional_mode = 0x18,
+#           lat = 0x16153920, lon = 0xb7443e55, sat_mask = 0x51084812, nav_valid = 0x0,
+#           nav_type = 0x204, ehpe = 0x377, evpe = 0x0, alt_ell = 0x3eaf, alt_msl = 0x4905,
+#           sog = 0x0, cog = 0x6665, hdop = 0x4}
+xyz_struct = pystruct.Struct('>iii')
+lata = "16153920"
+lona = "b7443e55"
+elva = "00003eaf"
+ba=bytearray.fromhex(lata+lona+elva)
+lat, lon, elv = xyz_struct.unpack(ba)
+
+home_geo = float(lat)/10**7, float(lon)/10**7, float(elv)/10**2
+print(lat,lon,elv,(hex(lat),hex(lon),hex(elv)))
+
+xa = "ffd6c1bf"
+ya = "ffbe1099"
+za = "003a5104"
+ba=bytearray.fromhex(xa+ya+za)
+x, y, z = xyz_struct.unpack(ba)
+
+home_xyz = x, y, z
+print(x,y,z,(hex(x),hex(y),hex(z)))
+
+# Scotts Valley
+# x: -13583956.319900 y: 4445954.972893
+# lat: 37°2'56.813" lon: -122°1'36.321"
+# lat: 37.0491147°  lon: -122.0267558°
+
 
 def name2version(name):
     '''
@@ -477,6 +531,253 @@ def radio_receive_msg(radio, max_recv, wait):
         print(progress)
 
     return (msg, rssi, progress)
+
+
+def radio_poll(radio):
+    req_obj = TagPoll() # sends time, slot_time, slot_count, node_id, node_name
+    req_msg = req_obj.build()
+    sstatus = radio_send_msg(radio, req_msg, RADIO_POWER)
+    rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, 3)
+    if rsp_msg:
+        #        print(hexlify(rsp_msg))
+        rsp_obj = TagMessage(rsp_msg)
+        #        print(rsp_obj.header.options.param.error_code)
+        #        print(rsp_obj.payload)
+        # print(rsp_obj.header, rsp_obj.name)
+        if rsp_obj.payload:
+            return rsp_obj.payload, rssi, sstatus, rstatus
+        return none, rssi, sstatus, rstatus
+    return None, None, sstatus, rstatus
+
+
+def radio_get_position(radio, node=None, name=None):
+    gps_geo = None
+    if not node:
+        node = TagTlv(tlv_types.NODE_ID, -1)
+    if not name:
+        get_name = TagName([node,
+                            TagTlv('tag'),
+                            TagTlv('info'),
+                            TagTlv('sens'),
+                            TagTlv('gps'),
+                            TagTlv('xyz')])
+    xyz_struct = pystruct.Struct('<iii')
+    get_gps_xyz = TagGet(get_name)
+#    print(get_gps_xyz.name)
+    req_msg = get_gps_xyz.build()
+    s_status = radio_send_msg(radio, req_msg, RADIO_POWER);
+    rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, MAX_WAIT)
+    if(rsp_msg):
+#        print(hexlify(rsp_msg))
+        rsp_obj = TagMessage(rsp_msg)
+#        print(rsp_obj.header.options.param.error_code)
+        print(rsp_obj.payload)
+        if (rsp_obj.payload):
+#            print("{}: {}".format(rsp_obj.header.options.param.error_code, rsp_obj.payload[0]))
+            gps_xyz = rsp_obj.payload[0].value()
+#            print("x:{0}, y:{1}, z:{2}".format(*gps_xyz))
+            lon, lat, elv = transform(ecef, wgs84, *gps_xyz)
+            gps_geo = float(lat), float(lon), float(elv)
+            # print("lat:{0}, lon:{1}, elv:{2}".format(*gps_geo))
+            return gps_xyz, gps_geo
+        else:
+            print("{}".format(rsp_obj.header.options.param.error_code))
+    else:
+        print('TIMEOUT')
+    return None
+
+
+def radio_get_rssi(radio, node=None, name=None):
+    if not node:
+        node = TagTlv(tlv_types.NODE_ID, -1)
+    if not name:
+        get_name = TagName([node,
+                            TagTlv('tag'),
+                            TagTlv('.test'),
+                            TagTlv('rssi')])
+    req_obj = TagGet(get_name)
+    req_msg = req_obj.build()
+    sstatus = radio_send_msg(radio, req_msg, RADIO_POWER)
+    rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, 3)
+    if rsp_msg:
+        #        print(hexlify(rsp_msg))
+        rsp_obj = TagMessage(rsp_msg)
+        #        print(rsp_obj.header.options.param.error_code)
+        #        print(rsp_obj.payload)
+        # print(rsp_obj.header, rsp_obj.name)
+        if rsp_obj.payload:
+            return rsp_obj.payload[0].value(), rssi, sstatus, rstatus
+        return None, rssi, sstatus, rstatus
+    return None, None, sstatus, rstatus
+
+
+def radio_get_power(radio, node=None, name=None):
+    if not node:
+        node = TagTlv(tlv_types.NODE_ID, -1)
+    if not name:
+        get_name = TagName([node,
+                            TagTlv('tag'),
+                            TagTlv('.test'),
+                            TagTlv('tx_pwr')])
+    req_obj = TagGet(get_name)
+    req_msg = req_obj.build()
+    sstatus = radio_send_msg(radio, req_msg, RADIO_POWER)
+    rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, 3)
+    if rsp_msg:
+        #        print(hexlify(rsp_msg))
+        rsp_obj = TagMessage(rsp_msg)
+        #        print(rsp_obj.header.options.param.error_code)
+        #        print(rsp_obj.payload)
+        #print(rsp_obj.header, rsp_obj.name)
+        #if rsp_obj.payload:
+        #    print(rsp_obj.payload)
+        return rsp_obj.payload[0].value(), rssi, sstatus, rstatus
+    return None, None, sstatus, rstatus
+
+
+def radio_set_power(radio, power, node=None, name=None):
+    if not node:
+        node = TagTlv(tlv_types.NODE_ID, -1)
+    if not name:
+        get_name = TagName([node,
+                            TagTlv('tag'),
+                            TagTlv('.test'),
+                            TagTlv('tx_pwr'),])
+    req_obj = TagPut(get_name,
+                     pl=TagTlvList([TagTlv(tlv_types.INTEGER,
+                                           power)]))
+    req_msg = req_obj.build()
+    sstatus = radio_send_msg(radio, req_msg, RADIO_POWER)
+    rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, 3)
+    if rsp_msg:
+        #        print(hexlify(rsp_msg))
+        rsp_obj = TagMessage(rsp_msg)
+        #        print(rsp_obj.header.options.param.error_code)
+        #        print(rsp_obj.payload)
+        #print(rsp_obj.header, rsp_obj.name)
+        #if rsp_obj.payload:
+        #    print(rsp_obj.payload)
+        return rsp_obj.payload, rssi, sstatus, rstatus
+    return None, None, sstatus, rstatus
+
+
+def radio_get_rtctime(radio, node=None, name=None):
+    if not node:
+        node = TagTlv(tlv_types.NODE_ID, -1)
+    if not name:
+        get_name = TagName([node,
+                            TagTlv('tag'),
+                            TagTlv('sys'),
+                            TagTlv('rtc')])
+    req_obj = TagGet(get_name)
+    req_msg = req_obj.build()
+    sstatus = radio_send_msg(radio, req_msg, RADIO_POWER)
+    rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, 3)
+    if rsp_msg:
+        print(len(rsp_msg), hexlify(rsp_msg))
+        rsp_obj = TagMessage(rsp_msg)
+        #        print(rsp_obj.header.options.param.error_code)
+        #        print(rsp_obj.payload)
+        #print(rsp_obj.header, rsp_obj.name)
+        #if rsp_obj.payload:
+        #    print(rsp_obj.payload)
+        return rsp_obj.payload[0].value(), rssi, sstatus, rstatus
+    return None, None, sstatus, rstatus
+
+
+def radio_set_rtctime(radio, utctime, node=None, name=None):
+    if not node:
+        node = TagTlv(tlv_types.NODE_ID, -1)
+    if not name:
+        get_name = TagName([node,
+                            TagTlv('tag'),
+                            TagTlv('sys'),
+                            TagTlv('rtc'),])
+    req_obj = TagPut(get_name,
+                     pl=TagTlvList([TagTlv(tlv_types.UTC_TIME,
+                                           utctime)]))
+    req_msg = req_obj.build()
+    sstatus = radio_send_msg(radio, req_msg, RADIO_POWER)
+    rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, 3)
+    if rsp_msg:
+        #        print(hexlify(rsp_msg))
+        rsp_obj = TagMessage(rsp_msg)
+        #        print(rsp_obj.header.options.param.error_code)
+        #        print(rsp_obj.payload)
+        #print(rsp_obj.header, rsp_obj.name)
+        #if rsp_obj.payload:
+        #    print(rsp_obj.payload)
+        return rsp_obj.payload, rssi, sstatus, rstatus
+    return None, None, sstatus, rstatus
+
+
+#<node_id>   "tag"  "test"   "zero"   "byte"
+def radio_read_test(radio, test_name, pos, num, node=None, name=None):
+    if not node:
+        node = TagTlv(tlv_types.NODE_ID, -1)
+    if not name:
+        get_name = TagName([node,
+                            TagTlv('tag'),
+                            TagTlv('.test'),
+                            TagTlv(test_name),
+                            TagTlv('byte'),
+                            TagTlv(tlv_types.OFFSET, pos),
+                            TagTlv(tlv_types.SIZE, num),])
+    req_obj = TagGet(get_name)
+#    print(get_gps_xyz.name)
+    req_msg = req_obj.build()
+    radio_send_msg(radio, req_msg, RADIO_POWER);
+    rsp_msg, rssi, status = radio_receive_msg(radio, MAX_RECV, MAX_WAIT)
+    if rsp_msg:
+#        print(hexlify(rsp_msg))
+        rsp_obj = TagMessage(rsp_msg)
+#        print(rsp_obj.header.options.param.error_code)
+#        print(rsp_obj.payload)
+        if rsp_obj.payload:
+            error, offset, amt, block = payload2values(rsp_obj.payload,
+                                  [tlv_types.ERROR,
+                                   tlv_types.OFFSET,
+                                   tlv_types.SIZE,
+                                   tlv_types.BLOCK,
+                                  ])
+            seta = set(block)
+            # print(seta)
+            if (len(seta) > 1):
+                print('check error', seta, amt, hexlify(block))
+                amt = 0
+            return error, offset, amt, block
+        else:
+            print("{}".format(rsp_obj.header.options.param.error_code))
+#    else:
+#        print('TIMEOUT')
+    return None
+
+
+def radio_write_test(radio, test_name, buf, node=None, name=None):
+    if not node:
+        node = TagTlv(tlv_types.NODE_ID, -1)
+    if not name:
+        get_name = TagName([node,
+                            TagTlv('tag'),
+                            TagTlv('.test'),
+                            TagTlv(test_name),
+                            TagTlv('byte'),
+                            TagTlv(tlv_types.OFFSET, 0),
+                            TagTlv(tlv_types.SIZE, len(buf)),])
+    req_obj = TagPut(get_name, pl=buf)
+    req_msg = req_obj.build()
+    sstatus = radio_send_msg(radio, req_msg, RADIO_POWER)
+    rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, 3)
+    if rsp_msg:
+        #        print(hexlify(rsp_msg))
+        rsp_obj = TagMessage(rsp_msg)
+        #        print(rsp_obj.header.options.param.error_code)
+        #        print(rsp_obj.payload)
+        # print(rsp_obj.header, rsp_obj.name)
+        if rsp_obj.payload:
+            return rsp_obj.payload[0].value(), rssi, sstatus, rstatus
+        return none, rssi, sstatus, rstatus
+    return None, None, sstatus, rstatus
 
 
 # # UNIT TEST
