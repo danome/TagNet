@@ -2,7 +2,7 @@ import os
 import sys
 import argparse
 
-__version__ = '0.0.33'
+__version__ = '0.0.34'
 
 # If we are running from the source package directory, try
 # to load the module from there first.
