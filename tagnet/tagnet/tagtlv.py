@@ -5,7 +5,7 @@ import os, sys, types, platform
 from os.path import normpath, commonprefix
 #from temporenc import packb, unpackb
 from binascii import hexlify
-from struct import pack, unpack
+from struct import Struct, pack, unpack
 from datetime import datetime
 from uuid import getnode as get_mac
 import copy
@@ -29,7 +29,7 @@ class tlv_types(enum.Enum):
     STRING           =  1
     INTEGER          =  2
     GPS              =  3
-    TIME             =  4
+    UTC_TIME         =  4
     NODE_ID          =  5
     NODE_NAME        =  6
     OFFSET           =  7
@@ -77,6 +77,26 @@ class tlv_errors(enum.Enum):
 #    ESUBSYSDIS       = 13   # subsystem is disabled (vs. off)
 #    EODATA           = 14   # End Of DATA (e.g., file or record)
 #    ELAST            = 15   # Last enum value
+
+# structs used in packing and unpacking complex TLV types
+#
+version_struct   = Struct('HBB')
+#  uint16_t     build;
+#  uint8_t      minor, major;
+#
+gps_struct       = Struct('<iii')
+#  int32_t      x, y, z;
+#
+rtctime_struct  = Struct('<HBBBBBBH')
+#  uint16_t	sub_sec;                /* 16 bit jiffies (32KiHz) */
+#  uint8_t	sec;                    /* 0-59 */
+#  uint8_t	min;                    /* 0-59 */
+#  uint8_t	hr;                     /* 0-23 */
+#  uint8_t      dow;                    /* day of week, 0-6, 0 sunday */
+#  uint8_t	day;                    /* 1-31 */
+#  uint8_t	mon;                    /* 1-12 */
+#  uint16_t	yr;
+
 
 # General Functions
 #
@@ -145,34 +165,33 @@ class TagTlvList(list):
         if (len(args) == 0):
             pass
         elif (len(args) == 1):
-            try:
-                if isinstance(args[0], types.StringType):
-                    for t,v in zip(self.zstring,
-                                   normpath(args[0]).split(os.sep)):
-                        if (v == ''):
-                            continue
-                        self.append(TagTlv(t,v))
-                elif isinstance(args[0], bytearray):
-                    self.parse(args[0])
-                elif isinstance(args[0], TagTlvList):
-                    for tlv in args[0]:
-                        self.append(TagTlv(tlv))
-                elif isinstance(args[0][0], types.TupleType):
-                    for t,v in args[0]:
-                        self.append(TagTlv(t,v))
-                elif isinstance(args[0][0], TagTlv):
-                    for tlv in args[0]:
-                        self.append(TagTlv(tlv))
-            except:
+            # zzz print(type(args[0]))
+            if isinstance(args[0], types.StringType):
+                for t,v in zip(self.zstring,
+                               normpath(args[0]).split(os.sep)):
+                    if (v == ''):
+                        continue
+                    self.append(TagTlv(t,v))
+            elif isinstance(args[0], bytearray):
+                self.parse(args[0])
+            elif isinstance(args[0], TagTlvList):
+                for tlv in args[0]:
+                    self.append(TagTlv(tlv))
+            elif isinstance(args[0][0], types.TupleType):
+                for t,v in args[0]:
+                    self.append(TagTlv(t,v))
+            elif isinstance(args[0][0], TagTlv):
+                for tlv in args[0]:
+                    self.append(TagTlv(tlv))
+            else:
                 raise TlvListBadException(args)
         else:
-            try:
-                tl = []
-                for arg in args:
-                    tl.append(TagTlv(arg))
-                super(TagTlvList,self).extend(tl)
-            except:
-                raise TlvListBadException(args)
+            tl = []
+            for arg in args:
+                tl.append(TagTlv(arg))
+            super(TagTlvList,self).extend(tl)
+            #except:
+            #    raise TlvListBadException(args)
 
     #------------ following methods extend base class  ---------------------
 
@@ -288,13 +307,17 @@ class _Tlv(object):
         or as Python object with self.value()
         """
         self.mytuple   = None
-        try:
-            self.mytuple = self._build_tlv(t, v)
-        except:
-            if (isinstance(t, bytearray)):
+
+        if v is None:
+            if isinstance(t, bytearray):
+                # zzz print('tlv.__init__', hexlify(t))
+                # if the value can be built, then good tlv
                 if (self._build_value(t) is not None):
+                    # check tlv len field eq len of value
                     if (len(t[2:]) == t[1]):
                         self.mytuple = copy.copy(t)
+        else:
+            self.mytuple = self._build_tlv(t, v)
         if (self.mytuple is None):
             raise TlvBadException(t, v)
 
@@ -381,10 +404,29 @@ class _Tlv(object):
 
         if (t == tlv_types.GPS):
             if isinstance(v, tuple) or isinstance(v, list):
-                ba = pack('<iii', *v)
+                ba = gps_struct.pack(*v)
                 return self._to_tlv(t, bytearray(ba))
 
-        if (t == tlv_types.TIME):   return self._to_tlv(t, v)
+#  uint16_t	sub_sec;                /* 16 bit jiffies (32KiHz) */
+#  uint8_t	sec;                    /* 0-59 */
+#  uint8_t	min;                    /* 0-59 */
+#  uint8_t	hr;                     /* 0-23 */
+#  uint8_t      dow;                    /* day of week, 0-6, 0 sunday */
+#  uint8_t	day;                    /* 1-31 */
+#  uint8_t	mon;                    /* 1-12 */
+#  uint16_t	yr;
+        if (t == tlv_types.UTC_TIME):
+            if isinstance(v, datetime):
+                print(v)
+                ba = rtctime_struct.pack(v.microsecond / 31,
+                                         v.second,
+                                         v.minute,
+                                         v.hour,
+                                         v.weekday(),
+                                         v.day,
+                                         v.month,
+                                         v.year)
+                return self._to_tlv(t, ba)
 
         if (t == tlv_types.NODE_ID):
             if isinstance(v, types.IntType) or\
@@ -407,7 +449,7 @@ class _Tlv(object):
                isinstance(v, tuple):
                 major, minor, build = v
                 # zzz print(type(major),major,minor,build)
-                ba = pack('HBB', int(build), int(minor), int(major))
+                ba = version_struct.pack(int(build), int(minor), int(major))
                 btlv = self._to_tlv(t, bytearray(ba))
                 # zzz print(btlv)
                 return btlv
@@ -455,19 +497,25 @@ class _Tlv(object):
         t = int_to_tlv_type(ba[0])
         l = ba[1]
         v = ba[2:]
+        # zzz print(t,l,hexlify(v))
         if (len(v) != l):
             raise TlvBadException(t, v)
         if (t == tlv_types.INTEGER):   return int_to_value(v)
         if (t == tlv_types.STRING):    return bytearray(v)
-        if (t == tlv_types.GPS):       return list(unpack('<iii', v))
-        if (t == tlv_types.TIME):      return v
+        if (t == tlv_types.GPS):       return list(gps_struct.unpack(v))
+        if (t == tlv_types.UTC_TIME):
+            jiffy, second, minute, hour, dow, day, month, year = rtctime_struct.unpack(v)
+            dt = datetime.utcnow() # zzz fake date until tag has right content
+            dt = datetime(dt.year, dt.month, dt.day, hour, minute, second, jiffy)
+            # print('tagtlv._build_value',dt)
+            return dt
         if (t == tlv_types.NODE_ID):   return v
         if (t == tlv_types.NODE_NAME): return bytearray(v)
         if (t == tlv_types.OFFSET):    return int_to_value(v)
         if (t == tlv_types.SIZE):      return int_to_value(v)
         if (t == tlv_types.EOF):       return True
         if (t == tlv_types.VERSION):
-            build, minor, major = unpack('HBB', v)
+            build, minor, major = version_struct.unpack(v)
             return (major, minor, build)
         if (t == tlv_types.BLOCK):     return copy.deepcopy(v)
         if (t == tlv_types.RECNUM):    return int_to_value(v)
@@ -672,7 +720,7 @@ class TestTlvMethods(unittest.TestCase):
 #    @unittest.skip("skip datetime")
     def test_tlv_datetime(self):
         tm = datetime.now().strftime("%c")
-        ttime = TagTlv(tlv_types.TIME, tm)
+        ttime = TagTlv(tlv_types.UTC_TIME, tm)
         otime = ttime.build()
         xstr = TagTlv(otime)
         self.assertEqual(xstr.value(), tm)
@@ -808,7 +856,7 @@ class TestTlvListMethods(unittest.TestCase):
                TagTlv(tlv_types.GPS, (-2702906, -4321156, 3821852)),
                ]
         tltlvs = TagTlvList(lst)
-        lst = [TagTlv(tlv_types.TIME, "time"),
+        lst = [TagTlv(tlv_types.UTC_TIME, "time"),
                TagTlv(tlv_types.NODE_NAME, platform.node()),
                ]
         tltlvs = TagTlvList(lst)
