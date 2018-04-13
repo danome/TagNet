@@ -100,7 +100,8 @@ def TagFusePollTree(radio):
 
 def TagFuseSysTree(radio):
     return DirHandler(OrderedDict([
-        ('',        FileHandler(S_IFDIR, 0o751, 7)),
+        ('',        FileHandler(S_IFDIR, 0o751, 8)),
+        ('rtc',     RtcFileHandler(radio, S_IFREG, 0o644, 1)),
         ('active',  SysActiveDirHandler(radio, OrderedDict([
             ('',      FileHandler(S_IFDIR, 0o775, 4)),]))
         ),

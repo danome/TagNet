@@ -9,6 +9,7 @@ __all__ = ['FileHandler',
            'TestZerosHandler',
            'TestSumHandler',
            'ByteIOFileHandler',
+           'RtcFileHandler',
            'SparseIOFileHandler',
            'ImageIOFileHandler',
            'SimpleRecHandler',
@@ -36,6 +37,7 @@ from   time          import time
 from   sets          import Set
 from   fuse          import FuseOSError
 from   binascii      import hexlify
+from   datetime      import datetime
 
 # If we are running from the source directory, try
 # to load the module from there first.
@@ -53,15 +55,15 @@ if (os.path.exists(basedir)
             sys.path.insert(0,ndir)
     # zzz print('\n'.join(sys.path))
 
-from tagfuse.radiofile   import file_get_bytes, file_put_bytes, file_update_attrs, file_poll_tags
+from tagfuse.radiofile   import file_get_bytes, file_put_bytes, file_update_attrs
 from tagfuse.radioimage  import im_put_file, im_get_file, im_delete_file, im_close_file
 from tagfuse.radioimage  import im_get_dir, im_set_version
-from tagfuse.radioutils  import path2list
+from tagfuse.radioutils  import path2list, radio_poll, radio_get_rtctime, radio_set_rtctime
 from tagfuse.tagfuseargs import get_cmd_args
 from tagfuse.sparsefile  import SparseFile
 #from tagfuse.TagFuseTree import TagFuseTagTree
 
-from tagnet              import tlv_errors
+from tagnet              import tlv_errors, TagTlv
 
 base_value = 0
 
@@ -120,6 +122,11 @@ class FileHandler(OrderedDict):
     def unlink(self, path_list):       # delete
         raise FuseOSError(EPERM)
 
+    def utimens(self, path_list, times):
+        atime, mtime = times
+        print('FileHandler.utimens', path_list, atime, mtime)
+        return 0
+
     def write(self, path_list, buf, offset):
         raise FuseOSError(EPERM)
 
@@ -154,6 +161,49 @@ class ByteIOFileHandler(FileHandler):
                         path_list,
                         buf,
                         offset)
+
+
+class RtcFileHandler(ByteIOFileHandler):
+    '''Tagnet Tlv Type Handler class
+
+    Performs conversions from network TLV data types to JSON
+    data representations. The payload of a response message can
+    contain one or more types which will be properly converted
+    to fields in the JSON structure.
+
+    All data for a given File write operation must fit into a
+    single TagNet message to be successful. Each write operation
+    is treated as a separate message.
+    '''
+    def __init__(self, radio, ntype, mode, nlinks):
+        super(RtcFileHandler, self).__init__(radio, ntype, mode, nlinks)
+        self.radio = radio
+
+    def getattr(self, path_list, update=False):
+        if update:
+            epoch = datetime.utcfromtimestamp(0)
+            utctime, _, _, _ = radio_get_rtctime(self.radio,
+                                        node=TagTlv(str(path_list[0])))
+            self['st_atime'] = (utctime - epoch).total_seconds() * 1000.0
+            print('rtchandler.getattr', utctime, epoch)
+        return self
+
+    def write(self, path_list, buf, offset):
+        if offset:
+            raise AttributeError
+        radio_set_rtctime(self.radio,
+                          datetime.utcnow(),
+                          node=TagTlv(str(path_list[0])))
+        return len(buf)
+
+    def utimens(self, path_list, times):
+        atime, mtime = times
+        utctime = datetime.utcfromtimestamp(atime)
+        radio_set_rtctime(self.radio,
+                          utctime,
+                          node=TagTlv(str(path_list[0])))
+        self['st_atime'] = atime
+        self['st_mtime'] = mtime
 
 
 class SparseIOFileHandler(ByteIOFileHandler):
@@ -634,6 +684,12 @@ class DirHandler(OrderedDict):
     def unlink(self, path_list):
         print('DirHandler.unlink', path_list)
         return 0
+
+    def utimens(self, path_list, times):
+        atime, mtime = times
+        print('FileHandler.utimens', path_list, atime, mtime)
+        return 0
+
 
 class PollNetDirHandler(DirHandler):
     '''

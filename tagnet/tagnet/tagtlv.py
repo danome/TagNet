@@ -504,9 +504,11 @@ class _Tlv(object):
         if (t == tlv_types.STRING):    return bytearray(v)
         if (t == tlv_types.GPS):       return list(gps_struct.unpack(v))
         if (t == tlv_types.UTC_TIME):
-            jiffy, second, minute, hour, dow, day, month, year = rtctime_struct.unpack(v)
+            jiffy, second, minute, hour, dow, day, month, year \
+                                               = rtctime_struct.unpack(v)
             dt = datetime.utcnow() # zzz fake date until tag has right content
-            dt = datetime(dt.year, dt.month, dt.day, hour, minute, second, jiffy)
+            #dt = datetime(year, month, day, hour, minute, second,
+            #              int(jiffy * (1000000./32768)))
             # print('tagtlv._build_value',dt)
             return dt
         if (t == tlv_types.NODE_ID):   return v

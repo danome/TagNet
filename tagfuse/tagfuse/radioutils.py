@@ -689,11 +689,11 @@ def radio_set_rtctime(radio, utctime, node=None, name=None):
     if not node:
         node = TagTlv(tlv_types.NODE_ID, -1)
     if not name:
-        get_name = TagName([node,
-                            TagTlv('tag'),
-                            TagTlv('sys'),
-                            TagTlv('rtc'),])
-    req_obj = TagPut(get_name,
+        name = TagName([node,
+                        TagTlv('tag'),
+                        TagTlv('sys'),
+                        TagTlv('rtc'),])
+    req_obj = TagPut(name,
                      pl=TagTlvList([TagTlv(tlv_types.UTC_TIME,
                                            utctime)]))
     req_msg = req_obj.build()

@@ -277,17 +277,11 @@ class TagFuse(LoggingMixIn, Operations):
 
     def utimens(self, path, times=None):
         now = time()
-        atime, mtime = times if times else (now, now)
         handler, path_list = self.LocateNode(path)
-        if isinstance(handler, DirHandler):
-            attrs = handler['']
-        else:
-            attrs = handler
-        try:
-            attrs['st_atime'] = atime
-            attrs['st_mtime'] = mtime
-        except KeyError:
-            pass
+        if (handler):
+            return handler.utimens(path_list,
+                                   times if times else (now, now))
+        return 0
 
     def write(self, path, data, offset, fh):
         handler, path_list = self.LocateNode(path)
