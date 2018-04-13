@@ -42,8 +42,8 @@ print('*** tagfuse path:')
 print('\n'.join(sys.path))
 
 from tagfuse.radioutils  import radio_start, path2list
-from tagfuse.taghandlers import *
-from tagfuse.TagFuseTree import TagFuseRootTree
+#from tagfuse.taghandlers import *
+from tagfuse.TagFuseTree import TagFuseRootTree, TagFuseTagTree
 
 #if not hasattr(__builtins__, 'bytes'):
 #    bytes = str
@@ -190,7 +190,7 @@ class TagFuse(LoggingMixIn, Operations):
     def readdir(self, path, fh):
         handler, path_list = self.LocateNode(path)
         # zzz print('readdir, handler type:{}, len: {}'.format(type(handler), len(handler)))
-        dir_list = handler.readdir(path_list)
+        dir_list = handler.readdir(path_list, TagFuseTagTree)
         if dir_list:
             return dir_list
         else:

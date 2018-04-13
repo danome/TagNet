@@ -7,8 +7,7 @@ from builtins import *                  # python3 types
 
 __all__ = ['file_get_bytes',
            'file_put_bytes',
-           'file_update_attrs',
-           'file_poll_tags']
+           'file_update_attrs',]
 
 import os
 import sys
@@ -164,21 +163,3 @@ def _put_bytes(radio, tname, buf, offset):
 def file_put_bytes(radio, path_list, buf, offset):
     tname = TagName(path2tlvs(path_list))
     return _put_bytes(radio, tname, buf, offset)
-
-def file_poll_tags(radio):
-    node_list = []
-    req_obj = TagPoll() # sends time, slot_time, slot_count, node_id, node_name
-    req_msg = req_obj.build()
-    sstatus = radio_send_msg(radio, req_msg, RADIO_POWER)
-    while (datetime.now() < end_time):
-        rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, .25)
-        if rsp_msg:
-            #        print(hexlify(rsp_msg))
-            rsp_obj = TagMessage(rsp_msg)
-            #        print(rsp_obj.header.options.param.error_code)
-            #        print(rsp_obj.payload)
-            # print(rsp_obj.header, rsp_obj.name)
-            if rsp_obj.payload and rsp_obj.payload[0].type() == tlv_types.NODE_ID:
-                node_list.append(re.match(r'x[0-9a-fA-F]+',
-                                          rsp_obj.payload[0].value()))
-    return node_list
