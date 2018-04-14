@@ -108,7 +108,7 @@ ba=bytearray.fromhex(lata+lona+elva)
 lat, lon, elv = xyz_struct.unpack(ba)
 
 home_geo = float(lat)/10**7, float(lon)/10**7, float(elv)/10**2
-print(lat,lon,elv,(hex(lat),hex(lon),hex(elv)))
+# zzz print(lat,lon,elv,(hex(lat),hex(lon),hex(elv)))
 
 xa = "ffd6c1bf"
 ya = "ffbe1099"
@@ -117,7 +117,7 @@ ba=bytearray.fromhex(xa+ya+za)
 x, y, z = xyz_struct.unpack(ba)
 
 home_xyz = x, y, z
-print(x,y,z,(hex(x),hex(y),hex(z)))
+# zzz print(x,y,z,(hex(x),hex(y),hex(z)))
 
 # Scotts Valley
 # x: -13583956.319900 y: 4445954.972893
@@ -610,19 +610,19 @@ def radio_get_position(radio, node=None, name=None):
                             TagTlv('xyz')])
     xyz_struct = pystruct.Struct('<iii')
     get_gps_xyz = TagGet(get_name)
-#    print(get_gps_xyz.name)
+    #    print(get_gps_xyz.name)
     req_msg = get_gps_xyz.build()
     s_status = radio_send_msg(radio, req_msg, RADIO_POWER);
     rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, MAX_WAIT)
     if(rsp_msg):
-#        print(hexlify(rsp_msg))
+        #        print(hexlify(rsp_msg))
         rsp_obj = TagMessage(rsp_msg)
-#        print(rsp_obj.header.options.param.error_code)
-        print(rsp_obj.payload)
+        #        print(rsp_obj.header.options.param.error_code)
+        # print(rsp_obj.payload)
         if (rsp_obj.payload):
-#            print("{}: {}".format(rsp_obj.header.options.param.error_code, rsp_obj.payload[0]))
+            #            print("{}: {}".format(rsp_obj.header.options.param.error_code, rsp_obj.payload[0]))
             gps_xyz = rsp_obj.payload[0].value()
-#            print("x:{0}, y:{1}, z:{2}".format(*gps_xyz))
+            #            print("x:{0}, y:{1}, z:{2}".format(*gps_xyz))
             lon, lat, elv = transform(ecef, wgs84, *gps_xyz)
             gps_geo = float(lat), float(lon), float(elv)
             # print("lat:{0}, lon:{1}, elv:{2}".format(*gps_geo))
@@ -721,7 +721,7 @@ def radio_get_rtctime(radio, node=None, name=None):
     sstatus = radio_send_msg(radio, req_msg, RADIO_POWER)
     rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, 3)
     if rsp_msg:
-        print(len(rsp_msg), hexlify(rsp_msg))
+        # zzz print(len(rsp_msg), hexlify(rsp_msg))
         rsp_obj = TagMessage(rsp_msg)
         #        print(rsp_obj.header.options.param.error_code)
         #        print(rsp_obj.payload)
