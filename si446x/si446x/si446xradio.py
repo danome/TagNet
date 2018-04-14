@@ -109,7 +109,7 @@ class SpiInterface:
         except IOError as e:
             self.trace.add('RADIO_INIT_ERROR', e, level=2)
 
-    def command(self, msg, form):
+    def command(self, msg, form, level=2):
         """
         Send command message to the device
 
@@ -117,15 +117,15 @@ class SpiInterface:
         """
         _get_cts_wait(100)
         if (not _get_cts()):
-            self.trace.add('RADIO_CTS_ERROR', 'no cts [1]', level=2)
+            self.trace.add('RADIO_CTS_ERROR', 'no cts [1]', level=level)
         try:
             self.form = form
-            self.trace.add('RADIO_CMD', bytearray(msg), s_name=form, level=2)
+            self.trace.add('RADIO_CMD', bytearray(msg), s_name=form, level=level)
             self.spi.xfer2(list(bytearray(msg)))
         except IOError as e:
             self.trace.add('RADIO_CMD_ERROR', e, level=2)
 
-    def response(self, rlen, form):
+    def response(self, rlen, form, level=2):
         """
         Get msg response for previous command
 
@@ -134,12 +134,12 @@ class SpiInterface:
         _get_cts_wait(100)
         rsp = bytearray()
         if (not _get_cts()):
-            self.trace.add('RADIO_RSP_ERROR', 'no cts [2]', level=2)
+            self.trace.add('RADIO_RSP_ERROR', 'no cts [2]', level=level)
         try:
             r = self.spi.xfer2([0x44] + rlen * [0])
             rsp = bytearray(r) if (r[0]) else bytearray(r[1:]) # zzz funky
             form = form if (form) else self.form
-            self.trace.add('RADIO_RSP', rsp, s_name=form, level=2)
+            self.trace.add('RADIO_RSP', rsp, s_name=form, level=level)
         except IOError as e:
             self.trace.add('RADIO_RSP_ERROR', e, level=2)
         return rsp
@@ -235,15 +235,15 @@ class Si446xRadio(object):
 
         Default (nothing in clr_flags) then clear all interrupts by
         sending short command. Otherwise, send the flags to clear.
-        (flag == 0 means clear pending interrupt (yes, 0))
+        (flag == 0 means clear pending interrupt (yes, negative logic))
         """
         request = read_cmd_s.parse('\x00' * read_cmd_s.sizeof())
         request.cmd='GET_INT_STATUS'
         cf = clr_pend_int_s.build(clr_flags) if (clr_flags) else ''
         cmd = read_cmd_s.build(request) + cf
         s_name = get_clear_int_cmd_s.name if (cf) else read_cmd_s.name
-        self.spi.command(cmd, s_name)
-        self.trace.add('RADIO_PEND', cmd, s_name=s_name, level=2)
+        self.spi.command(cmd, s_name, level=3)
+        #self.trace.add('RADIO_PEND', cmd, s_name=s_name, level=2)
     #end def
 
     def config_frr(self,
@@ -424,9 +424,11 @@ class Si446xRadio(object):
         Refer to structures defined by the Si4463 radio API revB1B.
         """
         self.clear_interrupts(clr_flags)
-        rsp = self.spi.response(int_status_rsp_s.sizeof(), int_status_rsp_s.name)
+        rsp = self.spi.response(int_status_rsp_s.sizeof(),
+                                int_status_rsp_s.name,
+                                level=3)
         if (rsp):
-            self.trace.add('RADIO_PEND', rsp, s_name=int_status_rsp_s.name, level=2)
+            #self.trace.add('RADIO_PEND', rsp, s_name=int_status_rsp_s.name, level=2)
             return (int_status_rsp_s.parse(rsp))
         return None
     #end def
