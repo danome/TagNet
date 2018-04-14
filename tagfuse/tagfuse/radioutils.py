@@ -73,8 +73,8 @@ from tagnet import TagMessage, TagName
 from tagnet import TagPoll, TagGet, TagPut, TagDelete, TagHead
 from tagnet import TlvListBadException, TlvBadException
 
-clr_all_flags = clr_pend_int_s.parse('\00' * clr_pend_int_s.sizeof())
-clr_no_flags  = clr_pend_int_s.parse('\ff' * clr_pend_int_s.sizeof())
+clr_all_flags = clr_pend_int_s.parse('\x00' * clr_pend_int_s.sizeof())
+clr_no_flags  = clr_pend_int_s.parse('\xff' * clr_pend_int_s.sizeof())
 
 # default paramters
 MAX_FIFO_SIZE = 64
@@ -359,8 +359,8 @@ def radio_get_raw_config():
 # Get Radio Interrupt Information
 
 def int_status(radio, clr_flags=None, show=False):
-    clr_flags = clr_flags if (clr_flags) \
-                else clr_pend_int_s.parse('\xff' * clr_pend_int_s.sizeof())
+    # set default to clear none if no argument passed
+    clr_flags = clr_flags if (clr_flags) else clr_no_flags
     clr_flags.ph_pend.STATE_CHANGE = False    # always clear this interrupt
     p_g = radio.get_clear_interrupts(clr_flags)
     if (show is True):
@@ -375,7 +375,7 @@ def int_status(radio, clr_flags=None, show=False):
 def show_int_rsp(radio, pend_flags):
     s_name =  'int_status_rsp_s'
     p_s = eval(s_name)
-    clr_flags = clr_pend_int_s.parse('\xff' * clr_pend_int_s.sizeof())
+    clr_flags = clr_no_flags
     clr_flags.ph_pend.STATE_CHANGE = False
     p_g = radio.get_clear_interrupts(clr_flags)
     p_d = p_s.build(p_g)
