@@ -273,19 +273,22 @@ def radio_start():
     '''
     radio=Si446xRadio(0)
     if (radio == None):
-        print('radio_start: could not instantiate radio')
+        raise RuntimeError('radio_start: could not instantiate radio')
     radio.unshutdown()
     radio.power_up()
     # Check for Command Error
     status = radio.get_chip_status()
     if (status.chip_pend.CMD_ERROR):
         print(status)
+        print(radio.spi.trace.display(radio.spi.trace.filter(count=-20)))
+        #raise RuntimeError('radio_start: radio power up command error')
     # Configure Radio
     config = radio_config(radio)
     status = radio.get_chip_status()
     if (status.chip_pend.CMD_ERROR):
         print(status)
-#    radio_show_config(radio, config)
+        # radio_show_config(radio, config)
+        raise RuntimeError('radio_start: radio config command error')
     return radio
 
 # Get Radio Property Group
@@ -308,7 +311,8 @@ def radio_get_property(radio, g_n, start, limit):
             prop_b += bytearray(rsp[:x])
             prop_x += x
         else:
-            return None
+            raise RuntimeError('radio_start: radio config command error')
+            # return None
     return prop_b
 
 
