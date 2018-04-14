@@ -101,7 +101,8 @@ class SpiInterface:
             self.device = device
             self.spi = spidev.SpiDev()
             self.spi.open(0, device)  # port=0, device(CS)=device_num
-            #self.spi.max_speed_hz=600000
+            self.spi.max_speed_hz=4000000
+            print('si446xradio', self.spi.max_speed_hz)
             self.trace.add('RADIO_CHIP',
                            'spi max speed: {}'.format(self.spi.max_speed_hz),
                            level=2)
