@@ -534,20 +534,42 @@ def radio_receive_msg(radio, max_recv, wait):
 
 
 def radio_poll(radio):
-    req_obj = TagPoll() # sends time, slot_time, slot_count, node_id, node_name
-    req_msg = req_obj.build()
-    sstatus = radio_send_msg(radio, req_msg, RADIO_POWER)
-    rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, 3)
-    if rsp_msg:
-        #        print(hexlify(rsp_msg))
-        rsp_obj = TagMessage(rsp_msg)
-        #        print(rsp_obj.header.options.param.error_code)
-        #        print(rsp_obj.payload)
-        # print(rsp_obj.header, rsp_obj.name)
-        if rsp_obj.payload:
-            return rsp_obj.payload, rssi, sstatus, rstatus
-        return none, rssi, sstatus, rstatus
-    return None, None, sstatus, rstatus
+    '''
+    Sends time, slot_time, slot_count, node_id, node_name,
+    then receives none or more responses from any tags within
+    radio 'earshot'. The poll request specifies the number of
+    slots and time length of a slots. Each tag will use a
+    random number to pick a slot (or no slot) and then wait
+    the specified time period to respond with its node_id,
+    software version, and event pending counter. Slot_time
+    is in milliseconds.
+    '''
+    found      = []
+    last_rssi  = 0
+    slots      = 5
+    window     = .1
+    req_obj    = TagPoll(slot_time=window, slot_count=slots)
+    req_msg    = req_obj.build()
+    start      = clock()
+
+    sstatus    = radio_send_msg(radio, req_msg, RADIO_POWER)
+    while (clock() < (start + (slots * window))):
+        rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV,
+                                                   window*3)
+        if rsp_msg:
+            last_rssi = rssi
+            # zzz print(hexlify(rsp_msg))
+            rsp_obj = TagMessage(rsp_msg)
+            # zzz print(rsp_obj.header.options.param.error_code)
+            # zzz print(rsp_obj.payload)
+            # zzz print(rsp_obj.header, rsp_obj.name)
+            if rsp_obj.payload:
+                node = []
+                for i in range(len(rsp_obj.payload)):
+                    node.append(rsp_obj.payload[i].value())
+                found.append(node)
+    # zzz print(found)
+    return found, last_rssi, sstatus, rstatus
 
 
 def radio_get_position(radio, node=None, name=None):
