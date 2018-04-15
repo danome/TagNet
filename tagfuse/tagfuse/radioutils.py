@@ -649,7 +649,7 @@ def radio_get_rssi(radio, node=None, name=None):
     req_obj = TagGet(get_name)
     req_msg = req_obj.build()
     sstatus = radio_send_msg(radio, req_msg, RADIO_POWER)
-    rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, 3)
+    rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, MAX_WAIT)
     if rsp_msg:
         #        print(hexlify(rsp_msg))
         rsp_obj = TagMessage(rsp_msg)
@@ -673,7 +673,7 @@ def radio_get_power(radio, node=None, name=None):
     req_obj = TagGet(get_name)
     req_msg = req_obj.build()
     sstatus = radio_send_msg(radio, req_msg, RADIO_POWER)
-    rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, 3)
+    rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, MAX_WAIT)
     if rsp_msg:
         #        print(hexlify(rsp_msg))
         rsp_obj = TagMessage(rsp_msg)
@@ -699,7 +699,8 @@ def radio_set_power(radio, power, node=None, name=None):
                                            power)]))
     req_msg = req_obj.build()
     sstatus = radio_send_msg(radio, req_msg, RADIO_POWER)
-    rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, 3)
+    rsp_msg, rssi, rstatus = radio_receive_msg(radio,
+                                               MAX_RECV, MAX_WAIT)
     if rsp_msg:
         #        print(hexlify(rsp_msg))
         rsp_obj = TagMessage(rsp_msg)
@@ -723,7 +724,8 @@ def radio_get_rtctime(radio, node=None, name=None):
     req_obj = TagGet(get_name)
     req_msg = req_obj.build()
     sstatus = radio_send_msg(radio, req_msg, RADIO_POWER)
-    rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, 3)
+    rsp_msg, rssi, rstatus = radio_receive_msg(radio,
+                                               MAX_RECV, MAX_WAIT)
     if rsp_msg:
         # zzz print(len(rsp_msg), hexlify(rsp_msg))
         rsp_obj = TagMessage(rsp_msg)
@@ -749,7 +751,7 @@ def radio_set_rtctime(radio, utctime, node=None, name=None):
                                            utctime)]))
     req_msg = req_obj.build()
     sstatus = radio_send_msg(radio, req_msg, RADIO_POWER)
-    rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, 3)
+    rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, MAX_WAIT)
     if rsp_msg:
         #        print(hexlify(rsp_msg))
         rsp_obj = TagMessage(rsp_msg)
@@ -818,7 +820,7 @@ def radio_write_test(radio, test_name, buf, node=None, name=None):
     req_obj = TagPut(get_name, pl=buf)
     req_msg = req_obj.build()
     sstatus = radio_send_msg(radio, req_msg, RADIO_POWER)
-    rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, 3)
+    rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, MAX_WAIT)
     if rsp_msg:
         #        print(hexlify(rsp_msg))
         rsp_obj = TagMessage(rsp_msg)
