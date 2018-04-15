@@ -184,8 +184,11 @@ class RtcFileHandler(ByteIOFileHandler):
             epoch = datetime.utcfromtimestamp(0)
             utctime, _, _, _ = radio_get_rtctime(self.radio,
                                         node=TagTlv(str(path_list[0])))
-            self['st_atime'] = (utctime - epoch).total_seconds() * 1000.0
-            print('rtchandler.getattr', utctime, epoch)
+            try:
+                self['st_atime'] = (utctime - epoch).total_seconds()
+            except TypeError:
+                self['st_atime'] = 0
+            print('*** rtchandler.getattr', utctime, self['st_atime'])
         return self
 
     def write(self, path_list, buf, offset):
