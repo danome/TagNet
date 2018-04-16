@@ -79,9 +79,12 @@ def default_file_attrs(ntype, mode, nlinks, size):
                     st_gid=os.getgid(),
                     st_blksize=512,
                     st_size=size,
-                    st_ctime=time(),
-                    st_mtime=time(),
-                    st_atime=time())
+#                    st_ctime=time(),
+#                    st_mtime=time(),
+#                    st_atime=time())
+                    st_ctime=-1,
+                    st_mtime=-1,
+                    st_atime=-1)
 
 
 class FileHandler(OrderedDict):
