@@ -166,7 +166,7 @@ class ByteIOFileHandler(FileHandler):
                         offset)
 
 
-class RtcFileHandler(ByteIOFileHandler):
+class RtcFileHandler(FileHandler):
     '''Tagnet Tlv Type Handler class
 
     Performs conversions from network TLV data types to JSON
