@@ -38,7 +38,7 @@ if (os.path.exists(basedir)
         if (ndir not in sys.path):
             sys.path.insert(0,ndir)
     # zzz
-print('*** tagfuse path:')
+print('** tagfuse path:')
 print('\n'.join(sys.path))
 
 from tagfuse.radioutils  import radio_start, path2list
@@ -69,10 +69,10 @@ class TagFuse(LoggingMixIn, Operations):
         # zzz print(self.tag_tree)
 
         #uid, gid, pid = fuse_get_context()
-        print('tagfuse context', fuse_get_context())
-        print(os.getuid(), os.geteuid())
-        print(os.getgid(), os.getegid())
+        # zzz print('tagfuse context', fuse_get_context())
 
+        # zzz print(os.getuid(), os.geteuid())
+        # zzz print(os.getgid(), os.getegid())
         self.uid = os.getuid()
         self.gid = os.getgid()
 
@@ -84,7 +84,7 @@ class TagFuse(LoggingMixIn, Operations):
     def LocateNode(self, path):
         path_list = path2list(path)
         if (path == '/'):
-            print('*** located root')
+            # zzz print('** located root')
             return self.tag_tree, path_list
         return self.tag_tree.traverse(path_list, 0)
 
@@ -101,18 +101,18 @@ class TagFuse(LoggingMixIn, Operations):
     def create(self, path, mode, fh):
         base, name = os.path.split(path)
         dirhandler, path_list = self.LocateNode(base)
-        print('fuse create', base, name, dirhandler)
+        print('** fuse create', base, name, dirhandler)
         # try:
         if (dirhandler):
             path_list.append(name)
             return dirhandler.create(path_list, mode)
 
     def destroy(self, path):
-        print('tagfuse destroy')
+        print('** tagfuse destroy')
         return None
 
     def fsync(self, path, datasync, fip):
-        print(path, datasync, fip)
+        print('** fsync', path, datasync, fip)
         raise FuseOSError(ENOENT)
         # zzz use this to trigger tag to search for sync record
         return 0
@@ -124,9 +124,9 @@ class TagFuse(LoggingMixIn, Operations):
         raise FuseOSError(ENOENT)
 
     def getattr(self, path, fh=None):
-        print('*** getattr: path {}'.format(path))
+        print('** getattr: path {}'.format(path))
         handler, path_list = self.LocateNode(path)
-        print('*** getattr: pathlist: {}'.format(path_list))
+        print('** getattr: pathlist: {}'.format(path_list))
         try:
             return handler.getattr(path_list, update=True)
         except AttributeError:
@@ -146,23 +146,23 @@ class TagFuse(LoggingMixIn, Operations):
         return None
 
     def link(self, link, target):
-        print('*** tagfuse.link', link, target)
+        print('** tagfuse.link', link, target)
         # make sure target exists
         target_handler, target_list = self.LocateNode(target)
         if (not target_handler):
-            print('*** tagfuse.link target doesnt exist')
+            print('** tagfuse.link target doesnt exist')
             raise FuseOSError(ENOENT)
         link_base, link_name = os.path.split(link)
         # make sure version matches
         target_base, target_name = os.path.split(target)
         if (link_name != target_name):
-            print('*** tagfuse.link names dont match')
+            print('** tagfuse.link names dont match')
             raise FuseOSError(EPERM)
         # link directory handler creates context for linked file
         link_handler, link_list = self.LocateNode(link_base)
         if (link_handler):
             return link_handler.link(link_list, target_list)
-        print('*** tagfuse.link link doesnt exist')
+        print('** tagfuse.link link doesnt exist')
         raise FuseOSError(ENOENT)
 
     def listxattr(self, path):
@@ -200,7 +200,7 @@ class TagFuse(LoggingMixIn, Operations):
         raise FuseOSError(ENOENT)
 
     def release(self, path, fh):
-        print('tag release')
+        print('** tag release')
         handler, path_list = self.LocateNode(path)
         base, name  = os.path.split(path)
         ret_val     = handler.release(path_list)
@@ -308,4 +308,4 @@ if __name__ == '__main__':
     import tagfuseargs
     TagStorage(tagfuseargs.process_cmd_args(argv))
 
-print('*** tagfuse.py','ending')
+print('** tagfuse.py','ending')

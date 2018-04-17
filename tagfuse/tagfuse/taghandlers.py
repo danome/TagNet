@@ -203,13 +203,19 @@ class RtcFileHandler(ByteIOFileHandler):
         return len(buf)
 
     def utimens(self, path_list, times):
+        '''
+        set tag rtctime to mtime (modified time) and
+        update the local atime and mtime attributes.
+        '''
         atime, mtime = times
+        print('*** rtchandler.utimens', atime, mtime)
         utctime = datetime.utcfromtimestamp(mtime)
         radio_set_rtctime(self.radio,
                           utctime,
                           node=TagTlv(str(path_list[0])))
         self['st_atime'] = atime
         self['st_mtime'] = mtime
+        print('*** rtchandler.utimens', utctime)
 
 
 class SparseIOFileHandler(ByteIOFileHandler):
@@ -323,17 +329,17 @@ class SparseIOFileHandler(ByteIOFileHandler):
         raise FuseOSError(ENODATA)
 
     def unlink(self, *args, **kwargs):       # delete
-        print('sparse IO unlink', self.sparse)
+        print('*** sparse IO unlink', self.sparse)
         self._delete_sparse()
         return 0
 
     def write(self, path_list, buf, offset):
-        print('sparse IO write', offset, len(buf))
+        print('*** sparse IO write', offset, len(buf))
         self._open_sparse(path_list)
         sz = self._add_sparse(offset, buf)
         if (offset + sz) > self['st_size']:
             self['st_size'] = offset + sz
-        print('sparse IO size',sz)
+        print('*** sparse IO size',sz)
         return sz
 
 
@@ -370,7 +376,7 @@ class ImageIOFileHandler(ByteIOFileHandler):
 
     def release(self, path_list): # close
         # zzz
-        print('image io release')
+        print('*** image io release')
         return 0
         raise FuseOSError(ENOENT)
 
@@ -386,12 +392,12 @@ class ImageIOFileHandler(ByteIOFileHandler):
 
     def write(self, path_list, buf, offset):
         # zzz
-        print('image io write, size: {}, offset: {}'.format(len(buf), offset))
+        print('*** image io write, size: {}, offset: {}'.format(len(buf), offset))
         error, new_offset = im_put_file(self.radio,
                            path_list,
                            buf,
                            offset)
-        print('image io write', error, new_offset)
+        print('*** image io write', error, new_offset)
         if (error) and (error is not tlv_errors.SUCCESS):
             raise FuseOSError(ENOENT)
         if (new_offset):
@@ -428,7 +434,7 @@ class SimpleRecHandler(FileHandler):
     def getattr(self, path_list, update=False):
         if (update):
             attrs = file_update_attrs(self.radio, path_list, self)
-            # zzz print('dblk note attrs',attrs)
+            # zzz print('SRH.getattr',attrs)
             if (attrs):
                 self = attrs
         return self
@@ -436,7 +442,7 @@ class SimpleRecHandler(FileHandler):
     def write(self, path_list, buf, offset):
         last_seq = self['st_size']
         # zzz
-        print('SRH:  size: {}, offset: {}, last: {}'.format(
+        print('*** SRH:  size: {}, offset: {}, last: {}'.format(
                 len(buf), offset, last_seq))
         if (offset and offset != last_seq) or (len(buf) > 200):
             raise FuseOSError(EINVAL)
@@ -669,7 +675,7 @@ class DirHandler(OrderedDict):
         raise FuseOSError(EINVAL)
 
     def getattr(self, path_list, update=False):
-        print('*** getattr', path_list)
+        print('*** dirhandler.getattr', path_list)
         return self['']
 
     def readdir(self, path_list, tag_root):
@@ -684,16 +690,16 @@ class DirHandler(OrderedDict):
         return dir_names
 
     def link(self, link_name, target):
-        print('DirHandler.link', link_name, target)
+        print('*** DirHandler.link', link_name, target)
         return 0
 
     def unlink(self, path_list):
-        print('DirHandler.unlink', path_list)
+        print('*** DirHandler.unlink', path_list)
         return 0
 
     def utimens(self, path_list, times):
         atime, mtime = times
-        print('FileHandler.utimens', path_list, atime, mtime)
+        print('*** FileHandler.utimens', path_list, atime, mtime)
         return 0
 
 
@@ -744,7 +750,7 @@ class PollNetDirHandler(DirHandler):
         tag_names = []
         tag_list, _, _, _ = radio_poll(self.radio)
         for tag_info in tag_list:
-            print('poll handler', tag_info)
+            print('*** NetDirHandler.readdir', tag_info)
             tag = hexlify(tag_info[0])
             if tag:
                 tag_names.append(tag)
@@ -756,7 +762,7 @@ class PollNetDirHandler(DirHandler):
             my_names.append(tag)
         my_set = Set(my_names)
         diff_set = tag_set.difference(my_set)
-        print('poll handler', tag_set, my_set, diff_set)
+        print('*** NetDirHandler.readdir', tag_set, my_set, diff_set)
         for tag in diff_set: # add new found tags
             # instantiate using default tag file tree
             self[tag] = tag_root(self.radio)
@@ -764,7 +770,7 @@ class PollNetDirHandler(DirHandler):
         dir = super(PollNetDirHandler, self).readdir(path_list,
                                                      tag_root)
         # zzz dir = ['.','..','.test']
-        print('pollnet.readdir',dir)
+        print('*** NetDirHandler.readdir',dir)
         return dir
 
 
@@ -786,18 +792,18 @@ class ImageDirHandler(DirHandler):
             # make set of versions found on tag
             tag_versions = []
             for version, state in tag_dir:
-                print('img readdir version/state',version,str(state))
+                print('*** ImageDirHandler version/state',version,str(state))
                 if (str(state) != 'x'):
                     tag_versions.append('.'.join(map(str, version)))
             tag_set = Set(tag_versions)
-            print('tag_set',tag_set)
+            print('*** tag_set',tag_set)
             # make set of version founds on self
             my_versions = []
             for version in self.keys():
                 if version is not '':
                     my_versions.append(version)
             my_set = Set(my_versions)
-            print('my_set',my_set)
+            print('*** my_set',my_set)
 
             # add versions on tag but not on self
             for version in tag_set.difference(my_set):
@@ -818,7 +824,7 @@ class ImageDirHandler(DirHandler):
 
     def create(self, path_list, mode):
         file_name = path_list[-1]
-        print('image create',path_list[:-1], oct(mode), file_name)
+        print('*** imagedir.create',path_list[:-1], oct(mode), file_name)
         try:
             x = self[file_name]
             raise FuseOSError(EEXIST)
@@ -830,13 +836,13 @@ class ImageDirHandler(DirHandler):
         return 0
 
     def unlink(self, path_list):  # delete
-        print('image dir delete (unlink)', path_list)
+        print('*** imagedir.delete (unlink)', path_list)
         del self[path_list[-1]]   # last element is version
         return 0
 
     def release(self, path_list): # close
         # zzz
-        print('image dir close (release)', path_list)
+        print('*** imagedir.release (close)', path_list)
         return 0
 
 
@@ -851,7 +857,7 @@ class SysDirHandler(DirHandler):
         self.radio = radio
 
     def readdir(self, path_list, tag_root, img_state=''):
-        # zzz print('image readdir', path_list)
+        # zzz print('*** SysDir.readdir', path_list)
         tag_dir = im_get_dir(self.radio, path_list)
         if (tag_dir):
             # make set of versions found on tag
@@ -860,14 +866,14 @@ class SysDirHandler(DirHandler):
                 if (img_state == '') or (img_state == state):
                     tag_versions.append('.'.join(map(str, version)))
             tag_set = Set(tag_versions)
-            print('tag_set',tag_set)
+            print('*** tag_set',tag_set)
             # make set of version founds on self
             my_versions = []
             for version in self.keys():
                 if version is not '':
                     my_versions.append(version)
             my_set = Set(my_versions)
-            print('my_set',my_set)
+            print('*** my_set',my_set)
 
             # add versions on tag but not on self
             for version in tag_set.difference(my_set):
@@ -917,11 +923,11 @@ class SysActiveDirHandler(SysDirHandler):
     def readdir(self, path_list, tag_root):
         dir = super(SysActiveDirHandler, self).readdir(
             path_list, tag_root, img_state='active')
-        print('SysActive.readdir',dir)
+        print('*** SysActive.readdir',dir)
         return dir
 
     def unlink(self, path_list):
-        print('SysActive.unlink', path_list)
+        print('*** SysActive.unlink', path_list)
         return 0
 
 
@@ -959,11 +965,11 @@ class SysBackupDirHandler(SysDirHandler):
     def readdir(self, path_list, tag_root):
         dir = super(SysBackupDirHandler, self).readdir(
                        path_list, tag_root, img_state='backup')
-        print('SysBackup.readdir',dir)
+        print('*** SysBackup.readdir',dir)
         return dir
 
     def unlink(self, path_list):
-        print('SysBackup.unlink', path_list)
+        print('*** SysBackup.unlink', path_list)
         return 0
 
 
