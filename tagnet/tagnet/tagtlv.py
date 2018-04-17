@@ -417,7 +417,6 @@ class _Tlv(object):
 #  uint16_t	yr;
         if (t == tlv_types.UTC_TIME):
             if isinstance(v, datetime):
-                print(v)
                 ba = rtctime_struct.pack(v.microsecond / 31,
                                          v.second,
                                          v.minute,
@@ -506,10 +505,15 @@ class _Tlv(object):
         if (t == tlv_types.UTC_TIME):
             jiffy, second, minute, hour, dow, day, month, year \
                                                = rtctime_struct.unpack(v)
-            dt = datetime.utcnow() # zzz fake date until tag has right content
-            #dt = datetime(year, month, day, hour, minute, second,
-            #              int(jiffy * (1000000./32768)))
-            # print('tagtlv._build_value',dt)
+            # dt = datetime.utcnow() # zzz fake date until tag has right content
+            try:
+                dt = datetime(year, month, day, hour, minute, second,
+                              int(jiffy * (1000000./32768)))
+            except TypeError:
+                print('*** tagtlv.build.rtctime',
+                      year, month, day, hour, minute, second, jiffy)
+                raise TlvBadException(t, v)
+            # zzz print('*** tagtlv._build_value',dt)
             return dt
         if (t == tlv_types.NODE_ID):   return v
         if (t == tlv_types.NODE_NAME): return bytearray(v)
