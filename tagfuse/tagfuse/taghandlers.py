@@ -79,10 +79,7 @@ def default_file_attrs(ntype, mode, nlinks, size):
                     st_gid=os.getgid(),
                     st_blksize=512,
                     st_size=size,
-#                    st_ctime=time(),
-#                    st_mtime=time(),
-#                    st_atime=time())
-                    st_ctime=-1,
+                    st_ctime=time(),
                     st_mtime=-1,
                     st_atime=-1)
 
@@ -105,6 +102,7 @@ class FileHandler(OrderedDict):
         return 1
 
     def getattr(self, path_list, update=False):
+        self['st_atime'] = time()  # set access time
         return self
 
     def flush(self, path_list):
@@ -144,6 +142,12 @@ class ByteIOFileHandler(FileHandler):
         super(ByteIOFileHandler, self).__init__(ntype, mode, nlinks)
         self.radio = radio
 
+    def getattr(self, path_list, update=False):
+        if (update):
+            file_update_attrs(self.radio, path_list, self)
+        return super(ByteIOFileHandler, self).getattr(path_list, update=update)
+
+
     def read(self, path_list, size, offset):
         # zzz print('byte io read, size: {}, offset: {}'.format(size, offset))
         buf, eof = file_get_bytes(self.radio,
@@ -152,11 +156,6 @@ class ByteIOFileHandler(FileHandler):
                                   offset)
         # zzz print('read',len(buf),eof)
         return buf
-
-    def getattr(self, path_list, update=False):
-        if (update):
-            self = file_update_attrs(self.radio, path_list, self)
-        return self
 
     def write(self, path_list, buf, offset):
         # zzz print('byte io write, size: {}, offset: {}'.format(len(buf), offset))
@@ -179,7 +178,7 @@ class RtcFileHandler(FileHandler):
     is treated as a separate message.
     '''
     def __init__(self, radio, ntype, mode, nlinks):
-        super(RtcFileHandler, self).__init__(radio, ntype, mode, nlinks)
+        super(RtcFileHandler, self).__init__(ntype, mode, nlinks)
         self.radio = radio
 
     def getattr(self, path_list, update=False):
@@ -192,7 +191,7 @@ class RtcFileHandler(FileHandler):
             except TypeError:
                 self['st_mtime'] = -2
             print('*** rtchandler.getattr', utctime, self['st_mtime'])
-        return self
+        return super(RtcFileHandler, self).getattr(path_list, update=update)
 
     def write(self, path_list, buf, offset):
         if offset:
@@ -276,11 +275,10 @@ class SparseIOFileHandler(ByteIOFileHandler):
         super(SparseIOFileHandler, self).flush(*args, **kwargs)
         return 0
 
-    def getattr(self, *args, **kwargs):
+    def getattr(self, path_list, update=False):
         # zzz print('*** sparse IO getattr', args[0])
-        self._open_sparse(args[0])
-        super(SparseIOFileHandler, self).getattr(*args, **kwargs)
-        return self
+        self._open_sparse(path_list)
+        return super(SparseIOFileHandler, self).getattr(path_list, update=update)
 
     def read(self, path_list, size, offset):
         # zzz print('*** sparse IO read, offset: {}, size: {}, eof: {}'.format(
@@ -360,9 +358,6 @@ class ImageIOFileHandler(ByteIOFileHandler):
             return 0
         raise FuseOSError(ENOENT)
 
-    def getattr(self, path_list, update=False):
-        return self
-
     def read(self, path_list, size, offset):
         # zzz print('image io read, size: {}, offset: {}'.format(size, offset))
         error, buf, offset = im_get_file(self.radio,
@@ -433,11 +428,9 @@ class SimpleRecHandler(FileHandler):
 
     def getattr(self, path_list, update=False):
         if (update):
-            attrs = file_update_attrs(self.radio, path_list, self)
+            file_update_attrs(self.radio, path_list, self)
             # zzz print('SRH.getattr',attrs)
-            if (attrs):
-                self = attrs
-        return self
+        return super(SimpleRecHandler, self).getattr(path_list, update=update)
 
     def write(self, path_list, buf, offset):
         last_seq = self['st_size']
@@ -554,12 +547,9 @@ class TestEchoHandler(TestBaseHandler):
         self._close_sparse()
         return 0
 
-    def getattr(self, *args, **kwargs):
-        print(args)
-        print(kwargs)
-        self._open_sparse(args[0])
-        super(TestEchoHandler, self).getattr(*args, **kwargs)
-        return self
+    def getattr(self, path_list, update=False):
+        self._open_sparse(path_list)
+        return super(TestEchoHandler, self).getattr(path_list, update=update)
 
     def read(self, path_list, size, offset):
         print('testecho read', offset, size, path_list)
@@ -617,7 +607,7 @@ class TestSumHandler(TestBaseHandler):
 
     def getattr(self, path_list, update=False):
         self['st_size'] = self.sum
-        return self
+        return super(TestSumHandler, self).getattr(path_list, update=update)
 
     def read(self, path_list, size, offset):
         buf = 'S' * size
