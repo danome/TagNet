@@ -8,5 +8,6 @@ clean:
 # depend:
 #	makedepend -o.so si446xcfg.c
 
-si446xcfg.so: Si446xConfigDevice.h si446x.h Si446xRadio.h Si446xWDS_4463_434_10kb.h RadioConfig.h
+#si446xcfg.so: Si446xConfigDevice.h si446x.h Si446xRadio.h Si446xWDS_4463_434_10kb.h RadioConfig.h
+si446xcfg.so: Si446xConfigDevice.h si446x.h Si446xRadio.h RadioConfig.h
 si446xcfg.so: Si446xConfigPlatform.h Si446xConfigWDS.h

@@ -657,7 +657,8 @@ class Si446xRadio(object):
         request.cmd = 'START_RX'
         request.channel = self.channel if (channel == 255) else channel
         request.condition.start = 'IMMEDIATE'
-        request.next_state1 = 'NOCHANGE'  # rx timeout
+        # zzz request.next_state1 = 'NOCHANGE'  # rx timeout
+        request.next_state1 = 'IDLE'      # rx timeout, preamble sense
         request.next_state2 = 'READY'     # rx complete
         request.next_state3 = 'READY'     # rx invalid (bad CRC)
         request.rx_len= len

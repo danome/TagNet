@@ -1,7 +1,27 @@
-This module converts the Si446x configuration definitions from c-files to python code.
-This ensures the MSP430 and RPi platforms operate in an indentical radio configurations.
-Specific files from the si446x Tinyos project are copied to this directory and committed
-to control known working versions.
+This module converts the Si446x configuration definitions from c-files
+to python code. The source code is a copy of various radio configuration
+files in the mammark repository. By using the same configuration source
+files, we ensure that the MSP432 and RPi platforms operate with identical
+radio configurations. Specific files from the si446x Tinyos project are
+copied to this directory and committed to the TagNet repository to
+control known working versions.
+
+The Si446x configuration is is based on several sources being combined
+by sequentially loading the configuration pstring (pascal-like strings)
+lists from each of the parts of the system that having something to
+contribute. The configuration start with files produced by the Silicon
+Labs WDS tool. It produces one or two files (depending on if a patch
+is included) that are sourced to create the list of pstrings that
+contain the specific configuration produced by the WDS program and saved
+in this file (WITHOUT CHANGE). Once this list of pstrings have been
+loaded into the radio chip, the list of configuration pstrings that
+are required by the driver to operate properly (e.g., things like
+transmit and receive control). This is followed by the list of
+configuration pstrings from ...
+
+
+
+
 
 ## Required Files
 
