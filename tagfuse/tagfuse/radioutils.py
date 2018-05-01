@@ -734,7 +734,11 @@ def radio_get_rtctime(radio, node=None, name=None):
         #print(rsp_obj.header, rsp_obj.name)
         #if rsp_obj.payload:
         #    print(rsp_obj.payload)
-        return rsp_obj.payload[0].value(), rssi, sstatus, rstatus
+        if rsp_obj and rsp_obj.payload:
+            tagtime = rsp_obj.payload[0].value()
+        else:
+            tagtime = None
+        return  tagtime, rssi, sstatus, rstatus
     return None, None, sstatus, rstatus
 
 
