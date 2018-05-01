@@ -483,6 +483,7 @@ def radio_receive_msg(radio, max_recv, wait):
     end = start + 1
     show = False
     progress = [start]
+    crc_err = False
 
     msg = bytearray()
     rssi = -1
@@ -555,7 +556,7 @@ def radio_receive_msg(radio, max_recv, wait):
         progress.extend(['e', pkt_len + 1,',',len(msg),'e'])
     progress.append(clock())
 
-    return (msg, rssi, progress)
+    return (None if crc_err else msg, rssi, progress)
 
 
 def radio_poll(radio):
