@@ -119,18 +119,18 @@ def file_update_attrs(radio, path_list, attrs):
     # zzz print('file attr', req_msg.name)
     err, payload = msg_exchange(radio, req_msg)
     if (err == tlv_errors.SUCCESS):
-        this_time = time()
         # zzz print('file attr rsp', payload)
         offset, filesize = payload2values(payload,
                                           [tlv_types.OFFSET,
                                            tlv_types.SIZE,
                                            # zzz tlv_types.UTC_TIME,
                                           ])
+        this_time = time() # zzz need to set from response value
         if (filesize == None): filesize = 0
         if (offset == None): offset = 0
     else:
-        print('file_attr error in response: {}'.format(err))
-        this_time = time()
+        print('*** file_attr error in response: {}'.format(err))
+        this_time = -1
         filesize = 0
     attrs['st_size']  = filesize
     attrs['st_mtime'] = this_time
