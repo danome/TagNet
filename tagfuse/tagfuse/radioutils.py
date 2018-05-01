@@ -230,25 +230,35 @@ def radio_config(radio):
     additional configuration.
     '''
     radio.config_frr()
+    powered = False
     config_strings = []
     list_of_lists = radio.get_config_lists()
-    for l in list_of_lists:
+    for alst in list_of_lists:
         x = 0
         while (True):
-            s = l(x)
+            s = alst(x)
             x += len(s) + 1
             if (not s): break
-            if s[0] == radio_config_cmd_ids.build('POWER_UP'): continue
+            # the FRR control register config is done later by
+            # local device config pstrings
             if s[0] == radio_config_cmd_ids.build('SET_PROPERTY'):
                 if s[1] == radio_config_group_ids.build('FRR_CTL'):
                     continue
+            # keep track of what has been written and send it to chip
             config_strings.append(s)
             radio.send_config(s)
-            status = radio.get_chip_status()
-            if (status.chip_pend.CMD_ERROR):
-                print(status)
-                print(insert_space(s))
-                radio.clear_interrupts()
+            # once the radio is powered up we can check for command
+            # errors. this doesn't seem to work prior to the power-up
+            # with the patch commands.
+            if s[0] == radio_config_cmd_ids.build('POWER_UP'):
+                powered = True
+            if powered:
+                status = radio.get_chip_status()
+                if (status.chip_pend.CMD_ERROR):
+                    print(status)
+                    print(insert_space(s))
+                    radio.clear_interrupts()
+                    return None
     # these settings should be included in the compiled config strings
     radio.set_property('PKT', 0x0b, '\x10\x10') # tx/rx threshold
     return config_strings
@@ -275,21 +285,10 @@ def radio_start():
     if (radio == None):
         raise RuntimeError('radio_start: could not instantiate radio')
     radio.unshutdown()
-    radio.power_up()
-    # Check for Command Error
-    status = radio.get_chip_status()
-    if (status.chip_pend.CMD_ERROR):
-        print(status)
-        print(radio.spi.trace.display(radio.spi.trace.filter(count=-20)))
-        #raise RuntimeError('radio_start: radio power up command error')
-    # Configure Radio
-    config = radio_config(radio)
-    status = radio.get_chip_status()
-    if (status.chip_pend.CMD_ERROR):
-        print(status)
-        # radio_show_config(radio, config)
-        raise RuntimeError('radio_start: radio config command error')
-    return radio
+    if radio_config(radio):
+        return radio
+    print(status)
+    raise RuntimeError('radio_start: radio config command error')
 
 # Get Radio Property Group
 
