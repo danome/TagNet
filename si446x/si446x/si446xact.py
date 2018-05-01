@@ -1,8 +1,6 @@
 from __future__ import print_function   # python3 print function
 from builtins import *
 
-import spidev
-
 from twisted.internet.error import AlreadyCalled, AlreadyCancelled
 from twisted.python           import log
 
