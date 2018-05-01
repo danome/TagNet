@@ -1,9 +1,21 @@
-#define norace
 #include <stdint.h>
+
+// don't need this attribute for the RPi C compiler
+#define norace
+
+// need this name to allow differences between RPi and Tag code
 #define RPI_BUILD
+
 #include "RadioConfig.h"
 
 #include <Python.h>
+
+static PyObject *get_name_wds(PyObject *self, PyObject *args)
+{
+  const uint8_t  s[] = WDS_FILENAME;
+
+  return Py_BuildValue("s", s);
+};
 
 static PyObject *get_config_wds(PyObject *self, PyObject *args)
 {
@@ -38,6 +50,8 @@ static PyObject *get_config_device(PyObject *self, PyObject *args)
 };
 
 static PyMethodDef Si446xCfgMethods[] = {
+  {"get_name_wds", get_name_wds, METH_VARARGS,
+   "get name of WDS source file"},
   {"get_config_wds", get_config_wds, METH_VARARGS,
    "get next string from WDS config string array at index offset"},
   {"get_config_device", get_config_device, METH_VARARGS,
