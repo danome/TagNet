@@ -429,16 +429,11 @@ def radio_send_msg(radio, msg, pwr):
     radio.start_tx(len(msg))
 
     cflags = clr_no_flags
-    while (clock() < (start + 1)):
+    while (time() < end):
         status = int_status(radio, cflags)
-        progress.append(clock())
+        progress.append(time())
         cflags = clr_no_flags
         no_action = True
-        if (status.ph_pend.CRC_ERROR):
-            cflags.ph_pend.CRC_ERROR = False
-            no_action = False
-            progress.extend(['C'])
-            radio.fifo_info(rx_flush=True, tx_flush=True)
         if (status.chip_pend.CMD_ERROR):
             cflags.chip_pend.CMD_ERROR = False
             no_action = False
@@ -504,6 +499,8 @@ def radio_receive_msg(radio, max_recv, wait):
             no_action = False
             progress.extend(['C'])
             radio.fifo_info(rx_flush=True, tx_flush=True)
+            print('*** recv msg CRC error')
+            crc_err = True
         if (status.chip_pend.CMD_ERROR):
             cflags.chip_pend.CMD_ERROR = False
             no_action = False
