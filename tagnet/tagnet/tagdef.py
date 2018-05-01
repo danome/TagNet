@@ -2,7 +2,7 @@ from construct import *
 import enum
 
 TAGNET_VERSION = 1
-DEFAULT_HOPCOUNT = 20
+DEFAULT_HOPCOUNT = 5
 MAX_HOPCOUNT = 31
 
 tagnet_message_header_s = Struct('tagnet_message_header_s',
