@@ -9,6 +9,7 @@ from binascii import hexlify
 import copy
 
 from tagdef import *
+import construct
 
 from tagnames import TagName
 
@@ -90,8 +91,8 @@ class TagMessage(object):
                 raise TypeError('bad input type: {}, value:'.format(type(args[0]), hexlify(args[0])))
         else:
             raise ValueError('too few/many arguments')
-        self.header.frame_length = tagnet_message_header_s.sizeof() - 1
         if (self.name):
+            self.header.frame_length = tagnet_message_header_s.sizeof() - 1
             self.header.name_length = self.name.pkt_len()
             self.header.frame_length += self.header.name_length
             self.header.options.version = TAGNET_VERSION
@@ -171,14 +172,19 @@ class TagMessage(object):
         deconstruct a wire formated byte string into the message class
         """
         hdr_size = tagnet_message_header_s.sizeof()
-        self.header = tagnet_message_header_s.parse(v[0:hdr_size])
-        self.name = TagName(v[hdr_size:self.header.name_length+hdr_size])
-        if len(v) > (hdr_size + self.header.name_length):
-            if (self.header.options.tlv_payload == 'TLV_LIST'):
-                self.payload = TagTlvList(v[self.header.name_length+hdr_size:])
+        try:
+            self.header = tagnet_message_header_s.parse(v[0:hdr_size])
+            self.name = TagName(v[hdr_size:self.header.name_length+hdr_size])
+            if len(v) > (hdr_size + self.header.name_length):
+                if (self.header.options.tlv_payload == 'TLV_LIST'):
+                    self.payload = TagTlvList(v[self.header.name_length+hdr_size:])
+                else:
+                    self.payload = bytearray(v[self.header.name_length+hdr_size:])
             else:
-                self.payload = bytearray(v[self.header.name_length+hdr_size:])
-        else:
+                self.payload = None
+        except construct.adapters.MappingError:
+            self.header  = None
+            self.name    = None
             self.payload = None
 
 #------------ end of class definition ---------------------
