@@ -89,7 +89,7 @@ class SpiInterface:
           to_send = [0x01, 0x02, 0x03]
           xfer2(to_send[, speed_hz, delay_usec, bits_per_word])
     """
-    def __init__(self, device, trace=None):
+    def __init__(self, device, trace=None, clock=None):
         """
         Initialize the SPI interface
 
@@ -102,6 +102,8 @@ class SpiInterface:
             self.spi = spidev.SpiDev()
             self.spi.open(0, device)  # port=0, device(CS)=device_num
             self.spi.max_speed_hz=4000000
+            if clock:
+                self.spi.max_speed_hz=clock
             print('si446xradio', self.spi.max_speed_hz)
             self.trace.add('RADIO_CHIP',
                            'spi max speed: {}'.format(self.spi.max_speed_hz),
@@ -184,7 +186,7 @@ class Si446xRadio(object):
     This is the radio API for the SI446x ('63 specifically, but verified
     to operate with '68 as well -tbd)
     """
-    def __init__(self, device=0, callback=None, trace=None):
+    def __init__(self, device=0, callback=None, trace=None, spi_clock=None):
         """
         Initialize Si446x Radio Device API
 
@@ -199,7 +201,7 @@ class Si446xRadio(object):
         self.channel = 0
         self.callback = callback if (callback) else self._gpio_callback
         self.dump_strings = {}
-        self.spi = SpiInterface(device, trace=self.trace)
+        self.spi = SpiInterface(device, trace=self.trace, clock=spi_clock)
     #end def
 
     def _gpio_callback(self, channel):
@@ -540,7 +542,7 @@ class Si446xRadio(object):
         request.cmd='POWER_UP'
         request.boot_options.patch=False
         request.boot_options.func=1
-        request.xtal_options.txcO=3
+        request.xtal_options.txcO=1
         request.xo_freq=4000000
         cmd = power_up_cmd_s.build(request)
         self.spi.command(cmd,  power_up_cmd_s.name)
