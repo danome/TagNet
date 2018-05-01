@@ -220,10 +220,13 @@ Edit these three lines in jupyter_notebook_config.py (produced in previous step)
 ```
 c.NotebookApp.password = u'sha1:d5d44468f96e:86888342f48852feeaf0a07f1e55d6cd3d5876dd'
 c.NotebookApp.ip = '*'
-c.NotebookApp.port = 8999
+c.NotebookApp.port = 9000
 ```
 
 USING JUPTER
 
 In browser window enter:
-http://localhost:8999
+
+```
+http://<device>.local:9000
+```
