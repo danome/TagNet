@@ -37,7 +37,7 @@ __all__ = ['name2version',
 import sys
 import os
 
-from time import clock, sleep
+from time import time, sleep
 import struct as pystruct
 import types
 from binascii import hexlify
@@ -393,12 +393,13 @@ def msg_chunk_generator(radio, msg):
         tranche = index
         if (tx_len > 0):
             tranche = len(msg[index:]) if (len(msg[index:]) < tx_len) else tx_len
-        yield msg[index:index+tranche], ['c',clock(),str(tx_len),',',str(tranche)]
+        yield msg[index:index+tranche], ['c',time(),str(tx_len),',',str(tranche)]
         index += tranche
 
 
 def radio_send_msg(radio, msg, pwr):
-    start = clock()
+    start = time()
+    end = start + MAX_WAIT
     show_flag = False
     progress = [start]
 
@@ -461,8 +462,8 @@ def radio_send_msg(radio, msg, pwr):
             break
         if (no_action):
             progress.append('w')
-            progress.append(clock())
-    progress.extend([':', len(msg), clock()])
+            progress.append(time())
+    progress.extend([':', len(msg), time()])
     return progress
 
 
@@ -479,9 +480,8 @@ def drain_rx_fifo(radio, p):
     else:    return ''
 
 def radio_receive_msg(radio, max_recv, wait):
-    start = clock()
-    end = start + 1
-    show = False
+    start = time()
+    end = start + wait
     progress = [start]
     crc_err = False
 
@@ -491,7 +491,7 @@ def radio_receive_msg(radio, max_recv, wait):
     radio.fifo_info(rx_flush=True, tx_flush=True)
     radio.start_rx(0)
     status = int_status(radio, clr_no_flags)
-    while (clock() < end):
+    while (time() < end):
         cflags = clr_no_flags
         no_action = True
         if (status.ph_pend.CRC_ERROR):
@@ -545,16 +545,16 @@ def radio_receive_msg(radio, max_recv, wait):
             progress.append('O')
             break
         else:
-            progress.append(clock())  # only timestamp significant events
+            progress.append(time())  # only timestamp significant events
         status = int_status(radio, clr_flags=cflags)
 
     status = int_status(radio)
     pkt_len = radio.get_packet_info()
-    if (clock() > end):
+    if (time() > end):
         progress.extend(['to','e'])
     elif ((pkt_len + 1) != len(msg)):
         progress.extend(['e', pkt_len + 1,',',len(msg),'e'])
-    progress.append(clock())
+    progress.append(time())
 
     return (None if crc_err else msg, rssi, progress)
 
@@ -576,10 +576,10 @@ def radio_poll(radio):
     window     = .1
     req_obj    = TagPoll(slot_time=window, slot_count=slots)
     req_msg    = req_obj.build()
-    start      = clock()
+    end        = time() + (slots * window)
 
     sstatus    = radio_send_msg(radio, req_msg, RADIO_POWER)
-    while (clock() < (start + (slots * window))):
+    while (time() < end):
         rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV,
                                                    window*3)
         if rsp_msg:
