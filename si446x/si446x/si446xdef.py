@@ -165,6 +165,7 @@ def Si446xNextStates_t(subcon):
                 RX_TUNE                = 6,
                 TX                     = 7,
                 RX                     = 8,
+                IDLE                   = 9,
                 _default_              = 0,
             )
 #end def
@@ -693,6 +694,7 @@ start_tx_cmd_s = Struct('start_tx_cmd_s',
                                        TX_TUNE = 5,
                                        RX_TUNE = 6,
                                        RX = 8,
+                                       IDLE = 9,
                                    ),
                                   Padding(1),
                                   Enum(BitField('retransmit',1),
