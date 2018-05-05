@@ -287,7 +287,6 @@ def radio_start():
     radio.unshutdown()
     if radio_config(radio):
         return radio
-    print(status)
     raise RuntimeError('radio_start: radio config command error')
 
 # Get Radio Property Group
