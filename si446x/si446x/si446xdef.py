@@ -76,9 +76,9 @@ RX_FIFO_EMPTY          = 0
 
 # RPi GPIO Pin Assignments, radio needs to be configured as well
 #
-GPIO_CTS               = 16
-GPIO_NIRQ              = 22
-GPIO_SDN               = 18
+GPIO_CTS               = 15   # v2 = 16
+GPIO_SDN               = 11   # v2 = 18
+GPIO_NIRQ              = 13   # v2 = 22
 
 # maximum size of radio response buffer, excluding the CTS byte
 #

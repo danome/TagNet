@@ -44,18 +44,18 @@ for example, is get_property(). Significant events are recorded in the
 trace buffer for later analysis.
 """
 
-def _get_cts():
+def _get_cts(pin):
     """
     Read the current value of the radio CTS GPIO pin
 
     Internal use only.
     """
     if (gpio):
-        return (GPIO.input(GPIO_CTS))
+        return (GPIO.input(pin))
     else:
         return False
 
-def _get_cts_wait(t):
+def _get_cts_wait(pin, t):
     """
     Wait for the value of the radio CTS GPIO pin to go high (True)
 
@@ -63,7 +63,7 @@ def _get_cts_wait(t):
     """
     if (gpio):
         for i in range(t+1):
-            r = _get_cts()
+            r = _get_cts(pin)
             if (r):  return r
             sleep(.001)
     return False
@@ -89,7 +89,7 @@ class SpiInterface:
           to_send = [0x01, 0x02, 0x03]
           xfer2(to_send[, speed_hz, delay_usec, bits_per_word])
     """
-    def __init__(self, device, trace=None, clock=None):
+    def __init__(self, device, cts, trace=None, clock=None):
         """
         Initialize the SPI interface
 
@@ -104,6 +104,7 @@ class SpiInterface:
             self.spi.max_speed_hz=4000000
             if clock:
                 self.spi.max_speed_hz=clock
+            self.gpio_cts = cts
             print('si446xradio', self.spi.max_speed_hz)
             self.trace.add('RADIO_CHIP',
                            'spi max speed: {}'.format(self.spi.max_speed_hz),
@@ -117,8 +118,8 @@ class SpiInterface:
 
         Wait for CTS and then SPI write the msg
         """
-        _get_cts_wait(100)
-        if (not _get_cts()):
+        _get_cts_wait(self.gpio_cts, 100)
+        if (not _get_cts(self.gpio_cts)):
             self.trace.add('RADIO_CTS_ERROR', 'no cts [1]', level=level)
         try:
             self.form = form
@@ -133,9 +134,9 @@ class SpiInterface:
 
         Wait for CTS and then SPI read back the response buffer.
         """
-        _get_cts_wait(100)
+        _get_cts_wait(self.gpio_cts, 100)
         rsp = bytearray()
-        if (not _get_cts()):
+        if (not _get_cts(self.gpio_cts)):
             self.trace.add('RADIO_RSP_ERROR', 'no cts [2]', level=level)
         try:
             r = self.spi.xfer2([0x44] + rlen * [0])
@@ -178,6 +179,7 @@ class SpiInterface:
         return rsp
 #end class
 
+###################################################################
 
 class Si446xRadio(object):
     """
@@ -186,7 +188,8 @@ class Si446xRadio(object):
     This is the radio API for the SI446x ('63 specifically, but verified
     to operate with '68 as well -tbd)
     """
-    def __init__(self, device=0, callback=None, trace=None, spi_clock=None):
+    def __init__(self, device=0, callback=None, trace=None, spi_clock=None,
+                 nirq=GPIO_NIRQ, cts=GPIO_CTS, sdn=GPIO_SDN):
         """
         Initialize Si446x Radio Device API
 
@@ -200,9 +203,12 @@ class Si446xRadio(object):
         self.trace = trace if (trace) else si446xtrace.Trace(100)
         self.channel = 0
         self.callback = callback if (callback) else self._gpio_callback
+        self.config_strings = ''
         self.dump_strings = {}
-        self.spi = SpiInterface(device, trace=self.trace, clock=spi_clock)
-    #end def
+        self.spi = SpiInterface(device, cts, trace=self.trace, clock=spi_clock)
+        self.gpio_nirq = nirq
+        self.gpio_cts = cts
+        self.gpio_sdn = sdn
 
     def _gpio_callback(self, channel):
         self.trace.add('RADIO_ERROR', 'si446xradio: Edge detected on channel %s'%channel)
@@ -218,7 +224,7 @@ class Si446xRadio(object):
         request.state = state
         cmd = change_state_cmd_s.build(request)
         self.spi.command(cmd, change_state_cmd_s.name)
-        _get_cts_wait(wait)
+        _get_cts_wait(self.gpio_cts, wait)
     #end def
 
     def check_CCA(self):
@@ -285,7 +291,7 @@ class Si446xRadio(object):
         Disable radio chip hardware interrupt
         """
         if (gpio):
-            GPIO.remove_event_detect(GPIO_NIRQ)
+            GPIO.remove_event_detect(self.gpio_nirq)
     #end def
 
     def dump_radio(self):
@@ -326,7 +332,7 @@ class Si446xRadio(object):
         high to low.
         """
         if (gpio):
-            GPIO.add_event_detect(GPIO_NIRQ,
+            GPIO.add_event_detect(self.gpio_nirq,
                                   GPIO.FALLING,
                                   callback=self.callback,
                                   bouncetime=100)
@@ -467,7 +473,7 @@ class Si446xRadio(object):
 
         Read CTS, return true if high
         """
-        rsp = _get_cts()
+        rsp = _get_cts(self.gpio_cts)
         return rsp
     #end def
 
@@ -536,7 +542,7 @@ class Si446xRadio(object):
         """
         Start up the Radio.
         """
-        if (not _get_cts()):
+        if (not _get_cts(self.gpio_cts)):
             self.trace.add('RADIO_CHIP', 'cts not ready', level=2)
         request = power_up_cmd_s.parse('\x00' * power_up_cmd_s.sizeof())
         request.cmd='POWER_UP'
@@ -644,10 +650,10 @@ class Si446xRadio(object):
         Power off the radio chip
         """
         self.trace.add('RADIO_CHIP',
-                       'set GPIO pin {} (SI446x sdn disable)'.format(GPIO_SDN),
+                       'set GPIO pin {} (SI446x sdn disable)'.format(self.gpio_sdn),
                        level=2)
         if (gpio):
-            GPIO.output(GPIO_SDN,1)
+            GPIO.output(self.gpio_sdn,1)
             GPIO.cleanup()
     #end def
 
@@ -664,6 +670,7 @@ class Si446xRadio(object):
         request.next_state2 = 'READY'     # rx complete
         request.next_state3 = 'READY'     # rx invalid (bad CRC)
         request.rx_len= len
+        #print('start_rx', request)
         cmd = start_rx_cmd_s.build(request)
         self.spi.command(cmd, start_rx_cmd_s.name)
     #end def
@@ -708,18 +715,54 @@ class Si446xRadio(object):
         Set GPIO pin 18 (GPIO23) connected to si446x.sdn
         """
         self.trace.add('RADIO_GPIO',
-                       'clear GPIO pin {} (SI446x sdn enable)'.format(GPIO_SDN),
+                       'clear GPIO pin {} (SI446x sdn enable)'.format(self.gpio_sdn),
                        level=2)
         if (gpio):
             GPIO.setmode(GPIO.BOARD)
-            GPIO.setup(GPIO_CTS,GPIO.IN)    #  [CTSn]
-            GPIO.setup(GPIO_NIRQ,GPIO.IN)   #  [IRQ]
-            GPIO.setup(GPIO_SDN,GPIO.OUT)   #  [sdn]
-            GPIO.output(GPIO_SDN,1)         # make sure it is already shut down
+            GPIO.setup(self.gpio_cts,GPIO.IN)    #  [CTSn]
+            GPIO.setup(self.gpio_nirq,GPIO.IN)   #  [IRQ]
+            GPIO.setup(self.gpio_sdn,GPIO.OUT)   #  [sdn]
+            GPIO.output(self.gpio_sdn,1)         # make sure it is already shut down
             sleep(.1)
-            GPIO.output(GPIO_SDN,0)
+            GPIO.output(self.gpio_sdn,0)
             sleep(.1)
     #end def
+
+    def write_config(self, config=None):
+        self.config_frr()
+        powered = False
+        config_strings = []
+        list_of_lists = self.get_config_lists()
+        for alst in list_of_lists:
+            x = 0
+            while (True):
+                s = alst(x)
+                x += len(s) + 1
+                if (not s): break
+                # the FRR control register config is done later by
+                # local device config pstrings
+                if s[0] == radio_config_cmd_ids.build('SET_PROPERTY'):
+                    if s[1] == radio_config_group_ids.build('FRR_CTL'):
+                        continue
+                # keep track of what has been written and send it to chip
+                config_strings.append(s)
+                self.send_config(s)
+                # once the radio is powered up we can check for command
+                # errors. this doesn't seem to work prior to the power-up
+                # with the patch commands.
+                if s[0] == radio_config_cmd_ids.build('POWER_UP'):
+                    powered = True
+                if powered:
+                    status = self.get_chip_status()
+                    if (status.chip_pend.CMD_ERROR):
+                        print(status)
+                        print(insert_space(s))
+                        self.clear_interrupts()
+                        return None
+        self.config_strings = config_strings
+        return config_strings
+    #end def
+
 
     def write_tx_fifo(self, dat):
         """
