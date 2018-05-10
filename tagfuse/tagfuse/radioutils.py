@@ -229,36 +229,8 @@ def radio_config(radio):
     Uses the pre-compiled config string lists as well as some
     additional configuration.
     '''
-    radio.config_frr()
-    powered = False
-    config_strings = []
-    list_of_lists = radio.get_config_lists()
-    for alst in list_of_lists:
-        x = 0
-        while (True):
-            s = alst(x)
-            x += len(s) + 1
-            if (not s): break
-            # the FRR control register config is done later by
-            # local device config pstrings
-            if s[0] == radio_config_cmd_ids.build('SET_PROPERTY'):
-                if s[1] == radio_config_group_ids.build('FRR_CTL'):
-                    continue
-            # keep track of what has been written and send it to chip
-            config_strings.append(s)
-            radio.send_config(s)
-            # once the radio is powered up we can check for command
-            # errors. this doesn't seem to work prior to the power-up
-            # with the patch commands.
-            if s[0] == radio_config_cmd_ids.build('POWER_UP'):
-                powered = True
-            if powered:
-                status = radio.get_chip_status()
-                if (status.chip_pend.CMD_ERROR):
-                    print(status)
-                    print(insert_space(s))
-                    radio.clear_interrupts()
-                    return None
+    config_strings = radio.write_config()
+
     # these settings should be included in the compiled config strings
     radio.set_property('PKT', 0x0b, '\x10\x10') # tx/rx threshold
     return config_strings
@@ -285,7 +257,7 @@ def radio_start():
     if (radio == None):
         raise RuntimeError('radio_start: could not instantiate radio')
     radio.unshutdown()
-    if radio_config(radio):
+    if not radio_config(radio):
         return radio
     raise RuntimeError('radio_start: radio config command error')
 
