@@ -7,11 +7,9 @@
 #define RPI_BUILD
 
 #include "RadioConfig.h"
+#include "wds_configs.h"
 
 #include <Python.h>
-
-const uint8_t const * const *wds_config_list();
-uint8_t const *wds_config_select(uint8_t *cname);
 
 
 #define MAX_CFG_STRINGS 1000
@@ -69,10 +67,18 @@ static PyObject *wds_config_str(__attribute__((unused)) PyObject *self, __attrib
 }
 
 static PyObject *get_name_wds(__attribute__((unused)) PyObject *self, __attribute__((unused)) PyObject *args) {
-  const uint8_t  *s = wds_config_list()[1];
-
-  return Py_BuildValue("s", s);
+  return Py_BuildValue("s", wds_default_name());
 };
+
+static PyObject *wds_default_config(__attribute__((unused)) PyObject *self, PyObject *args) {
+  int    c_level;
+
+  if (!PyArg_ParseTuple(args, "i", &c_level)) {
+    c_level = -1;
+  }
+  return Py_BuildValue("i", wds_set_default(c_level));
+};
+
 
 static PyObject *get_config_wds(__attribute__((unused)) PyObject *self, PyObject *args) {
   int    c_index, s_len;
@@ -124,6 +130,8 @@ static PyMethodDef Si446xCfgMethods[] = {
    "get next string from WDS config string array at index offset"},
   {"get_config_device", get_config_device, METH_VARARGS,
    "get next string from device config string array at index offset"},
+  {"wds_default_config", wds_default_config, METH_VARARGS,
+   "get and optional set the default configuration file"},
   {NULL, NULL, 0, NULL}
 };
 
