@@ -22,7 +22,12 @@ if (os.path.exists(basedir)
 from si446xvers   import __version__
 print('si446x version: ', __version__)
 
-from si446xcfg    import get_config_wds, get_config_device, get_name_wds
+try:
+    from si446xcfg    import get_config_wds, get_config_device, get_name_wds, wds_config_count, wds_config_str, wds_default_config
+except ImportError:
+    print('si446x radio configuration shared module needs to be built')
+    sys.exit(1)
+
 from si446xact    import *
 from si446xdef    import *
 from si446xradio  import *
