@@ -140,15 +140,9 @@ def TagFuseSDTree(radio):
                 ('.committed',ByteIOFileHandler(radio, S_IFREG, 0o444, 1)),
             ]))),
             ('panic', DirHandler(OrderedDict([
-                ('',    FileHandler(S_IFDIR, 0o751, 4)),
-                ('byte',DirHandler(OrderedDict([
-                    ('',    FileHandler(S_IFDIR, 0o751, 35)),
-                    ('0',   ByteIOFileHandler(radio, S_IFREG, 0o444, 1)),
-                    ('1',   ByteIOFileHandler(radio, S_IFREG, 0o444, 1)),
-                    ('2',   ByteIOFileHandler(radio, S_IFREG, 0o444, 1)),
-                    ('3',   ByteIOFileHandler(radio, S_IFREG, 0o444, 1)),
-                    ('4',   ByteIOFileHandler(radio, S_IFREG, 0o444, 1)),
-                ]))),
+                ('',       FileHandler(S_IFDIR, 0o751, 4)),
+                ('byte',   ByteIOFileHandler(radio, S_IFREG, 0o444, 1)),
+                ('.count', ByteIOFileHandler(radio, S_IFREG, 0o444, 1)),
             ]))),
         ]))),
     ]))
