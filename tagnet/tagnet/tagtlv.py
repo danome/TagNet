@@ -122,6 +122,8 @@ class TlvBadException(Exception):
     def __init__( self, t, v):
         self.t = t
         self.v = v
+        if isinstance(v, bytearray):
+            v = str(len(v)) + '.' + hexlify(v)
         Exception.__init__(self, 'Bad Tlv: type:{}, value:{}'.format(
             t if (t) else 'None',
             v if (v) else 'None'))

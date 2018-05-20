@@ -23,7 +23,7 @@ from si446xvers   import __version__
 print('si446x version: ', __version__)
 
 try:
-    from si446xcfg    import get_config_wds, get_config_device, get_name_wds, wds_config_count, wds_config_str, wds_default_config
+    from si446xcfg    import get_config_wds, get_config_device, get_name_wds, wds_config_count, wds_config_str, wds_default_config, get_ids_wds
 except ImportError:
     print('si446x radio configuration shared module needs to be built')
     sys.exit(1)

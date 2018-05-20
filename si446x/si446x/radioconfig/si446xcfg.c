@@ -70,6 +70,18 @@ static PyObject *get_name_wds(__attribute__((unused)) PyObject *self, __attribut
   return Py_BuildValue("s", wds_default_name());
 };
 
+static PyObject *get_ids_wds(__attribute__((unused)) PyObject *self, __attribute__((unused)) PyObject *args) {
+  const wds_config_ids_t *ids;
+  ids = wds_default_ids();
+  return Py_BuildValue("{s:i,s:i,s:i,s:i,s:i,s:i}",
+                       "sig",       ids->sig,
+                       "xtal_freq", ids->xtal_freq,
+                       "bps",       ids->symb_sec,
+                       "freq_dev",  ids->freq_dev,
+                       "fhst",      ids->fhst,
+                       "rxbw",      ids->rxbw);
+};
+
 static PyObject *wds_default_config(__attribute__((unused)) PyObject *self, PyObject *args) {
   int    c_level;
 
@@ -126,6 +138,8 @@ static PyMethodDef Si446xCfgMethods[] = {
    "returns wds configuration as a string"},
   {"get_name_wds", get_name_wds, METH_VARARGS,
    "get name of WDS source file"},
+  {"get_ids_wds", get_ids_wds, METH_VARARGS,
+   "get name of WDS configuration file identifiers (e.g, bitrate, chrystal frequency)"},
   {"get_config_wds", get_config_wds, METH_VARARGS,
    "get next string from WDS config string array at index offset"},
   {"get_config_device", get_config_device, METH_VARARGS,

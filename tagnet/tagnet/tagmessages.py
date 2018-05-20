@@ -105,7 +105,7 @@ class TagMessage(object):
             elif (self.payload):
                 raise TypeError('bad payload type')
         else:
-            print('error in constructing tag message:',args)
+            raise ValueError('error in constructing tag message:',args)
 
     def copy(self):
         """
@@ -182,7 +182,7 @@ class TagMessage(object):
                     self.payload = bytearray(v[self.header.name_length+hdr_size:])
             else:
                 self.payload = None
-        except construct.adapters.MappingError:
+        except (construct.adapters.MappingError, TlvBadException, TlvListBadException):
             self.header  = None
             self.name    = None
             self.payload = None
@@ -247,17 +247,17 @@ class TagPoll(TagMessage):
 
     Add time-of-day, slot_time, slot_count to payload
     """
-    def __init__(self, slot_time=.1, slot_count=10):
+    def __init__(self, slot_width=1000, slot_count=10):
         nm = TagName([TagTlv(tlv_types.NODE_ID, -1),
                       TagTlv('tag'),
                       TagTlv('poll'),
                       TagTlv('ev')])
         pl = TagTlvList([
-            #(tlv_types.TIME,datetime.now()),
-            (tlv_types.INTEGER,int(slot_time/10)), # scale is 10ms
-            (tlv_types.INTEGER,slot_count),
             (tlv_types.NODE_ID, get_mac()),
             (tlv_types.NODE_NAME, platform.node()),
+            (tlv_types.INTEGER,slot_width),
+            (tlv_types.INTEGER,slot_count),
+            #(tlv_types.TIME,datetime.now()),
         ])
         super(TagPoll,self).__init__(nm, pl)
         self.header.options.message_type = 'POLL'

@@ -66,6 +66,7 @@ from si446x import clr_pend_int_s
 from si446x import radio_config_cmd_ids, radio_config_commands
 from si446x import radio_config_group_ids, radio_config_groups
 from si446x import radio_display_structs, RadioTraceIds
+from si446x import get_ids_wds
 
 from tagnet import TagTlv, TagTlvList, tlv_types, tlv_errors
 from tagnet import TagMessage, TagName
@@ -177,7 +178,7 @@ def path2list(path):
     path = os.path.abspath(os.path.realpath(path))
     return path.split('/')[1:]
 
-def msg_exchange(radio, req):
+def msg_exchange(radio, req, power=RADIO_POWER):
     '''
     Send a TagNet request msg and wait for a response.
 
@@ -192,7 +193,7 @@ def msg_exchange(radio, req):
     while (tries):
         error = tlv_errors.ERETRY
         payload = None
-        radio_send_msg(radio, req_msg, RADIO_POWER);
+        radio_send_msg(radio, req_msg, power);
         rsp_buf, rssi, status = radio_receive_msg(radio, MAX_RECV, MAX_WAIT)
         if (rsp_buf):
             # zzz print(len(rsp_buf),hexlify(rsp_buf))
@@ -466,14 +467,14 @@ def radio_receive_msg(radio, max_recv, wait):
         cflags = clr_no_flags
         no_action = True
         if (status.ph_pend.CRC_ERROR):
-            cflags.ph_pend.CRC_ERROR = False
+            cflags.ph_pend.CRC_ERROR = False     # clear
             no_action = False
             progress.extend(['C'])
             radio.fifo_info(rx_flush=True, tx_flush=True)
             print('*** recv msg CRC error')
             crc_err = True
         if (status.chip_pend.CMD_ERROR):
-            cflags.chip_pend.CMD_ERROR = False
+            cflags.chip_pend.CMD_ERROR = False   # clear
             no_action = False
             progress.extend(['E',
                             radio.get_chip_status(),
@@ -483,7 +484,7 @@ def radio_receive_msg(radio, max_recv, wait):
             print('radio receive cmd error')
             #break
         if (status.modem_pend.INVALID_PREAMBLE):
-            cflags.modem_pend.INVALID_PREAMBLE = False
+            cflags.modem_pend.INVALID_PREAMBLE = False # clear
             no_action = False
             if (not progress):
                 progress.append('p')
@@ -494,43 +495,52 @@ def radio_receive_msg(radio, max_recv, wait):
             else:
                 progress.append('p')
         if (status.modem_pend.INVALID_SYNC):
-            cflags.modem_pend.INVALID_SYNC = False
+            cflags.modem_pend.INVALID_SYNC = False  # clear
             no_action = False
             progress.append('s')
         if (status.ph_pend.RX_FIFO_ALMOST_FULL):
-            cflags.ph_pend.RX_FIFO_ALMOST_FULL = False
+            cflags.ph_pend.RX_FIFO_ALMOST_FULL = False  # clear
             no_action = False
             progress.append('w')
             msg += drain_rx_fifo(radio, progress)
         if (status.ph_pend.PACKET_RX):
             no_action = False
             rssi = radio.fast_latched_rssi()
-            cflags.ph_pend.PACKET_RX = False
+            cflags.ph_pend.PACKET_RX = False     # clear
             progress.append('f')
             msg += drain_rx_fifo(radio, progress)
             progress.extend([len(msg), rssi])
             break
         if (status.chip_pend.FIFO_UNDERFLOW_OVERFLOW_ERROR):
-            cflags.chip_pend.FIFO_UNDERFLOW_OVERFLOW_ERROR = False
+            cflags.chip_pend.FIFO_UNDERFLOW_OVERFLOW_ERROR = False  # clear
             no_action = False
             progress.append('O')
             break
-        else:
+        if not no_action:
             progress.append(time())  # only timestamp significant events
         status = int_status(radio, clr_flags=cflags)
 
-    status = int_status(radio)
+    status = int_status(radio)                   # clear all outstanding
     pkt_len = radio.get_packet_info()
     if (time() > end):
-        progress.extend(['to','e'])
+        progress.extend(['to','e',status])
+        msg = None
+    elif crc_err:
+        print('*** radioutils.receive crc error')
+        progress.extend(['crc','e',status])
+        #print(progress)
+        msg = None
     elif ((pkt_len + 1) != len(msg)):
-        progress.extend(['e', pkt_len + 1,',',len(msg),'e'])
+        print('*** radioutils.receive length error: expected:{}, got:{}'.format(
+            pkt_len+1, len(msg)))
+        progress.extend(['len',pkt_len+1,len(msg),'e',status])
+        #print(progress)
+        msg = None
     progress.append(time())
+    return (msg, rssi, progress)
 
-    return (None if crc_err else msg, rssi, progress)
 
-
-def radio_poll(radio):
+def radio_poll(radio, window=1000, slots=5, power=RADIO_POWER):
     '''
     Sends time, slot_time, slot_count, node_id, node_name,
     then receives none or more responses from any tags within
@@ -541,35 +551,38 @@ def radio_poll(radio):
     software version, and event pending counter. Slot_time
     is in milliseconds.
     '''
-    found      = []
+    found      = {}
     last_rssi  = 0
-    slots      = 5
-    window     = .1
-    req_obj    = TagPoll(slot_time=window, slot_count=slots)
+    req_obj    = TagPoll(slot_width=window, slot_count=slots)
     req_msg    = req_obj.build()
-    end        = time() + (slots * window)
+    bps        = get_ids_wds()['bps']
+    wait_time  = (slots * ((1.0 * window) / bps))
+    # zzz print('*** radio_poll', wait_time, slots, window, bps)
+    end        = time() + wait_time
 
-    sstatus    = radio_send_msg(radio, req_msg, RADIO_POWER)
+    rstatus    = ''
+    sstatus    = radio_send_msg(radio, req_msg, power)
     while (time() < end):
         rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV,
-                                                   window*3)
+                                                   wait_time)
         if rsp_msg:
             last_rssi = rssi
             # zzz print(hexlify(rsp_msg))
-            rsp_obj = TagMessage(rsp_msg)
-            # zzz print(rsp_obj.header.options.param.error_code)
-            # zzz print(rsp_obj.payload)
-            # zzz print(rsp_obj.header, rsp_obj.name)
-            if rsp_obj.payload:
-                node = []
-                for i in range(len(rsp_obj.payload)):
-                    node.append(rsp_obj.payload[i].value())
-                found.append(node)
+            try:
+                rsp_obj = TagMessage(rsp_msg)
+            except (TlvBadException, TlvListBadException):
+                continue
+            try:
+                found[hexlify(rsp_obj.payload[0].value())] = [rssi] + \
+                    [rsp_obj.payload[i].value() for i in range(1,len(rsp_obj.payload))]
+            except (TlvBadException, TlvListBadException):
+                print('*** error in poll response message')
+                #print(radio.trace.display(radio.trace.filter(count=-20)))
     # zzz print(found)
     return found, last_rssi, sstatus, rstatus
 
 
-def radio_get_position(radio, node=None, name=None):
+def radio_get_position(radio, node=None, name=None, power=RADIO_POWER):
     gps_geo = None
     if not node:
         node = TagTlv(tlv_types.NODE_ID, -1)
@@ -584,7 +597,7 @@ def radio_get_position(radio, node=None, name=None):
     get_gps_xyz = TagGet(get_name)
     #    print(get_gps_xyz.name)
     req_msg = get_gps_xyz.build()
-    s_status = radio_send_msg(radio, req_msg, RADIO_POWER);
+    s_status = radio_send_msg(radio, req_msg, power);
     rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, MAX_WAIT)
     if(rsp_msg):
         #        print(hexlify(rsp_msg))
@@ -606,7 +619,7 @@ def radio_get_position(radio, node=None, name=None):
     return None
 
 
-def radio_get_rssi(radio, node=None, name=None):
+def radio_get_rssi(radio, node=None, name=None, power=RADIO_POWER):
     if not node:
         node = TagTlv(tlv_types.NODE_ID, -1)
     if not name:
@@ -616,7 +629,7 @@ def radio_get_rssi(radio, node=None, name=None):
                             TagTlv('rssi')])
     req_obj = TagGet(get_name)
     req_msg = req_obj.build()
-    sstatus = radio_send_msg(radio, req_msg, RADIO_POWER)
+    sstatus = radio_send_msg(radio, req_msg, power)
     rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, MAX_WAIT)
     if rsp_msg:
         #        print(hexlify(rsp_msg))
@@ -630,7 +643,7 @@ def radio_get_rssi(radio, node=None, name=None):
     return None, None, sstatus, rstatus
 
 
-def radio_get_power(radio, node=None, name=None):
+def radio_get_power(radio, node=None, name=None, power=RADIO_POWER):
     if not node:
         node = TagTlv(tlv_types.NODE_ID, -1)
     if not name:
@@ -640,7 +653,7 @@ def radio_get_power(radio, node=None, name=None):
                             TagTlv('tx_pwr')])
     req_obj = TagGet(get_name)
     req_msg = req_obj.build()
-    sstatus = radio_send_msg(radio, req_msg, RADIO_POWER)
+    sstatus = radio_send_msg(radio, req_msg, power)
     rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, MAX_WAIT)
     if rsp_msg:
         #        print(hexlify(rsp_msg))
@@ -654,7 +667,7 @@ def radio_get_power(radio, node=None, name=None):
     return None, None, sstatus, rstatus
 
 
-def radio_set_power(radio, power, node=None, name=None):
+def radio_set_power(radio, tag_power, node=None, name=None, power=RADIO_POWER):
     if not node:
         node = TagTlv(tlv_types.NODE_ID, -1)
     if not name:
@@ -664,9 +677,9 @@ def radio_set_power(radio, power, node=None, name=None):
                             TagTlv('tx_pwr'),])
     req_obj = TagPut(get_name,
                      pl=TagTlvList([TagTlv(tlv_types.INTEGER,
-                                           power)]))
+                                           tag_power)]))
     req_msg = req_obj.build()
-    sstatus = radio_send_msg(radio, req_msg, RADIO_POWER)
+    sstatus = radio_send_msg(radio, req_msg, power)
     rsp_msg, rssi, rstatus = radio_receive_msg(radio,
                                                MAX_RECV, MAX_WAIT)
     if rsp_msg:
@@ -681,7 +694,7 @@ def radio_set_power(radio, power, node=None, name=None):
     return None, None, sstatus, rstatus
 
 
-def radio_get_rtctime(radio, node=None, name=None):
+def radio_get_rtctime(radio, node=None, name=None, power=RADIO_POWER):
     if not node:
         node = TagTlv(tlv_types.NODE_ID, -1)
     if not name:
@@ -691,7 +704,7 @@ def radio_get_rtctime(radio, node=None, name=None):
                             TagTlv('rtc')])
     req_obj = TagGet(get_name)
     req_msg = req_obj.build()
-    sstatus = radio_send_msg(radio, req_msg, RADIO_POWER)
+    sstatus = radio_send_msg(radio, req_msg, power)
     rsp_msg, rssi, rstatus = radio_receive_msg(radio,
                                                MAX_RECV, MAX_WAIT)
     if rsp_msg:
@@ -710,7 +723,7 @@ def radio_get_rtctime(radio, node=None, name=None):
     return None, None, sstatus, rstatus
 
 
-def radio_set_rtctime(radio, utctime, node=None, name=None):
+def radio_set_rtctime(radio, utctime, node=None, name=None, power=RADIO_POWER):
     if not node:
         node = TagTlv(tlv_types.NODE_ID, -1)
     if not name:
@@ -722,7 +735,7 @@ def radio_set_rtctime(radio, utctime, node=None, name=None):
                      pl=TagTlvList([TagTlv(tlv_types.UTC_TIME,
                                            utctime)]))
     req_msg = req_obj.build()
-    sstatus = radio_send_msg(radio, req_msg, RADIO_POWER)
+    sstatus = radio_send_msg(radio, req_msg, power)
     rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, MAX_WAIT)
     if rsp_msg:
         #        print(hexlify(rsp_msg))
@@ -737,7 +750,7 @@ def radio_set_rtctime(radio, utctime, node=None, name=None):
 
 
 #<node_id>   "tag"  "test"   "zero"   "byte"
-def radio_read_test(radio, test_name, pos, num, node=None, name=None):
+def radio_read_test(radio, test_name, pos, num, node=None, name=None, power=RADIO_POWER):
     if not node:
         node = TagTlv(tlv_types.NODE_ID, -1)
     if not name:
@@ -751,7 +764,7 @@ def radio_read_test(radio, test_name, pos, num, node=None, name=None):
     req_obj = TagGet(get_name)
 #    print(get_gps_xyz.name)
     req_msg = req_obj.build()
-    radio_send_msg(radio, req_msg, RADIO_POWER);
+    radio_send_msg(radio, req_msg, power);
     rsp_msg, rssi, status = radio_receive_msg(radio, MAX_RECV, MAX_WAIT)
     if rsp_msg:
 #        print(hexlify(rsp_msg))
@@ -778,7 +791,7 @@ def radio_read_test(radio, test_name, pos, num, node=None, name=None):
     return None
 
 
-def radio_write_test(radio, test_name, buf, node=None, name=None):
+def radio_write_test(radio, test_name, buf, node=None, name=None, power=RADIO_POWER):
     if not node:
         node = TagTlv(tlv_types.NODE_ID, -1)
     if not name:
@@ -791,7 +804,7 @@ def radio_write_test(radio, test_name, buf, node=None, name=None):
                             TagTlv(tlv_types.SIZE, len(buf)),])
     req_obj = TagPut(get_name, pl=buf)
     req_msg = req_obj.build()
-    sstatus = radio_send_msg(radio, req_msg, RADIO_POWER)
+    sstatus = radio_send_msg(radio, req_msg, power)
     rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, MAX_WAIT)
     if rsp_msg:
         #        print(hexlify(rsp_msg))
