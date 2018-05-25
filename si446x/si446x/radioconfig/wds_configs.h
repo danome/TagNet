@@ -20,9 +20,9 @@ typedef struct {
 
 
 int wds_set_default(int level);
-const uint8_t const* const* wds_config_list();
+uint8_t const* const* wds_config_list();
 uint8_t const*              wds_config_select(uint8_t *cname);
-const uint8_t const*        wds_default_name();
-const wds_config_ids_t const* wds_default_ids();
+uint8_t const*        wds_default_name();
+wds_config_ids_t const* wds_default_ids();
 
 #endif /* __WDS_CONFIG_H__ */
