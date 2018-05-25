@@ -29,7 +29,7 @@ if (os.path.exists(basedir)
     # zzz print('*** tagfusetree path:')
     # zzz print('\n'.join(sys.path))
 
-from tagfuse.taghandlers import *
+from taghandlers import *
 
 '''
 The TagFuseTree function returns a tree consisting of a set directory

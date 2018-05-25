@@ -41,9 +41,9 @@ if (os.path.exists(basedir)
 print('** tagfuse path:')
 print('\n'.join(sys.path))
 
-from tagfuse.radioutils  import radio_start, path2list
+from radioutils  import path2list
 #from tagfuse.taghandlers import *
-from tagfuse.TagFuseTree import TagFuseRootTree, TagFuseTagTree
+from TagFuseTree import TagFuseRootTree, TagFuseTagTree
 from si446x import Si446xRadio
 from si446x import get_config_wds, get_name_wds, wds_default_config
 
