@@ -738,13 +738,9 @@ class PollNetDirHandler(DirHandler):
         directory entry name.
         '''
         tag_names = []
-        tag_list, _, _, _ = radio_poll(self.radio)
-        for tag_info in tag_list:
-            print('*** NetDirHandler.readdir', tag_info)
-            tag = hexlify(tag_info[0])
-            if tag:
-                tag_names.append(tag)
-        tag_set = Set(tag_names)
+        tag_list = radio_poll(self.radio)
+        print('*** NetDirHandler.readdir', tag_list)
+        tag_set = Set(tag_list.keys())
         my_names = []
         for tag in self.keys():
             if tag is '' or tag.startswith('.'):

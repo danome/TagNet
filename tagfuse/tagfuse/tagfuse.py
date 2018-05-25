@@ -44,6 +44,8 @@ print('\n'.join(sys.path))
 from tagfuse.radioutils  import radio_start, path2list
 #from tagfuse.taghandlers import *
 from tagfuse.TagFuseTree import TagFuseRootTree, TagFuseTagTree
+from si446x import Si446xRadio
+from si446x import get_config_wds, get_name_wds, wds_default_config
 
 #if not hasattr(__builtins__, 'bytes'):
 #    bytes = str
@@ -141,7 +143,17 @@ class TagFuse(LoggingMixIn, Operations):
             return ''       # Should return ENOATTR
 
     def init(self, path):
-        self.radio = radio_start()
+        '''
+        start up the radio with selected configuration settings and
+        then initialize the tag fuse class tree
+        '''
+        self.radio=Si446xRadio(0)
+        if (self.radio == None):
+            raise RuntimeError('radio_start: could not instantiate radio')
+        self.radio.unshutdown()
+        wds_default_config(0) # force alternate default config
+        self.radio.write_config()
+        self.radio.config_frr()
         self.tag_tree = TagFuseRootTree(self.radio)
         return None
 

@@ -66,7 +66,7 @@ from si446x import clr_pend_int_s
 from si446x import radio_config_cmd_ids, radio_config_commands
 from si446x import radio_config_group_ids, radio_config_groups
 from si446x import radio_display_structs, RadioTraceIds
-from si446x import get_ids_wds
+from si446x import get_ids_wds, get_config_wds, get_name_wds, wds_default_config
 
 from tagnet import TagTlv, TagTlvList, tlv_types, tlv_errors
 from tagnet import TagMessage, TagName
@@ -230,9 +230,10 @@ def radio_config(radio):
     Uses the pre-compiled config string lists as well as some
     additional configuration.
     '''
+    wds_default_config(0)     # change to force alternate default config
     config_strings = radio.write_config()
-
     # these settings should be included in the compiled config strings
+    radio.config_frr()
     radio.set_property('PKT', 0x0b, '\x10\x10') # tx/rx threshold
     return config_strings
 
@@ -258,9 +259,7 @@ def radio_start():
     if (radio == None):
         raise RuntimeError('radio_start: could not instantiate radio')
     radio.unshutdown()
-    if not radio_config(radio):
-        return radio
-    raise RuntimeError('radio_start: radio config command error')
+    return radio
 
 # Get Radio Property Group
 
@@ -579,7 +578,7 @@ def radio_poll(radio, window=1000, slots=5, power=RADIO_POWER):
                 print('*** error in poll response message')
                 #print(radio.trace.display(radio.trace.filter(count=-20)))
     # zzz print(found)
-    return found, last_rssi, sstatus, rstatus
+    return found
 
 
 def radio_get_position(radio, node=None, name=None, power=RADIO_POWER):
