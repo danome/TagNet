@@ -24,13 +24,9 @@ except ImportError:
 
 # add extension for the c-file containing si446x radion config strings
 #
-config_strings = Extension('si446x/si446xcfg',
-                           define_macros = [('__version__', get_version())],
-                           include_dirs = ['/usr/local/include',
-                                           '/usr/include/python2.7'],
-                           library_dirs = ['/usr/local/lib',
-                                           '/usr/lib/python2.7'],
-                           sources = ['si446x/radioconfig/si446xcfg.c'])
+import subprocess
+subprocess.call(['make', '-C', 'si446x/radioconfig'])
+
 
 setup(
     name             = 'si446x',
@@ -46,10 +42,12 @@ setup(
                         'twisted==13.1.0',
                         'six',
                         'construct==2.5.2',
-                        'txdbus==1.1.0'],
+                        'txdbus==1.1.0',
+                        'spidev',
+                        'RPi.GPIO'],
     provides         = ['si446x'],
     packages         = ['si446x'],
-    ext_modules      = [config_strings],
+    package_data     = {'si446x': ['si446xcfg.so']},
     keywords         = ['si446x', 'twisted', 'spidev', 'dbus'],
     classifiers      = ['License :: OSI Approved :: MIT License',
                         'Development Status :: 4 - Beta',
