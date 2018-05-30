@@ -101,6 +101,8 @@ def im_put_file(radio, path_list, buf, offset):
                              ])[0]
         print('im put offset', offset)
         if (offset):
+            if (offset <= prev_offset):
+                return tlv_errors.EINVAL, 0
             amt_to_put -= offset - prev_offset
         else:
             amt_to_put -= amt_sent
