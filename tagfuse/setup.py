@@ -6,7 +6,7 @@ with open(os.path.join(os.path.dirname(__file__), 'README.md')) as f:
     LONG_DESCRIPTION = f.read()
 
 def get_version():
-    VERSIONFILE = os.path.join('tagfuse', 'tagfuseargs.py')
+    VERSIONFILE = os.path.join('tagfuse', 'myversion.py')
     initfile_lines = open(VERSIONFILE, 'rt').readlines()
     VSRE = r"^__version__ = ['\"]([^'\"]*)['\"]"
     for line in initfile_lines:
@@ -28,14 +28,16 @@ setup(
     url              = 'https://github.com/dmaltbie/Tagnet/tagfuse',
     author           = 'Dan Maltbie',
     author_email     = 'dmaltbie@daloma.org',
-    install_requires = ['twisted>=13.1.0',
+    install_requires = ['twisted==13.1.0',
                         'six',
                         'chest',
-                        'construct',
+                        'construct==2.5.2',
                         'uuid',
                         'datetime',
                         'future',
-                        'enum34'],
+                        'enum34',
+                        'pyproj',
+    ],
     provides         = ['tagfuse'],
     packages         = ['tagfuse'],
     keywords         = ['tagfuse', 'twisted', 'dbus'],
@@ -46,7 +48,8 @@ setup(
                         'Operating System :: POSIX',
                         'Programming Language :: Python',
                         'Topic :: Software Development :: Libraries',
-                        'Topic :: System :: Networking'],
+                        'Topic :: System :: Networking'
+    ],
     entry_points     = {
         'console_scripts': ['tagfuse=tagfuse.__main__:main'],
     },
