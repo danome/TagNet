@@ -15,8 +15,7 @@ basedir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 #                                            basedir,))
 if (os.path.exists(basedir)
     and os.path.exists(os.path.join(basedir, 'setup.py'))):
-    add_dirs = [
-        #os.path.join(basedir, os.path.basename(basedir)),
+    add_dirs = [os.path.join(basedir, os.path.basename(basedir)),
                 os.path.join(basedir, '../si446x'),
                 os.path.join(basedir, '../tagnet')]
     for ndir in add_dirs:
@@ -25,12 +24,11 @@ if (os.path.exists(basedir)
     # zzz print('*** __main__ path:')
     # zzz print('\n'.join(sys.path))
 
-from tagfuseargs import process_cmd_args
-
 def main():
-    args = process_cmd_args()
+    from tagfuseargs import process_cmd_args
+    cmd_args = process_cmd_args()
     from tagfuse     import TagStorage
-    TagStorage(args)
+    TagStorage(cmd_args)
 
 if __name__ == '__main__':
     main()

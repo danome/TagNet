@@ -55,13 +55,20 @@ if (os.path.exists(basedir)
             sys.path.insert(0,ndir)
     # zzz print('\n'.join(sys.path))
 
-from radiofile   import file_get_bytes, file_put_bytes, file_update_attrs
-from radioimage  import im_put_file, im_get_file, im_delete_file, im_close_file
-from radioimage  import im_get_dir, im_set_version
-from radioutils  import path2list, radio_poll, radio_get_rtctime, radio_set_rtctime
-from tagfuseargs import get_cmd_args
-from sparsefile  import SparseFile
-#from tagfuse.TagFuseTree import TagFuseTagTree
+try:
+    from radiofile   import file_get_bytes, file_put_bytes, file_update_attrs
+    from radioimage  import im_put_file, im_get_file, im_delete_file, im_close_file
+    from radioimage  import im_get_dir, im_set_version
+    from radioutils  import path2list, radio_poll, radio_get_rtctime, radio_set_rtctime
+    from tagfuseargs import get_cmd_args
+    from sparsefile  import SparseFile
+except ImportError:
+    from tagfuse.radiofile   import file_get_bytes, file_put_bytes, file_update_attrs
+    from tagfuse.radioimage  import im_put_file, im_get_file, im_delete_file, im_close_file
+    from tagfuse.radioimage  import im_get_dir, im_set_version
+    from tagfuse.radioutils  import path2list, radio_poll, radio_get_rtctime, radio_set_rtctime
+    from tagfuse.tagfuseargs import get_cmd_args
+    from tagfuse.sparsefile  import SparseFile
 
 from tagnet              import tlv_errors, TagTlv
 

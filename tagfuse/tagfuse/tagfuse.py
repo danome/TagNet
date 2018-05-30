@@ -31,19 +31,27 @@ basedir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if (os.path.exists(basedir)
     and os.path.exists(os.path.join(basedir, 'setup.py'))):
     add_dirs = [
-        #os.path.join(basedir, os.path.basename(basedir)),
-                os.path.join(basedir, '../si446x'),
-                os.path.join(basedir, '../tagnet')]
+        basedir,
+        os.path.join(basedir, 'tagfuse'),
+        os.path.join(basedir, '../si446x'),
+        os.path.join(basedir, '../tagnet')]
     for ndir in add_dirs:
         if (ndir not in sys.path):
             sys.path.insert(0,ndir)
     # zzz
-print('** tagfuse path:')
+print('** tagfuse path:', __file__, basedir)
 print('\n'.join(sys.path))
 
-from radioutils  import path2list
-#from tagfuse.taghandlers import *
-from TagFuseTree import TagFuseRootTree, TagFuseTagTree
+try:
+    from radioutils  import path2list
+except ImportError:
+    from tagfuse.radioutils  import path2list
+
+try:
+    from TagFuseTree import TagFuseRootTree, TagFuseTagTree
+except ImportError:
+    from tagfuse.TagFuseTree import TagFuseRootTree, TagFuseTagTree
+
 from si446x import Si446xRadio
 from si446x import get_config_wds, get_name_wds, wds_default_config
 
@@ -318,6 +326,6 @@ def TagStorage(args):
 
 if __name__ == '__main__':
     import tagfuseargs
-    TagStorage(tagfuseargs.process_cmd_args(argv))
+    TagStorage(tagfuseargs.process_cmd_args())
 
 print('** tagfuse.py','ending')
