@@ -1,10 +1,12 @@
 #!/usr/bin/env python
+import os, re
 
 DESCRIPTION = 'Packet level driver for Si446x radio chip'
+with open(os.path.join(os.path.dirname(__file__), 'README.md')) as f:
+    LONG_DESCRIPTION = f.read()
 
 # get version string from __init__.py file
 #
-import os, re
 def get_version():
     VERSIONFILE = os.path.join('si446x', 'si446xvers.py')
     initfile_lines = open(VERSIONFILE, 'rt').readlines()
@@ -35,8 +37,7 @@ setup(
     version          = get_version(),
     description      = DESCRIPTION,
     license          = ['LICENSE.txt'],
-    long_description ="""\
-Packet level driver for si446x radio chip""",
+    long_description = LONG_DESCRIPTION,
     url              = 'https://github.com/dmaltbie/Tagnet/si446x',
     author           = 'Dan Maltbie',
     author_email     = 'dmaltbie@daloma.org',

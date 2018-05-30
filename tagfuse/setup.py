@@ -1,8 +1,10 @@
 #!/usr/bin/env python
+import os, re
 
 DESCRIPTION = 'FUSE file driver for access tagnet Dblk storage'
+with open(os.path.join(os.path.dirname(__file__), 'README.md')) as f:
+    LONG_DESCRIPTION = f.read()
 
-import os, re
 def get_version():
     VERSIONFILE = os.path.join('tagfuse', 'tagfuseargs.py')
     initfile_lines = open(VERSIONFILE, 'rt').readlines()
@@ -21,9 +23,7 @@ except ImportError:
 setup(
     name             = 'tagfuse',
     version          = get_version(),
-    license          = "MIT",
-    long_description ="""\
-A FUSE file system driver that translate file accesses into TagNet based network message exchanges.""",
+    long_description = LONG_DESCRIPTION,
     license          = ['LICENSE.txt'],
     url              = 'https://github.com/dmaltbie/Tagnet/tagfuse',
     author           = 'Dan Maltbie',

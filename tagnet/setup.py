@@ -1,8 +1,10 @@
 #!/usr/bin/env python
+import os, re
 
 DESCRIPTION = 'tagnet protocol'
+with open(os.path.join(os.path.dirname(__file__), 'README.md')) as f:
+    LONG_DESCRIPTION = f.read()
 
-import os, re
 def get_version():
     VERSIONFILE = os.path.join('tagnet', '__init__.py')
     initfile_lines = open(VERSIONFILE, 'rt').readlines()
@@ -23,8 +25,7 @@ setup(
     version          = get_version(),
     description      = DESCRIPTION,
     license          = 'LICENSE.txt',
-    long_description ="""\
-A protocol for named data objects in an ad hoc network of constraint-based nodes using low-power sub-GHz radios.""",
+    long_description = LONG_DESCRIPTION,
     url              = 'https://github.com/dmaltbie/Tagnet/tagnet',
     author           = 'Dan Maltbie',
     author_email     = 'dmaltbie@daloma.org',
