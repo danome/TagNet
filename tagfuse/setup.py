@@ -24,6 +24,7 @@ setup(
     license          = "MIT",
     long_description ="""\
 A FUSE file system driver that translate file accesses into TagNet based network message exchanges.""",
+    license          = ['LICENSE.txt'],
     url              = 'https://github.com/dmaltbie/Tagnet/tagfuse',
     author           = 'Dan Maltbie',
     author_email     = 'dmaltbie@daloma.org',
