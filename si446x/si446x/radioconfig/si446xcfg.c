@@ -1,4 +1,8 @@
+// required for the scheduler control
+#define _GNU_SOURCE
+
 #include <stdint.h>
+#include <sched.h>
 
 // don't need this attribute for the RPi C compiler
 #define norace
@@ -131,6 +135,26 @@ static PyObject *get_config_device(__attribute__((unused)) PyObject *self, PyObj
   return Py_BuildValue("s#", s, s_len);
 };
 
+static PyObject *set_real_time(__attribute__((unused)) PyObject *self,  __attribute__((unused)) PyObject *args)
+{
+    cpu_set_t zset;
+    struct sched_param schedule;
+
+    schedule.sched_priority = sched_get_priority_max(SCHED_FIFO);
+    if (0 != sched_setscheduler(0, SCHED_FIFO, &schedule))
+    {
+        return Py_BuildValue("i", -1);
+    }
+
+    CPU_ZERO(&zset);
+    CPU_SET(0, &zset);     /* set the bit that represents core 0. */
+    if (0 != sched_setaffinity(0, sizeof(cpu_set_t), &zset))
+    {
+        return Py_BuildValue("i", -2);
+    }
+  return Py_BuildValue("i", 0);
+}
+
 static PyMethodDef Si446xCfgMethods[] = {
   {"wds_config_count", wds_config_count, METH_VARARGS,
    "returns number of strings in configuration"},
@@ -146,6 +170,8 @@ static PyMethodDef Si446xCfgMethods[] = {
    "get next string from device config string array at index offset"},
   {"wds_default_config", wds_default_config, METH_VARARGS,
    "get and optional set the default configuration file"},
+  {"set_real_time", set_real_time, METH_VARARGS,
+   "set operating system scheduler for realtime"},
   {NULL, NULL, 0, NULL}
 };
 
