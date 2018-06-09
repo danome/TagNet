@@ -10,6 +10,10 @@
 // need this name to allow differences between RPi and Tag code
 #define RPI_BUILD
 
+// pick the right hardware
+#define SI446X_CHIP 0x44682A
+
+#include "si446x.h"
 #include "RadioConfig.h"
 #include "wds_configs.h"
 
