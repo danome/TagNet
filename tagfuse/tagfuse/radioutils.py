@@ -36,14 +36,12 @@ __all__ = ['name2version',
 
 import sys
 import os
-
-from time import time, sleep
+from time import sleep
 import struct as pystruct
 import types
 from binascii import hexlify
 
 from pyproj import Proj, transform
-
 
 # If we are running from the source package directory, try
 # to load the module from there first.
@@ -73,12 +71,16 @@ from tagnet import TagMessage, TagName
 from tagnet import TagPoll, TagGet, TagPut, TagDelete, TagHead
 from tagnet import TlvListBadException, TlvBadException
 
+import monotonic
+def time():
+    return monotonic.millis()
+
 clr_all_flags = clr_pend_int_s.parse('\x00' * clr_pend_int_s.sizeof())
 clr_no_flags  = clr_pend_int_s.parse('\xff' * clr_pend_int_s.sizeof())
 
 # default paramters
-MAX_WAIT            = 1
 MAX_FIFO_SIZE       = 129
+MAX_WAIT            = 1000 # milliseconds
 MAX_RECV            = 2
 MAX_PAYLOAD         = 254
 MAX_RETRIES         = 3
@@ -364,59 +366,57 @@ def msg_chunk_generator(radio, msg):
         tranche = index
         if (tx_len > 0):
             tranche = len(msg[index:]) if (len(msg[index:]) < tx_len) else tx_len
-        yield msg[index:index+tranche], ['c',time(),str(tx_len),',',str(tranche)]
+        yield msg[index:index+tranche], ['c',str(tx_len),str(tranche)]
         index += tranche
 
+def collect_int_status(status):
+    p = []
+    for pend in [status.chip_pend, status.modem_pend, status.ph_pend]:
+        for item in pend.iteritems():
+            if item[1]:
+                p.append(item[0])
+    return p
 
 def radio_send_msg(radio, msg, pwr):
-    start = time()
-    end = start + MAX_WAIT
-    show_flag = False
-    progress = [start]
-
     msg_chunk = msg_chunk_generator(radio, msg)
+    start = time()
+    progress = [start]
+    bps       = get_ids_wds()['bps'] # radio speed in bits per second
+    bits2send = len(msg) * 8 * 3     # time in bits to wait (3x msgs)
+    time2wait = (1.0/bps) * bits2send * 1000
+    # zzz print(start, bps, bits2send, time2wait)
 
-    status = int_status(radio) # clear all interrupt pending flags
-    for pend in [status.chip_pend, status.modem_pend, status.ph_pend]:
-        for item in pend.iteritems():
-            if item[1]:
-                progress.append(item)
-    status = int_status(radio, clr_all_flags)
-    for pend in [status.chip_pend, status.modem_pend, status.ph_pend]:
-        for item in pend.iteritems():
-            if item[1]:
-                progress.append(item)
+    # clear interrupts and report any pending
+    progress.extend(collect_int_status(int_status(radio, clr_all_flags)))
     radio.set_power(pwr)
-    progress.extend(['P',pwr])
+    progress.extend([time(),['Pwr',pwr]])
 
     __, tx = radio.fifo_info(rx_flush=True, tx_flush=True)
     if (tx != MAX_FIFO_SIZE):
-        progress.extend(['T', tx])
+        progress.extend([time(), ['T', tx]])
         return progress
 
     chunk, p = msg_chunk.next()
-    progress.extend(p)
     radio.write_tx_fifo(chunk)
     radio.start_tx(len(msg))
+    progress.extend([time(), p])
 
+    end  = time() + time2wait
     cflags = clr_no_flags
     while (time() < end):
         status = int_status(radio, cflags)
-        progress.append(time())
         cflags = clr_no_flags
         no_action = True
         if (status.chip_pend.CMD_ERROR):
             cflags.chip_pend.CMD_ERROR = False
             no_action = False
-            progress.extend(['E'])
+            progress.extend([time(), 'E'])
             radio.fifo_info(rx_flush=True, tx_flush=True)
-            print('radio send command error')
-            #status = int_status(radio, clr_all_flags)
-            # break
+            print('radio send command error', collect_int_status(status))
         if (status.chip_pend.FIFO_UNDERFLOW_OVERFLOW_ERROR):
             cflags.chip_pend.FIFO_UNDERFLOW_OVERFLOW_ERROR = False
             no_action = False
-            progress.extend(['U', status.ph_pend, status.modem_pend, status.chip_pend])
+            progress.extend([time(), ['U', collect_int_status(status)]])
             break
         if (status.ph_pend.TX_FIFO_ALMOST_EMPTY):
             cflags.ph_pend.TX_FIFO_ALMOST_EMPTY = False
@@ -424,17 +424,23 @@ def radio_send_msg(radio, msg, pwr):
             chunk, p = next(msg_chunk)
             if (len(chunk)):
                 radio.write_tx_fifo(chunk)
-            progress.extend(p)
+            progress.extend([time(), p])
         if (status.ph_pend.PACKET_SENT):
             cflags.ph_pend.PACKET_SENT = False
             no_action = False
             _, tx = radio.fifo_info()
-            progress.extend(['f', tx])
+            progress.extend([time(), ['f', tx]])
             break
         if (no_action):
-            progress.append('w')
-            progress.append(time())
-    progress.extend([':', len(msg), time()])
+            if (not progress):
+                progress.extend([time(), 'p'])
+            elif progress[-1] == 'p':
+                progress.append(2)
+            elif (isinstance(progress[-1], (int, long))) and (progress[-2] == 'p'):
+                progress[-1] += 1
+            else:
+                progress.extend([time(), 'p'])
+    progress.extend([time(), [':', len(msg)]])
     return progress
 
 
@@ -442,11 +448,10 @@ def radio_send_msg(radio, msg, pwr):
 
 def drain_rx_fifo(radio, p):
     rx_len, __ = radio.fifo_info()
+    p.extend([time(), ['r', rx_len]])
     if (rx_len > MAX_FIFO_SIZE):
         rx_len = MAX_FIFO_SIZE
-        p.append('?')
-    p.append(rx_len)
-#    rx = 0  # force the fifo read to fail to verify overrun error
+    # zzz rx = 0  # force the fifo read to fail to verify overrun error
     if (rx_len): return bytearray(radio.read_rx_fifo(rx_len))
     else:    return ''
 
@@ -468,16 +473,15 @@ def radio_receive_msg(radio, max_recv, wait):
         if (status.ph_pend.CRC_ERROR):
             cflags.ph_pend.CRC_ERROR = False     # clear
             no_action = False
-            progress.extend(['C'])
+            progress.extend([time(), 'C'])
             radio.fifo_info(rx_flush=True, tx_flush=True)
             print('*** recv msg CRC error')
             crc_err = True
         if (status.chip_pend.CMD_ERROR):
             cflags.chip_pend.CMD_ERROR = False   # clear
             no_action = False
-            progress.extend(['E',
-                            radio.get_chip_status(),
-                             radio.trace.display(radio.trace.filter())])
+            status = radio.get_chip_status()
+            progress.extend([time(), ['E', status.ph_pend, status.modem_pend, status.chip_pend]])
             radio.fifo_info(rx_flush=True, tx_flush=True)
             #status = int_status(radio, clr_all_flags)
             print('radio receive cmd error')
@@ -486,7 +490,7 @@ def radio_receive_msg(radio, max_recv, wait):
             cflags.modem_pend.INVALID_PREAMBLE = False # clear
             no_action = False
             if (not progress):
-                progress.append('p')
+                progress.extend([time(), 'p'])
             elif progress[-1] == 'p':
                 progress.append(2)
             elif (isinstance(progress[-1], (int, long))) and (progress[-2] == 'p'):
@@ -496,46 +500,43 @@ def radio_receive_msg(radio, max_recv, wait):
         if (status.modem_pend.INVALID_SYNC):
             cflags.modem_pend.INVALID_SYNC = False  # clear
             no_action = False
-            progress.append('s')
+            progress.extend([time(), 'S'])
         if (status.ph_pend.RX_FIFO_ALMOST_FULL):
             cflags.ph_pend.RX_FIFO_ALMOST_FULL = False  # clear
             no_action = False
-            progress.append('w')
+            progress.extend([time(), 'a'])
             msg += drain_rx_fifo(radio, progress)
         if (status.ph_pend.PACKET_RX):
             no_action = False
             rssi = radio.fast_latched_rssi()
             cflags.ph_pend.PACKET_RX = False     # clear
-            progress.append('f')
+            progress.extend([time(), 'f'])
             msg += drain_rx_fifo(radio, progress)
-            progress.extend([len(msg), rssi])
+            progress.extend([time(), len(msg), rssi])
             break
         if (status.chip_pend.FIFO_UNDERFLOW_OVERFLOW_ERROR):
             cflags.chip_pend.FIFO_UNDERFLOW_OVERFLOW_ERROR = False  # clear
             no_action = False
-            progress.append('O')
+            progress.extend([time(), 'O'])
             break
-        if not no_action:
-            progress.append(time())  # only timestamp significant events
         status = int_status(radio, clr_flags=cflags)
 
     status = int_status(radio)                   # clear all outstanding
     pkt_len = radio.get_packet_info()
     if (time() > end):
-        progress.extend(['to','e',status])
+        progress.extend([time(), ['to','e',status]])
         msg = None
     elif crc_err:
         print('*** radioutils.receive crc error')
-        progress.extend(['crc','e',status])
+        progress.extend([time(), ['crc','e',status]])
         #print(progress)
         msg = None
     elif ((pkt_len + 1) != len(msg)):
         print('*** radioutils.receive length error: expected:{}, got:{}'.format(
             pkt_len+1, len(msg)))
-        progress.extend(['len',pkt_len+1,len(msg),'e',status])
+        progress.extend([time(), ['len',pkt_len+1,len(msg),'e',status]])
         #print(progress)
         msg = None
-    progress.append(time())
     return (msg, rssi, progress)
 
 
