@@ -77,8 +77,8 @@ clr_all_flags = clr_pend_int_s.parse('\x00' * clr_pend_int_s.sizeof())
 clr_no_flags  = clr_pend_int_s.parse('\xff' * clr_pend_int_s.sizeof())
 
 # default paramters
-MAX_FIFO_SIZE = 64
 MAX_WAIT            = 1
+MAX_FIFO_SIZE       = 129
 MAX_RECV            = 2
 MAX_PAYLOAD         = 254
 MAX_RETRIES         = 3

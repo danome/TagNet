@@ -69,9 +69,9 @@ RX_WAIT_TIME           = 0.100         # wait for rx failure
 
 # radio fifo limits
 #
-TX_FIFO_MAX            = 64
+TX_FIFO_MAX            = 129
 TX_FIFO_EMPTY          = 0
-RX_FIFO_MAX            = 64
+RX_FIFO_MAX            = 129
 RX_FIFO_EMPTY          = 0
 
 # RPi GPIO Pin Assignments, radio needs to be configured as well
