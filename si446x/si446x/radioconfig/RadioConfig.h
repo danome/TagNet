@@ -46,11 +46,9 @@
  */
 #ifdef RPI_BUILD
 #include "Si446xConfigPlatform.h"
-#include "Si446xConfigWDS.h"
 #include "Si446xConfigDevice.h"
 #else
 #include <Si446xConfigPlatform.h>
-#include <Si446xConfigWDS.h>
 #include <Si446xConfigDevice.h>
 #endif
 
