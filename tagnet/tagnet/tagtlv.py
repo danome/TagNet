@@ -1,5 +1,4 @@
 from __future__ import print_function   # python3 print function
-# NOT THE MAIN SOURCE: see repo [danome]:Tagnet/tagnet/tagnet/tagtlv.py
 from builtins import *                  # python3 types
 import os, sys, types, platform
 from os.path import normpath, commonprefix

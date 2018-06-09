@@ -26,20 +26,9 @@
 #define __SI446XRADIO_H__
 
 #include <MetadataFlagsLayer.h>
-#include <TimeStampingLayer.h>
 
 #ifdef notdef
-#include <RadioConfig.h>
-#include <TinyosNetworkLayer.h>
-#include <Ieee154PacketLayer.h>
-#include <ActiveMessageLayer.h>
-#include <Si446xDriverLayer.h>
-#include <LowPowerListeningLayer.h>
-#include <PacketLinkLayer.h>
-#endif
-
-#if defined(TFRAMES_ENABLED) && defined(IEEE154FRAMES_ENABLED)
-#error "Both TFRAMES and IEEE154FRAMES enabled!"
+#include <TimeStampingLayer.h>
 #endif
 
 #define UQ_SI446X_METADATA_FLAGS "UQ_SI446X_METADATA_FLAGS"
@@ -51,21 +40,27 @@
  */
 
 /*
- * si446x_packet_header contains first the PHR (PHY Hdr), which consists of
- * the frame_length, counting all of the MPDU bytes in the transmission.
- * The CRC at the end of the frame is not included in the frame_length.
+ * si446x_packet_header
+ * contains first the PHR (PHY Hdr), which consists of the
+ * frame_length, counting all of the MPDU bytes in the
+ * transmission. The CRC at the end of the frame is not
+ * included in the frame_length.
  *
- * The rest of the packet header consists of the Tagnet fixed field,
- * providing basic Tagnet message information.
+ * The rest of the packet header consists of the Tagnet
+ * fixed field, providing basic Tagnet message information.
  *
  * The packet header length total is 4 bytes.
  *
- * packet  = frame_length
- *         + response_flag[1] + version[3] + padding[3] + payload_type[1]
- *         + packet_type[3] + options[5]
- *         + name_length
- *         + rest_of_packet
- *         + crc
+ * packet  = frame_length,
+ *           tn_h1(response_flag[1],
+ *                 version[3],
+ *                 padding[3],
+ *                 payload_type[1]),
+ *           tn_h2(packet_type[3],
+ *                 options[5]),
+ *           name_length,
+ *           payload (*n bytes),
+ *           crc     (*only stored on chip)
  */
 
 typedef nx_struct si446x_packet_header {
