@@ -93,6 +93,7 @@ typedef nx_struct si446x_packet_header {
 
 typedef nx_struct si446x_packet_footer {
   nx_uint8_t  placeholder;
+  nx_uint8_t  placeholder2;
 } si446x_packet_footer_t;
 
 /**
@@ -100,13 +101,11 @@ typedef nx_struct si446x_packet_footer {
  * that will not be transmitted.
  */
 typedef struct si446x_metadata_t {
-  uint16_t rxInterval;
-  uint8_t  rssi;
-  uint8_t  lqi;
-  uint8_t  tx_power;
-  bool     crc;
-  bool     ack;
-  bool     timesync;
+  //uint16_t rxInterval;
+  uint16_t   tx_delay;
+  uint8_t    rssi;
+  uint8_t    tx_power;
+  //bool     timesync;
 } si446x_metadata_t;
 
 

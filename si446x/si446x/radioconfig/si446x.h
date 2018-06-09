@@ -1041,7 +1041,8 @@ typedef struct {
   uint8_t part_15;
   uint8_t part_7;
   uint8_t pbuild;
-  uint16_t id;
+  uint8_t id_15;
+  uint8_t id_7;
   uint8_t customer;
   uint8_t romid;
 } si446x_part_info_t;                   /* PART_INFO, 0x01 */
@@ -1050,7 +1051,8 @@ typedef struct {
   uint8_t revext;
   uint8_t revbranch;
   uint8_t revint;
-  uint16_t patch;
+  uint8_t patch17;
+  uint8_t patch7;
   uint8_t func;
 } si446x_func_info_t;                   /* FUNC_INFO, 0x10 */
 
