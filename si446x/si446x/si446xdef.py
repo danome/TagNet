@@ -484,56 +484,46 @@ sdo_cfg_s =  BitStruct('sdo_cfg_s',
                          ),
                         )
 
+gen_config_s = BitStruct('gen_config',
+                         Padding(1),
+                         Enum(BitField('drive_strength',2),
+                              HIGH = 0,
+                              MED_HIGH = 1,
+                              MED_LOW = 2,
+                              LOW = 3,
+                         ),
+                         Padding(5),
+                        )
+
 set_gpio_pin_cfg_cmd_s = Struct('set_gpio_pin_cfg_cmd_s',
                                 Si446xCmds_t(UBInt8("cmd")),
+                                Rename('gpio0', gpio_cfg_s),
                                 Rename('gpio1', gpio_cfg_s),
                                 Rename('gpio2', gpio_cfg_s),
                                 Rename('gpio3', gpio_cfg_s),
-                                Rename('gpio4', gpio_cfg_s),
-                                nirq_cfg_s,
-                                sdo_cfg_s,
-                                BitStruct('gen_config',
-                                          Padding(1),
-                                          Enum(BitField('drive_strength',2),
-                                               HIGH = 0,
-                                               MED_HIGH = 1,
-                                               MED_LOW = 2,
-                                               LOW = 3,
-                                               ),
-                                          Padding(5),
-                                          ),
+                                Rename('nirq',  nirq_cfg_s),
+                                Rename('sdo',   sdo_cfg_s),
+                                Rename('gen_config', gen_config_s),
                                 )
 
 get_gpio_pin_cfg_rsp_s = Struct('get_gpio_pin_cfg_rsp_s',
                                 Byte('cts'),
-                                Array(4, gpio_cfg_s),
-                                nirq_cfg_s,
-                                sdo_cfg_s,
-                                BitStruct('gen_config',
-                                          Padding(1),
-                                          Enum(BitField('drive_strength',2),
-                                               HIGH = 0,
-                                               MED_HIGH = 1,
-                                               MED_LOW = 2,
-                                               LOW = 3,
-                                               ),
-                                          Padding(5),
-                                          ),
+                                Rename('gpio0', gpio_cfg_s),
+                                Rename('gpio1', gpio_cfg_s),
+                                Rename('gpio2', gpio_cfg_s),
+                                Rename('gpio3', gpio_cfg_s),
+                                Rename('nirq',  nirq_cfg_s),
+                                Rename('sdo',   sdo_cfg_s),
+                                Rename('gen_config', gen_config_s),
                                 )
 
 def _display_gpio_pin_cfg_rsp(str, buf):
     rsp  = str.parse(buf)
-    s    = ''
-    n    = 0
-    for k,v in rsp.gen_config.items():
-        s += ', {} {}'.format(k,v)
-    for item in rsp.gpio_cfg_s:
-        s += ', pin[{}]({}:{}) {}'.format(n, item.mode, item.state, item.pull_ctl)
-        n += 1
-    item = rsp.nirq_cfg_s
-    s += ', {} {} / {}'.format(item.mode, item.state, item.pull_ctl)
-    item = rsp.sdo_cfg_s
-    s += ', {} {} / {}'.format(item.mode, item.state, item.pull_ctl)
+    s = '[gpio drive strength: {}]'.format(rsp.gen_config.drive_strength)
+    for item in ['gpio0', 'gpio1', 'gpio2', 'gpio3']:
+        s += ', [{}:({}:{})/{}]'.format(item, rsp[item].mode, rsp[item].state, rsp[item].pull_ctl)
+    s += ', [nirq:({}:{})/{}]'.format(rsp.nirq.mode, rsp.nirq.state, rsp.nirq.pull_ctl)
+    s += ', [sdo:({}:{})/{}]'.format(rsp.sdo.mode, rsp.sdo.state, rsp.sdo.pull_ctl)
     return s
 
 int_status_rsp_s = Struct('int_status_rsp_s',

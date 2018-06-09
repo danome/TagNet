@@ -80,12 +80,13 @@
  *
  * gp0: in_sleep (28),  asleep: gp0=0
  * gp1: cts(8), clear: gp1=1
- * gp2: rx_state (33), gp3: tx_state (32)
- *      Transmit: gp2=0, gp3=1
- *      Receive:  gp2=1, gp3=0
+ * gp2: gp3: rx_state (33), tx_state (32) NOTE: RPi/FPV SAME AS DEV BOARD and OPPOSITE PROTOTYPE
+ *      Transmit: gp2=1, gp3=0
+ *      Receive:  gp2=0, gp3=1
+ *      NIRQ, SDO, GEN_CONFIG =0
  */
 #define SI446X_GPIO_PIN_CFG_LEN    8
-#define SI446X_RF_GPIO_PIN_CFG     0x13, 28, 8, 33, 32, 0x00, 0x00, 0x00
+#define SI446X_RF_GPIO_PIN_CFG     SI446X_CMD_GPIO_PIN_CFG, SI446X_GPIO_IN_SLEEP, SI446X_GPIO_CTS, SI446X_GPIO_RX_STATE, SI446X_GPIO_TX_STATE, 0x00, 0x00, 0x00
 
 
 #endif  /* __SI446X_CONFIG_PLATFORM_H__ */

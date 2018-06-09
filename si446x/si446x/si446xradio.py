@@ -10,14 +10,18 @@ import spidev
 
 try:
     import RPi.GPIO as GPIO
-    gpio = True
+    gpio_enabled = True
 except RuntimeError as e:
-    gpio = False
+    gpio_enabled = False
     print(e)
 
 from si446xdef import *
 from si446xcfg import get_config_wds, get_config_device
 import si446xtrace
+
+import monotonic
+def time():
+    return monotonic.millis()
 
 __all__ = ['SpiInterface', 'Si446xRadio', 'si446xradio_test']
 
@@ -43,31 +47,6 @@ radio structures used in the operation (see si446xdef.py). One exception,
 for example, is get_property(). Significant events are recorded in the
 trace buffer for later analysis.
 """
-
-def _get_cts(pin):
-    """
-    Read the current value of the radio CTS GPIO pin
-
-    Internal use only.
-    """
-    if (gpio):
-        return (GPIO.input(pin))
-    else:
-        return False
-
-def _get_cts_wait(pin, t):
-    """
-    Wait for the value of the radio CTS GPIO pin to go high (True)
-
-    Internal use only.
-    """
-    if (gpio):
-        for i in range(t+1):
-            r = _get_cts(pin)
-            if (r):  return r
-            sleep(.001)
-    return False
-
 
 class SpiInterface:
     """
@@ -105,6 +84,7 @@ class SpiInterface:
             if clock:
                 self.spi.max_speed_hz=clock
             self.gpio_cts = cts
+            self.hard_cts = False
             print('si446xradio', self.spi.max_speed_hz)
             self.trace.add('RADIO_CHIP',
                            'spi max speed: {}'.format(self.spi.max_speed_hz),
@@ -112,14 +92,60 @@ class SpiInterface:
         except IOError as e:
             self.trace.add('RADIO_INIT_ERROR', e, level=2)
 
+
+    def _get_cts(self):
+        """
+        Read the current value of the radio CTS GPIO pin
+
+        Internal use only.
+        """
+        if (gpio_enabled):
+            if self.hard_cts:
+                return (GPIO.input(self.gpio_cts))
+            else:
+                SI446X_CMD_READ_CMD_BUFF = 0x44
+                rsp = self.spi.xfer2([SI446X_CMD_READ_CMD_BUFF, 0])
+                return int(rsp[1])
+        raise RuntimeError('*** radio CTS failure')
+
+    def _get_cts_wait(self, t):
+        """
+        Wait for the value of the radio CTS GPIO pin to go high (True)
+
+        Internal use only.
+        """
+        start = monotonic.micros()
+        end = start + t
+        r = None
+        if (gpio_enabled):
+            next = monotonic.micros()
+            while end > next:
+                r = self._get_cts()
+                if (r):  return r
+                next = monotonic.micros()
+        raise RuntimeError('*** radio CTS failure', r, start, end, next)
+
+    def _disable_hard_cts(self):
+        """
+        Switch to using hardware pin for CTS status, instead of SPI transfer.
+        """
+        self.hard_cts = False
+
+    def _enable_hard_cts(self):
+        """
+        Switch to using hardware pin for CTS status, instead of SPI transfer.
+        """
+        # zzz return
+        self.hard_cts = True
+
     def command(self, msg, form, level=2):
         """
         Send command message to the device
 
         Wait for CTS and then SPI write the msg
         """
-        _get_cts_wait(self.gpio_cts, 100)
-        if (not _get_cts(self.gpio_cts)):
+        self._get_cts_wait(10000)
+        if not self._get_cts():
             self.trace.add('RADIO_CTS_ERROR', 'no cts [1]', level=level)
         try:
             self.form = form
@@ -134,9 +160,8 @@ class SpiInterface:
 
         Wait for CTS and then SPI read back the response buffer.
         """
-        _get_cts_wait(self.gpio_cts, 100)
         rsp = bytearray()
-        if (not _get_cts(self.gpio_cts)):
+        if not self._get_cts_wait(5000):
             self.trace.add('RADIO_RSP_ERROR', 'no cts [2]', level=level)
         try:
             r = self.spi.xfer2([0x44] + rlen * [0])
@@ -224,7 +249,7 @@ class Si446xRadio(object):
         request.state = state
         cmd = change_state_cmd_s.build(request)
         self.spi.command(cmd, change_state_cmd_s.name)
-        _get_cts_wait(self.gpio_cts, wait)
+        self.spi._get_cts_wait(wait)
     #end def
 
     def check_CCA(self):
@@ -286,11 +311,45 @@ class Si446xRadio(object):
         self.spi.command(cmd, config_frr_cmd_s.name)
     #end def
 
+    def config_gpio(self,
+                    gpio0 ='IN_SLEEP',
+                    gpio1 ='CTS',
+                    gpio2 ='RX_STATE',
+                    gpio3 ='TX_STATE',
+                    nirq  ='NIRQ',
+                    sdo   ='SDO',):
+
+        """
+        Configure use of radio chip GPIO pins
+        """
+        request = set_gpio_pin_cfg_cmd_s.parse('\x00' * set_gpio_pin_cfg_cmd_s.sizeof())
+        request.cmd = 'GPIO_PIN_CFG'
+        request.gpio0.mode = gpio0
+        request.gpio1.mode = gpio1
+        request.gpio2.mode = gpio2
+        request.gpio3.mode = gpio3
+        request.nirq.mode  = nirq
+        request.sdo.mode   = sdo
+
+        cmd = set_gpio_pin_cfg_cmd_s.build(request)
+        self.spi.command(cmd, set_gpio_pin_cfg_cmd_s.name)
+
+        request = read_cmd_s.parse('\x00' * read_cmd_s.sizeof())
+        request.cmd='GPIO_PIN_CFG'
+        cmd = read_cmd_s.build(request)
+        self.spi.command(cmd, read_cmd_s.name)
+        rsp = self.spi.response(get_gpio_pin_cfg_rsp_s.sizeof(), get_gpio_pin_cfg_rsp_s.name)
+        if (rsp):
+            response = get_gpio_pin_cfg_rsp_s.parse(rsp)
+            return response
+        return None
+    #end def
+
     def disable_interrupt(self):
         """
         Disable radio chip hardware interrupt
         """
-        if (gpio):
+        if (gpio_enabled):
             GPIO.remove_event_detect(self.gpio_nirq)
     #end def
 
@@ -331,7 +390,7 @@ class Si446xRadio(object):
         the interrupt and will be called when the GPIO transitions from
         high to low.
         """
-        if (gpio):
+        if (gpio_enabled):
             GPIO.add_event_detect(self.gpio_nirq,
                                   GPIO.FALLING,
                                   callback=self.callback,
@@ -431,7 +490,10 @@ class Si446xRadio(object):
 
         Refer to structures defined by the Si4463 radio API revB1B.
         """
-        self.clear_interrupts(clr_flags)
+        if clr_flags:
+            self.clear_interrupts(clr_flags)
+        else:
+            self.clear_interrupts()
         rsp = self.spi.response(int_status_rsp_s.sizeof(),
                                 int_status_rsp_s.name,
                                 level=3)
@@ -473,7 +535,7 @@ class Si446xRadio(object):
 
         Read CTS, return true if high
         """
-        rsp = _get_cts(self.gpio_cts)
+        rsp = self.spi._get_cts()
         return rsp
     #end def
 
@@ -542,7 +604,7 @@ class Si446xRadio(object):
         """
         Start up the Radio.
         """
-        if (not _get_cts(self.gpio_cts)):
+        if not _get_cts():
             self.trace.add('RADIO_CHIP', 'cts not ready', level=2)
         request = power_up_cmd_s.parse('\x00' * power_up_cmd_s.sizeof())
         request.cmd='POWER_UP'
@@ -652,7 +714,7 @@ class Si446xRadio(object):
         self.trace.add('RADIO_CHIP',
                        'set GPIO pin {} (SI446x sdn disable)'.format(self.gpio_sdn),
                        level=2)
-        if (gpio):
+        if (gpio_enabled):
             GPIO.output(self.gpio_sdn,1)
             GPIO.cleanup()
     #end def
@@ -717,7 +779,7 @@ class Si446xRadio(object):
         self.trace.add('RADIO_GPIO',
                        'clear GPIO pin {} (SI446x sdn enable)'.format(self.gpio_sdn),
                        level=2)
-        if (gpio):
+        if (gpio_enabled):
             GPIO.setmode(GPIO.BOARD)
             GPIO.setup(self.gpio_cts,GPIO.IN)    #  [CTSn]
             GPIO.setup(self.gpio_nirq,GPIO.IN)   #  [IRQ]
@@ -726,10 +788,10 @@ class Si446xRadio(object):
             sleep(.1)
             GPIO.output(self.gpio_sdn,0)
             sleep(.1)
+            self.spi._disable_hard_cts()
     #end def
 
     def write_config(self, config=None):
-        self.config_frr()
         powered = False
         config_strings = []
         list_of_lists = self.get_config_lists()
@@ -760,6 +822,7 @@ class Si446xRadio(object):
                         self.clear_interrupts()
                         return None
         self.config_strings = config_strings
+        self.spi._enable_hard_cts()
         return config_strings
     #end def
 
