@@ -80,7 +80,7 @@ class SpiInterface:
             self.device = device
             self.spi = spidev.SpiDev()
             self.spi.open(0, device)  # port=0, device(CS)=device_num
-            self.spi.max_speed_hz=4000000
+            self.spi.max_speed_hz=(4000000)
             if clock:
                 self.spi.max_speed_hz=clock
             self.gpio_cts = cts
