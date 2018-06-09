@@ -20,8 +20,7 @@ $(TARGET_LIB): $(SRCS)
 
 .PHONY: clean
 clean:
-	-${RM} ${TARGET_LIB} ${OBJS}
-
+	-${RM} ${TARGET_LIB} ${OBJS} ../$(TARGET_LIB)
 
 #
 #si446xcfg.so: si446xcfg.c
