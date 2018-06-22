@@ -83,7 +83,7 @@ MAX_FIFO_SIZE       = 129
 MAX_WAIT            = 1000 # milliseconds
 MAX_RECV            = 2
 MAX_PAYLOAD         = 254
-MAX_RETRIES         = 3
+MAX_RETRIES         = 4
 RADIO_POWER         = 20
 SHORT_DELAY         = 1
 
