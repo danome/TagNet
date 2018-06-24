@@ -676,8 +676,7 @@ class DirHandler(OrderedDict):
         return self['']
 
     def readdir(self, path_list, tag_root):
-        # zzz print('base class readdir')
-        # zzz print(self)
+        # zzz print('dirhandler.readdir', self)
         dir_names = ['.','..']
         for name in self.keys():
             if (name != ''):
@@ -699,6 +698,37 @@ class DirHandler(OrderedDict):
         print('*** FileHandler.utimens', path_list, atime, mtime)
         return 0
 
+def poll_for_tags(this, tree):
+    '''
+    look for any new tags in the neighborhood and add them
+    to this node's children. A whole new instance of the
+    tagtree is instantiated for each tag. Existing tags that
+    are no longer reachable stay in the tree and must be
+    explicitly deleted.
+    radio_poll returns a 4-tuple of which we only are
+    interested in the first item (not interested in rssi,
+    tx status, rx status).
+    The tag_list is a list of all tags that responded to the
+    poll. Each item in the list is a tuple of info about that
+    tag. The first item is its node id, which we use for the
+    directory entry name.
+    '''
+    tag_names = []
+    tag_list = radio_poll(this.radio)
+    tag_set = Set(tag_list.keys())
+    my_names = []
+    for tag in this.keys():
+        if tag is '' or tag.startswith('.'):
+            continue   # skip special files
+        my_names.append(tag)
+        my_set = Set(my_names)
+        diff_set = tag_set.difference(my_set)
+    print('*** poll_for_tags, known: {}, found: {}, diff: {}'.format(my_set, tag_set, diff_set))
+    for tag in diff_set: # add new found tags
+        # instantiate new directory using default tag file tree
+        this[tag] = tree(this.radio)
+        this['']['st_nlink'] += 1
+    return
 
 class PollNetDirHandler(DirHandler):
     '''
@@ -730,40 +760,10 @@ class PollNetDirHandler(DirHandler):
         return (handler, path_list)
 
     def readdir(self, path_list, tag_root):
-        '''
-        look for any new tags in the neighborhood and add them
-        to this node's children. A whole new instance of the
-        tagtree is instantiated for each tag. Existing tags that
-        are no longer reachable stay in the tree and must be
-        explicitly deleted.
-        radio_poll returns a 4-tuple of which we only are
-        interested in the first item (not interested in rssi,
-        tx status, rx status).
-        The tag_list is a list of all tags that responded to the
-        poll. Each item in the list is a tuple of info about that
-        tag. The first item is its node id, which we use for the
-        directory entry name.
-        '''
-        tag_names = []
-        tag_list = radio_poll(self.radio)
-        print('*** NetDirHandler.readdir', tag_list)
-        tag_set = Set(tag_list.keys())
-        my_names = []
-        for tag in self.keys():
-            if tag is '' or tag.startswith('.'):
-                continue   # skip special files
-            my_names.append(tag)
-        my_set = Set(my_names)
-        diff_set = tag_set.difference(my_set)
-        print('*** NetDirHandler.readdir', tag_set, my_set, diff_set)
-        for tag in diff_set: # add new found tags
-            # instantiate using default tag file tree
-            self[tag] = tag_root(self.radio)
-            self['']['st_nlink'] += 1
+        poll_for_tags(self, tag_root)
         dir = super(PollNetDirHandler, self).readdir(path_list,
                                                      tag_root)
-        # zzz dir = ['.','..','.test']
-        print('*** NetDirHandler.readdir',dir)
+        # zzz print('*** NetDirHandler.readdir',dir)
         return dir
 
 
