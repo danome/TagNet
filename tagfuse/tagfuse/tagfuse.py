@@ -2,7 +2,7 @@
 from __future__ import print_function, absolute_import, division
 #from builtins import *                  # python3 types
 
-print('*** tagfuse.py','starting')
+# zzz print('*** tagfuse.py','starting')
 
 __all__ = ['TagStorage',
            'TagFuse',]
@@ -38,9 +38,8 @@ if (os.path.exists(basedir)
     for ndir in add_dirs:
         if (ndir not in sys.path):
             sys.path.insert(0,ndir)
-    # zzz
-print('** tagfuse path:', __file__, basedir)
-print('\n'.join(sys.path))
+    # zzz print('** tagfuse path:', __file__, basedir)
+    # zzz print('\n'.join(sys.path))
 
 try:
     from radioutils  import path2list
@@ -328,4 +327,4 @@ if __name__ == '__main__':
     import tagfuseargs
     TagStorage(tagfuseargs.process_cmd_args())
 
-print('** tagfuse.py','ending')
+# zzz print('** tagfuse.py','ending')
