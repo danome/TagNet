@@ -9,9 +9,8 @@ __all__ = ['TagStorage',
 
 import os
 import sys
-reload(sys)
 #sys.setdefaultencoding('utf-8')
-print('default encoding', sys.getdefaultencoding())
+# zzz print('default encoding', sys.getdefaultencoding())
 
 import logging
 from collections import defaultdict, OrderedDict
@@ -53,6 +52,9 @@ except ImportError:
 
 from si446x import Si446xRadio
 from si446x import get_config_wds, get_name_wds, wds_default_config
+
+# fix bug with utf-8 encoding after loading Python sys package
+reload(sys)
 
 #if not hasattr(__builtins__, 'bytes'):
 #    bytes = str
