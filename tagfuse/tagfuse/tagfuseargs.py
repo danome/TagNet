@@ -39,7 +39,7 @@ class expand_pathname(argparse.Action):
 
 def process_cmd_args():
     global global_args
-
+    print('TagNet Fuse Driver version: {}'.format(__version__))
     parser = argparse.ArgumentParser(
         description='Tagnet FUSE Filesystem driver v{}'.format(__version__))
     parser.add_argument('mountpoint',
