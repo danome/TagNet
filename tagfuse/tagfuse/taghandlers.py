@@ -361,9 +361,9 @@ class ImageIOFileHandler(ByteIOFileHandler):
         path_list[-1] = '<version:'+'.'.join(path_list[-1].split('.'))+'>'
         # zzz print('image io flush', path_list)
         self['st_size'] = im_close_file(self.radio, path_list)
-        if (self['st_size']):
-            return 0
-        raise FuseOSError(ENOENT)
+#        if (self['st_size']):
+        return 0
+#        raise FuseOSError(ENOENT)
 
     def read(self, path_list, size, offset):
         # zzz print('image io read, size: {}, offset: {}'.format(size, offset))
