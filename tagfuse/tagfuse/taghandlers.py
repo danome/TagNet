@@ -230,7 +230,7 @@ class SparseIOFileHandler(ByteIOFileHandler):
     def __init__(self, *args, **kwargs):
         super(SparseIOFileHandler, self).__init__(*args, **kwargs)
         self.sparse = None
-        print("sparse handler init:", get_cmd_args().sparse_dir)
+        # zzz print("sparse handler init:", get_cmd_args().sparse_dir)
 
     def _open_sparse(self, fpath):
         # zzz print("*** _open_sparse input: ", self.sparse, get_cmd_args().disable_sparse)
@@ -244,7 +244,7 @@ class SparseIOFileHandler(ByteIOFileHandler):
         try:
             self.sparse = SparseFile(sparse_filename)
         except:
-            print("sparse handler exception")
+            print("*** sparse handler exception")
             raise
         items = sorted(self.sparse.items())
         if items:
@@ -789,14 +789,13 @@ class ImageDirHandler(DirHandler):
                 if (str(state) != 'x'):
                     tag_versions.append('.'.join(map(str, version)))
             tag_set = Set(tag_versions)
-            print('*** tag_set',tag_set)
             # make set of version founds on self
             my_versions = []
             for version in self.keys():
                 if version is not '':
                     my_versions.append(version)
             my_set = Set(my_versions)
-            print('*** my_set',my_set)
+            print('*** imagedirhandler.readdir, known: {}, found: {}'.format(my_set, tag_set))
 
             # add versions on tag but not on self
             for version in tag_set.difference(my_set):

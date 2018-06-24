@@ -146,7 +146,7 @@ def im_get_dir(radio, path_list, version=None):
         for x in range(0, len(payload), 2):
             version =  payload[x].value()
             state = payload[x+1].value()
-            print('im get dir, state: {} version: {}'.format(state,version))
+            # zzz print('im get dir, state: {} version: {}'.format(state,version))
             if   (state == 'a'): state = 'active'
             elif (state == 'b'): state = 'backup'
             elif (state == 'g'): state = 'golden'

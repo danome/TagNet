@@ -137,7 +137,7 @@ class TagFuse(LoggingMixIn, Operations):
     def getattr(self, path, fh=None):
         print('** getattr: path {}'.format(path))
         handler, path_list = self.LocateNode(path)
-        print('** getattr: pathlist: {}'.format(path_list))
+        # zzz print('** getattr: pathlist: {}'.format(path_list))
         try:
             return handler.getattr(path_list, update=True)
         except AttributeError:
