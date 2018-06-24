@@ -85,7 +85,7 @@ MAX_RECV            = 2
 MAX_PAYLOAD         = 254
 MAX_RETRIES         = 4
 RADIO_POWER         = 20
-SHORT_DELAY         = 1
+SHORT_DELAY         = 1000 # milliseonds
 
 
 #WGS84   EPSG:4326     World Geodetic System 1984 (lat/lon)
@@ -556,18 +556,20 @@ def radio_poll(radio, window=1000, slots=16, power=RADIO_POWER, wait=None):
     req_obj    = TagPoll(slot_width=window, slot_count=slots)
     req_msg    = req_obj.build()
     bps        = get_ids_wds()['bps']
-    wait_time  = (slots * ((1.0 * window) / bps))
-    # zzz print('*** radio_poll', wait_time, slots, window, bps)
-    end        = time() + wait_time
+    wait_time  = wait if (wait) else (slots * ((1.0 * window) / bps)) * 1000
+    start      = time()
+    end        = start + wait_time + SHORT_DELAY
+    # zzz print('*** radio_poll', start, end, end-start, wait_time, slots, window, bps)
 
     rstatus    = ''
     sstatus    = radio_send_msg(radio, req_msg, power)
+    # zzz print(req_obj.name, req_obj.payload, hexlify(req_msg))
     while (time() < end):
         rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV,
-                                                   wait_time)
+                                                   end - time())
         if rsp_msg:
             last_rssi = rssi
-            # zzz print(hexlify(rsp_msg))
+            # zzz print(time(), hexlify(rsp_msg))
             try:
                 rsp_obj = TagMessage(rsp_msg)
             except (TlvBadException, TlvListBadException):
@@ -576,9 +578,9 @@ def radio_poll(radio, window=1000, slots=16, power=RADIO_POWER, wait=None):
                 found[hexlify(rsp_obj.payload[0].value())] = [rssi] + \
                     [rsp_obj.payload[i].value() for i in range(1,len(rsp_obj.payload))]
             except (TlvBadException, TlvListBadException):
-                print('*** error in poll response message')
-                #print(radio.trace.display(radio.trace.filter(count=-20)))
-    # zzz print(found)
+                print('*** error in poll response message', time())
+                # zzz print(radio.trace.display(radio.trace.filter(count=-20)))
+    # zzz print('*** radio_poll', time() - start, found)
     return found
 
 
