@@ -71,9 +71,12 @@ from tagnet import TagMessage, TagName
 from tagnet import TagPoll, TagGet, TagPut, TagDelete, TagHead
 from tagnet import TlvListBadException, TlvBadException
 
-import monotonic
-def time():
-    return monotonic.millis()
+try:
+    import si446x.monotonic as monotonic
+    def time():
+        return monotonic.millis()
+except:
+    from time import time
 
 clr_all_flags = clr_pend_int_s.parse('\x00' * clr_pend_int_s.sizeof())
 clr_no_flags  = clr_pend_int_s.parse('\xff' * clr_pend_int_s.sizeof())
