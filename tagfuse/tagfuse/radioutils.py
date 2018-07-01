@@ -15,7 +15,6 @@ __all__ = ['name2version',
            'path2tlvs',
            'path2list',
            'radio_start',
-           'radio_config',
            'radio_get_group',
            'radio_get_property',
            'radio_format_group',
@@ -228,19 +227,6 @@ def msg_exchange(radio, req, power=RADIO_POWER, wait=MAX_WAIT):
         tries -= 1
     return error, payload
 
-def radio_config(radio):
-    '''
-    Configure Si446x Radio
-
-    Uses the pre-compiled config string lists as well as some
-    additional configuration.
-    '''
-    wds_default_config(0)     # change to force alternate default config
-    config_strings = radio.write_config()
-    # these settings should be included in the compiled config strings
-    radio.config_frr()
-    radio.set_property('PKT', 0x0b, '\x10\x10') # tx/rx threshold
-    return config_strings
 
 def radio_show_config(radio, config):
     '''
