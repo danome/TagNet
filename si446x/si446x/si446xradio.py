@@ -16,7 +16,7 @@ except RuntimeError as e:
     print(e)
 
 from si446xdef import *
-from si446xcfg import get_config_wds, get_config_device
+from si446xcfg import get_config_wds, get_config_device, set_real_time
 import si446xtrace
 
 import monotonic
@@ -234,6 +234,8 @@ class Si446xRadio(object):
         self.gpio_nirq = nirq
         self.gpio_cts = cts
         self.gpio_sdn = sdn
+        result = set_real_time()
+        print('si446x radio realtime failure to initialize: %'.format(result))
 
     def _gpio_callback(self, channel):
         self.trace.add('RADIO_ERROR', 'si446xradio: Edge detected on channel %s'%channel)
