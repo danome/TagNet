@@ -163,6 +163,8 @@ class TagFuse(LoggingMixIn, Operations):
         wds_default_config(0) # force alternate default config
         self.radio.write_config()
         self.radio.config_frr()
+        # RPi specific config
+        self.radio.set_property('PKT', 0x0b, '\x28\x28') # tx/rx threshold
         self.radio.set_property('PREAMBLE', 0, '\x40')   # long preamble
         self.tree_root = TagFuseRootTree(self.radio)
         return None
