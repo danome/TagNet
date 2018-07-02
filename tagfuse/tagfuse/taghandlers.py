@@ -14,6 +14,7 @@ __all__ = ['FileHandler',
            'ImageIOFileHandler',
            'SimpleRecHandler',
            'DirHandler',
+           'RootDirHandler',
            'PollNetDirHandler',
            'ImageDirHandler',
            'SysActiveDirHandler',
@@ -675,7 +676,7 @@ class DirHandler(OrderedDict):
         print('*** dirhandler.getattr', path_list)
         return self['']
 
-    def readdir(self, path_list, tag_root):
+    def readdir(self, path_list, tree_root, new_tag_def):
         # zzz print('dirhandler.readdir', self)
         dir_names = ['.','..']
         for name in self.keys():
@@ -698,47 +699,13 @@ class DirHandler(OrderedDict):
         print('*** FileHandler.utimens', path_list, atime, mtime)
         return 0
 
-def poll_for_tags(this, tree):
-    '''
-    look for any new tags in the neighborhood and add them
-    to this node's children. A whole new instance of the
-    tagtree is instantiated for each tag. Existing tags that
-    are no longer reachable stay in the tree and must be
-    explicitly deleted.
-    radio_poll returns a 4-tuple of which we only are
-    interested in the first item (not interested in rssi,
-    tx status, rx status).
-    The tag_list is a list of all tags that responded to the
-    poll. Each item in the list is a tuple of info about that
-    tag. The first item is its node id, which we use for the
-    directory entry name.
-    '''
-    tag_names = []
-    tag_list = radio_poll(this.radio)
-    tag_set = Set(tag_list.keys())
-    my_names = []
-    for tag in this.keys():
-        if tag is '' or tag.startswith('.'):
-            continue   # skip special files
-        my_names.append(tag)
-        my_set = Set(my_names)
-        diff_set = tag_set.difference(my_set)
-    print('*** poll_for_tags, known: {}, found: {}, diff: {}'.format(my_set, tag_set, diff_set))
-    for tag in diff_set: # add new found tags
-        # instantiate new directory using default tag file tree
-        this[tag] = tree(this.radio)
-        this['']['st_nlink'] += 1
-    return
 
-class PollNetDirHandler(DirHandler):
+class RootDirHandler(DirHandler):
     '''
-    Network Polling Directory Handler class
-
-    Performs all FUSE directory related operations.
+    Tag Tree Root Directory Handler class
     '''
-    def __init__(self, radio, a_dict):
-        super(PollNetDirHandler, self).__init__(a_dict)
-        self.radio = radio
+    def __init__(self, a_dict):
+        super(RootDirHandler, self).__init__(a_dict)
 
     def traverse(self, path_list, index):
         '''
@@ -750,7 +717,7 @@ class PollNetDirHandler(DirHandler):
         string (file attributes) or a dot file (special in this
         level).
         '''
-        handler, path_list = super(PollNetDirHandler, self).traverse(path_list, index)
+        handler, path_list = super(RootDirHandler, self).traverse(path_list, index)
         if not path_list:
             return (handler, path_list)
         if (path_list[index] is not '') and \
@@ -759,12 +726,60 @@ class PollNetDirHandler(DirHandler):
         # zzz print('*** poll net dir', index, path_list)
         return (handler, path_list)
 
-    def readdir(self, path_list, tag_root):
-        poll_for_tags(self, tag_root)
-        dir = super(PollNetDirHandler, self).readdir(path_list,
-                                                     tag_root)
-        # zzz print('*** NetDirHandler.readdir',dir)
-        return dir
+
+class PollNetDirHandler(DirHandler):
+    '''
+    Network Polling Directory Handler class
+
+    Performs polling for new tags and adds them to root directory.
+    '''
+    def __init__(self, radio, a_dict):
+        super(PollNetDirHandler, self).__init__(a_dict)
+        self.radio = radio
+
+    def readdir(self, path_list, tree_root, new_tag):
+        '''
+        look for any new tags in the neighborhood and add them
+        to this node's children. A whole new instance of the
+        tagtree is instantiated for each tag. Existing tags that
+        are no longer reachable stay in the tree and must be
+        explicitly deleted.
+        radio_poll returns a 4-tuple of which we only are
+        interested in the first item (not interested in rssi,
+        tx status, rx status).
+        The tag_list is a list of all tags that responded to the
+        poll. Each item in the list is a tuple of info about that
+        tag. The first item is its node id, which we use for the
+        directory entry name.
+        '''
+        for tag in self.keys():   # remove all tags found last time
+            if tag is '' or tag.startswith('.'):
+                continue
+            del self[tag]
+        my_names = []
+        for tag in tree_root.keys():  # buld list of known tags
+            if tag is '' or tag.startswith('.'):
+                continue          # skip special files
+            my_names.append(tag)
+        my_set = Set(my_names)
+        diff_set = Set()
+        for i in range(10):           # poll for list of live tags
+            tag_set = Set(radio_poll(self.radio).keys())
+            diff_set |= tag_set.difference(my_set)
+            print('*** NetDirHandler.readdir poll', tag_set, diff_set)
+            if diff_set and i > 1:
+                break
+        # zzz
+        print('*** NetDirHandler.readdir, known: {}, found: {}, diff: {}'.format(my_set, tag_set, diff_set))
+        for tag in diff_set:          # add new found tags
+            # instantiate new directory using default tag file tree
+            tree_root[tag] = new_tag(self.radio)
+            self[tag] = FileHandler(S_IFREG, 0o444, 1)
+            tree_root['']['st_nlink'] += 1
+        dir_names = list(diff_set) + ['.','..']
+        # zzz
+        print('*** NetDirHandler.readdir',dir_names)
+        return dir_names
 
 
 class ImageDirHandler(DirHandler):
@@ -778,7 +793,7 @@ class ImageDirHandler(DirHandler):
         super(ImageDirHandler, self).__init__(a_dict)
         self.radio = radio
 
-    def readdir(self, path_list, tag_root):
+    def readdir(self, path_list, tree_root, new_tag_def):
         # zzz print('image readdir', path_list)
         tag_dir = im_get_dir(self.radio, path_list)
         if (tag_dir):
@@ -812,7 +827,7 @@ class ImageDirHandler(DirHandler):
                     pass  # wasn't there, ok
 
         # zzz print(self)
-        return super(ImageDirHandler, self).readdir(path_list, tag_root)
+        return super(ImageDirHandler, self).readdir(path_list, tree_root, new_tag_def)
 
     def create(self, path_list, mode):
         file_name = path_list[-1]
@@ -848,7 +863,7 @@ class SysDirHandler(DirHandler):
         super(SysDirHandler, self).__init__(a_dict)
         self.radio = radio
 
-    def readdir(self, path_list, tag_root, img_state=''):
+    def readdir(self, path_list, tree_root, new_tag_def, img_state=''):
         # zzz print('*** SysDir.readdir', path_list)
         tag_dir = im_get_dir(self.radio, path_list)
         if (tag_dir):
@@ -878,7 +893,7 @@ class SysDirHandler(DirHandler):
             for version in my_set.difference(tag_set):
                 del self[version]
         # zzz print(self)
-        return super(SysDirHandler, self).readdir(path_list, tag_root)
+        return super(SysDirHandler, self).readdir(path_list, tree_root, new_tag_def)
 
 
 class SysActiveDirHandler(SysDirHandler):
@@ -912,9 +927,9 @@ class SysActiveDirHandler(SysDirHandler):
             return 0
         return 0
 
-    def readdir(self, path_list, tag_root):
+    def readdir(self, path_list, tree_root, new_tag_def):
         dir = super(SysActiveDirHandler, self).readdir(
-            path_list, tag_root, img_state='active')
+            path_list, tree_root, new_tag_def, img_state='active')
         print('*** SysActive.readdir',dir)
         return dir
 
@@ -954,9 +969,9 @@ class SysBackupDirHandler(SysDirHandler):
             return 0
         return 0
 
-    def readdir(self, path_list, tag_root):
+    def readdir(self, path_list, tree_root, new_tag_def):
         dir = super(SysBackupDirHandler, self).readdir(
-                       path_list, tag_root, img_state='backup')
+                       path_list, tree_root, new_tag_def, img_state='backup')
         print('*** SysBackup.readdir',dir)
         return dir
 

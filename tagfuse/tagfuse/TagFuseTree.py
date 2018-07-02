@@ -173,7 +173,7 @@ def TagFuseTagTree(radio):
     ]))
 
 def TagFuseRootTree(radio):
-    return PollNetDirHandler(radio, OrderedDict([
+    return RootDirHandler(OrderedDict([
         ('',        FileHandler(S_IFDIR, 0o751, 4)),
         ('.test',   DirHandler(OrderedDict([
             ('',       FileHandler(S_IFDIR, 0o751, 6)),
@@ -181,6 +181,9 @@ def TagFuseRootTree(radio):
             ('ones',   TestOnesHandler(S_IFREG, 0o444, 1)),
             ('zeros',  TestZerosHandler(S_IFREG, 0o444, 1)),
             ('sum',    TestSumHandler(S_IFREG, 0o222, 1)),
+        ]))),
+        ('.poll',   PollNetDirHandler(radio, OrderedDict([
+            ('',       FileHandler(S_IFDIR, 0o751, 4)),
         ]))),
         ('ffffffffffff', TagFuseTagTree(radio)),
     ]))

@@ -76,8 +76,8 @@ class TagFuse(LoggingMixIn, Operations):
         self.open_count = 0
         self.start = time()
         self.radio = None
-        self.tag_tree =  None
-        # zzz print(self.tag_tree)
+        self.tree_root =  None
+        # zzz print(self.tree_root)
 
         #uid, gid, pid = fuse_get_context()
         # zzz print('tagfuse context', fuse_get_context())
@@ -96,8 +96,8 @@ class TagFuse(LoggingMixIn, Operations):
         path_list = path2list(path)
         if (path == '/'):
             # zzz print('** located root')
-            return self.tag_tree, path_list
-        return self.tag_tree.traverse(path_list, 0)
+            return self.tree_root, path_list
+        return self.tree_root.traverse(path_list, 0)
 
     def DeleteNode(self, path, node):
         pass
@@ -163,7 +163,7 @@ class TagFuse(LoggingMixIn, Operations):
         wds_default_config(0) # force alternate default config
         self.radio.write_config()
         self.radio.config_frr()
-        self.tag_tree = TagFuseRootTree(self.radio)
+        self.tree_root = TagFuseRootTree(self.radio)
         return None
 
     def link(self, link, target):
@@ -211,7 +211,7 @@ class TagFuse(LoggingMixIn, Operations):
     def readdir(self, path, fh):
         handler, path_list = self.LocateNode(path)
         # zzz print('readdir, handler type:{}, len: {}'.format(type(handler), len(handler)))
-        dir_list = handler.readdir(path_list, TagFuseTagTree)
+        dir_list = handler.readdir(path_list, self.tree_root, TagFuseTagTree)
         if dir_list:
             return dir_list
         else:
