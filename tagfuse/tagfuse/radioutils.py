@@ -372,6 +372,7 @@ def radio_send_msg(radio, msg, pwr):
     progress = [start]
     bps       = get_ids_wds()['bps'] # radio speed in bits per second
     bits2send = len(msg) * 8 * 3     # time in bits to wait (3x msgs)
+    bits2send += 64 * 8              # include long preamble
     time2wait = (1.0/bps) * bits2send * 1000
     # zzz print(start, bps, bits2send, time2wait)
 
