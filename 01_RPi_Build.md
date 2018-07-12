@@ -76,27 +76,27 @@ The Linux installation requires some configuration for localiziation of Operatin
 ```
 getconf LONG_BIT
 ```
-3. Update Java first {skip, but next time VERIFY THAT COMITUP ALREADY HAS THIS INSTALLED}
+3. Verify Java version 1.8 is installed
 ```
-* Visit http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html, click the download button of Java Platform (JDK) 8. Click to Accept License Agreement, download jdk-8-linux-arm-vfp-hflt.tar.gz for Linux ARM v6/v7 Hard Float ABI.  Java SE Development Kit 8u172, Linux ARM 64 Hard Float ABI
-    * Log-in Raspberry Pi, enter the command to extract jdk-8-linux-arm-vfp-hflt.tar.gz to /opt directory.
-sudo tar zxvf  jdk-8u172-linux-arm64-vfp-hflt.tar.gz -C /opt
-    * Set default java and javac to the new installed jdk8.
-sudo update-alternatives --install /usr/bin/javac javac /opt/jdk1.8.0_172/bin/javac 1
-sudo update-alternatives --install /usr/bin/java java /opt/jdk1.8.0_172/bin/java 1
-sudo update-alternatives --config javac
-sudo update-alternatives --config java
-    * After all, verify with the commands with -verion option.
 java -version
 javac -version
 ```
+Example output
+```pi@dvt6:~ $ java -version
+java version "1.8.0_65"
+Java(TM) SE Runtime Environment (build 1.8.0_65-b17)
+Java HotSpot(TM) Client VM (build 25.65-b01, mixed mode)
+pi@dvt6:~ $ javac -version
+javac 1.8.0_65
+```
 4. load basic packages
 ```
+sudo apt-get update
 sudo apt-get install -qy \
 git gitk ntp \
 python-twisted \
 libusb-dev libreadline-dev \
-emacs emacs24-el <<< change to 25 >>>
+emacs25 emacs25-el
 sudo apt-get install -qy \
 python-dev python-rpi.gpio
 sudo apt-get install -qy \
@@ -144,8 +144,7 @@ This application is used for development and testing purposes. Currently there a
 sudo pip install jupyter
 sudo apt-get install -y python-seaborn python-pandas
 sudo apt-get install -y ttf-bitstream-vera
-sudo python /usr/local/lib/python2.7/dist-packages/pip install jupyter
- sudo jupyter nbextension enable --py --sys-prefix widgetsnbextension
+sudo jupyter nbextension enable --py --sys-prefix widgetsnbextension
 ```
 To start Jupyter on the RPi, use these commands
 ```
@@ -157,7 +156,18 @@ su pi -c "nohup nice --adjustment=-20 jupyter notebook --browser=false --allow-r
 
 #### Mount Shared Folder for Source Code access (Optional)
 
-##### PERMANENT
+##### First Time
+Add usergroup required to share files
+```
+sudo groupadd -g 504 devgrp
+sudo usermod -a -G devgrp pi
+```
+Need to set the umask to allow sharing with Mac user. This is done by editting the ```.bash_login``` script to change.
+```
+umask 2
+```
+
+##### Permanent Mount
 ```
 sudo mkdir /mnt/neptune
 sudo mkdir /mnt/tag_integration
@@ -167,19 +177,24 @@ Add the following line to /etc/mount
 //neptune.local/tag_integration /mnt/neptune cifs exec,noperm,_netdev,nosetuids,sec=ntlmssp,file_mode=0777,dir_mode=0777,user=pi,pass=dogbreath,iocharset=utf8,uid=pi,gid=devgrp,rw  0 0
 ```
 
-##### ONE-TIME
+##### One-time Mount
 ```
 sudo mount -t cifs //neptune.local/tag_integration /mnt/neptune -o exec,noperm,_netdev,nosetuids,sec=ntlmssp,file_mode=0777,dir_mode=0777,user=pi,pass=dogbreath,iocharset=utf8,uid=pi,gid=devgrp,rw
 ```
 
 ##### MOUNT SHARED FILE SYSTEM ON MAC
+
+create a group named devgrp with number 504.
 ```
-ON MAC, see https://support.apple.com/en-us/HT204445
+dscl . list /Groups PrimaryGroupID
+```
+
+ON MAC, see [this link](https://support.apple.com/en-us/HT204445) for more details.
+* add user ```pi``` and group ```devgrp```
 * use finder to connect to server
-* use finder to Go/Connect_to_Server with smb://solar.local
+* use finder to Go/Connect_to_Server with ```smb://solar.local```
 * specify ‘Open’ as folder to be mounted
-* find the newly mounted folder at /Volumes/Open
-```
+* find the newly mounted folder at ```/Volumes/Open```
 
 # Notes, Issues, and Ideas
 
@@ -387,4 +402,19 @@ In browser window enter:
 
 ```
 http://<device>.local:9000
+```
+
+Update Java first
+```
+* Visit http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html, click the download button of Java Platform (JDK) 8. Click to Accept License Agreement, download jdk-8-linux-arm-vfp-hflt.tar.gz for Linux ARM v6/v7 Hard Float ABI.  Java SE Development Kit 8u172, Linux ARM 64 Hard Float ABI
+    * Log-in Raspberry Pi, enter the command to extract jdk-8-linux-arm-vfp-hflt.tar.gz to /opt directory.
+sudo tar zxvf  jdk-8u172-linux-arm64-vfp-hflt.tar.gz -C /opt
+    * Set default java and javac to the new installed jdk8.
+sudo update-alternatives --install /usr/bin/javac javac /opt/jdk1.8.0_172/bin/javac 1
+sudo update-alternatives --install /usr/bin/java java /opt/jdk1.8.0_172/bin/java 1
+sudo update-alternatives --config javac
+sudo update-alternatives --config java
+    * After all, verify with the commands with -verion option.
+java -version
+javac -version
 ```
