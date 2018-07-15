@@ -374,7 +374,8 @@ def radio_send_msg(radio, msg, pwr):
     bits2send = len(msg) * 8 * 3     # time in bits to wait (3x msgs)
     bits2send += 64 * 8              # include long preamble
     time2wait = (1.0/bps) * bits2send * 1000
-    # zzz print(start, bps, bits2send, time2wait)
+    #time2wait *= 2                   # increase for good measure
+    # zzz print('radio_send_msg', start, bps, bits2send, time2wait)
 
     # clear interrupts and report any pending
     progress.extend(collect_int_status(int_status(radio, clr_all_flags)))
@@ -393,7 +394,8 @@ def radio_send_msg(radio, msg, pwr):
 
     end  = time() + time2wait
     cflags = clr_no_flags
-    while (time() < end):
+    now = time()
+    while (now < end):
         status = int_status(radio, cflags)
         cflags = clr_no_flags
         no_action = True
@@ -430,7 +432,11 @@ def radio_send_msg(radio, msg, pwr):
                 progress[-1] += 1
             else:
                 progress.extend([time(), 'p'])
-    progress.extend([time(), [':', len(msg)]])
+        now = time()
+    if (now >= end):
+        print('radio_send_msg timeout')
+    __, tx = radio.fifo_info()
+    progress.extend([time(), [':', len(msg), tx]])
     return progress
 
 
