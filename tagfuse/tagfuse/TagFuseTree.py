@@ -169,6 +169,14 @@ def TagFuseTagTree(radio):
             ('sd',     TagFuseSDTree(radio)),
             ('sys',    TagFuseSysTree(radio)),
             ('info',   TagFuseInfoTree(radio)),
+            ('.test',   DirHandler(OrderedDict([
+                ('',       FileHandler(S_IFDIR, 0o751, 7)),
+                ('echo',   ByteIOFileHandler(radio, S_IFREG, 0o666, 1)),
+                ('ones',   ByteIOFileHandler(radio, S_IFREG, 0o444, 1)),
+                ('zeros',  ByteIOFileHandler(radio, S_IFREG, 0o444, 1)),
+                ('sum',    ByteIOFileHandler(radio, S_IFREG, 0o222, 1)),
+                ('drop',   ByteIOFileHandler(radio, S_IFREG, 0o222, 1)),
+            ]))),
         ]))),
     ]))
 
