@@ -579,27 +579,24 @@ def radio_get_position(radio, node=None, name=None, power=RADIO_POWER, wait=MAX_
     if not node:
         node = TagTlv(tlv_types.NODE_ID, -1)
     if not name:
-        get_name = TagName([node,
+        name = TagName([node,
                             TagTlv('tag'),
                             TagTlv('info'),
                             TagTlv('sens'),
                             TagTlv('gps'),
                             TagTlv('xyz')])
     xyz_struct = pystruct.Struct('<iii')
-    get_gps_xyz = TagGet(get_name)
+    get_gps_xyz = TagGet(name)
     #    print(get_gps_xyz.name)
     req_msg = get_gps_xyz.build()
-    s_status = radio_send_msg(radio, req_msg, power);
-    rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, wait)
-    if(rsp_msg):
-        #        print(hexlify(rsp_msg))
-        rsp_obj = TagMessage(rsp_msg)
-        #        print(rsp_obj.header.options.param.error_code)
-        # print(rsp_obj.payload)
-        if (rsp_obj.payload):
-            #            print("{}: {}".format(rsp_obj.header.options.param.error_code, rsp_obj.payload[0]))
-            gps_xyz = rsp_obj.payload[0].value()
-            #            print("x:{0}, y:{1}, z:{2}".format(*gps_xyz))
+    error, payload, msg_meta = msg_exchange(radio, req_obj)
+    rssi, sstatus, rstatus = msg_meta
+    if (error is tlv_errors.SUCCESS):
+        if payload:
+            gps_xyz = payload2values(payload,
+                                    [tlv_types.GPS,
+                                    ])[0]
+            # zzz print("radio_get_position, x:{0}, y:{1}, z:{2}".format(*gps_xyz))
             lon, lat, elv = transform(ecef, wgs84, *gps_xyz)
             gps_geo = float(lat), float(lon), float(elv)
             # print("lat:{0}, lon:{1}, elv:{2}".format(*gps_geo))
@@ -615,22 +612,21 @@ def radio_get_rssi(radio, node=None, name=None, power=RADIO_POWER, wait=MAX_WAIT
     if not node:
         node = TagTlv(tlv_types.NODE_ID, -1)
     if not name:
-        get_name = TagName([node,
+        name = TagName([node,
                             TagTlv('tag'),
                             TagTlv('.test'),
                             TagTlv('rssi')])
-    req_obj = TagGet(get_name)
+    req_obj = TagGet(name)
     req_msg = req_obj.build()
-    sstatus = radio_send_msg(radio, req_msg, power)
-    rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, wait)
-    if rsp_msg:
-        #        print(hexlify(rsp_msg))
-        rsp_obj = TagMessage(rsp_msg)
-        #        print(rsp_obj.header.options.param.error_code)
-        #        print(rsp_obj.payload)
-        # print(rsp_obj.header, rsp_obj.name)
-        if rsp_obj.payload:
-            return rsp_obj.payload[0].value(), rssi, sstatus, rstatus
+    error, payload, msg_meta = msg_exchange(radio, req_obj)
+    rssi, sstatus, rstatus = msg_meta
+    if (error is tlv_errors.SUCCESS):
+        if payload:
+            print('radio_get_rssi',payload)
+            tag_rssi = payload2values(payload,
+                                    [tlv_types.INTEGER,
+                                    ])[0]
+            return tag_rssi, rssi, sstatus, rstatus
         return None, rssi, sstatus, rstatus
     return None, None, sstatus, rstatus
 
@@ -639,23 +635,22 @@ def radio_get_power(radio, node=None, name=None, power=RADIO_POWER, wait=MAX_WAI
     if not node:
         node = TagTlv(tlv_types.NODE_ID, -1)
     if not name:
-        get_name = TagName([node,
+        name = TagName([node,
                             TagTlv('tag'),
                             TagTlv('.test'),
                             TagTlv('tx_pwr')])
-    req_obj = TagGet(get_name)
+    # zzz print('radio_get_power',name)
+    req_obj = TagGet(name)
     req_msg = req_obj.build()
-    sstatus = radio_send_msg(radio, req_msg, power)
-    rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, wait)
-    if rsp_msg:
-        #        print(hexlify(rsp_msg))
-        rsp_obj = TagMessage(rsp_msg)
-        #        print(rsp_obj.header.options.param.error_code)
-        #        print(rsp_obj.payload)
-        #print(rsp_obj.header, rsp_obj.name)
-        #if rsp_obj.payload:
-        #    print(rsp_obj.payload)
-        return rsp_obj.payload[0].value(), rssi, sstatus, rstatus
+    error, payload, msg_meta = msg_exchange(radio, req_obj)
+    rssi, sstatus, rstatus = msg_meta
+    if (error is tlv_errors.SUCCESS):
+        if payload:
+            # zzz print('radio_get_power',payload)
+            tag_power = payload2values(payload,
+                                    [tlv_types.INTEGER,
+                                    ])[0]
+            return tag_power, rssi, sstatus, rstatus
     return None, None, sstatus, rstatus
 
 
@@ -663,26 +658,19 @@ def radio_set_power(radio, tag_power, node=None, name=None, power=RADIO_POWER, w
     if not node:
         node = TagTlv(tlv_types.NODE_ID, -1)
     if not name:
-        get_name = TagName([node,
+        name = TagName([node,
                             TagTlv('tag'),
                             TagTlv('.test'),
                             TagTlv('tx_pwr'),])
-    req_obj = TagPut(get_name,
+    req_obj = TagPut(name,
                      pl=TagTlvList([TagTlv(tlv_types.INTEGER,
                                            tag_power)]))
     req_msg = req_obj.build()
-    sstatus = radio_send_msg(radio, req_msg, power)
-    rsp_msg, rssi, rstatus = radio_receive_msg(radio,
-                                               MAX_RECV, wait)
-    if rsp_msg:
-        #        print(hexlify(rsp_msg))
-        rsp_obj = TagMessage(rsp_msg)
-        #        print(rsp_obj.header.options.param.error_code)
-        #        print(rsp_obj.payload)
-        #print(rsp_obj.header, rsp_obj.name)
-        #if rsp_obj.payload:
-        #    print(rsp_obj.payload)
-        return rsp_obj.payload, rssi, sstatus, rstatus
+    error, payload, msg_meta = msg_exchange(radio, req_obj)
+    rssi, sstatus, rstatus = msg_meta
+    if (error is tlv_errors.SUCCESS):
+        if payload:
+            return payload[0].value(), rssi, sstatus, rstatus
     return None, None, sstatus, rstatus
 
 
@@ -690,28 +678,20 @@ def radio_get_rtctime(radio, node=None, name=None, power=RADIO_POWER, wait=MAX_W
     if not node:
         node = TagTlv(tlv_types.NODE_ID, -1)
     if not name:
-        get_name = TagName([node,
+        name = TagName([node,
                             TagTlv('tag'),
                             TagTlv('sys'),
                             TagTlv('rtc')])
-    req_obj = TagGet(get_name)
-    req_msg = req_obj.build()
-    sstatus = radio_send_msg(radio, req_msg, power)
-    rsp_msg, rssi, rstatus = radio_receive_msg(radio,
-                                               MAX_RECV, wait)
-    if rsp_msg:
-        # zzz print(len(rsp_msg), hexlify(rsp_msg))
-        rsp_obj = TagMessage(rsp_msg)
-        #        print(rsp_obj.header.options.param.error_code)
-        #        print(rsp_obj.payload)
-        #print(rsp_obj.header, rsp_obj.name)
-        #if rsp_obj.payload:
-        #    print(rsp_obj.payload)
-        if rsp_obj and rsp_obj.payload:
-            tagtime = rsp_obj.payload[0].value()
-        else:
-            tagtime = None
-        return  tagtime, rssi, sstatus, rstatus
+    req_obj = TagGet(name)
+    print('*** radio_get_rtctime name: {}'.format(get_name))
+    error, payload, msg_meta = msg_exchange(radio, req_obj)
+    rssi, sstatus, rstatus = msg_meta
+    if (error is tlv_errors.SUCCESS):
+        if payload:
+            tagtime = payload2values(payload,
+                                    [tlv_types.UTC_TIME,
+                                    ])[0]
+            return  tagtime, rssi, sstatus, rstatus
     return None, None, sstatus, rstatus
 
 
@@ -727,17 +707,14 @@ def radio_set_rtctime(radio, utctime, node=None, name=None, power=RADIO_POWER, w
                      pl=TagTlvList([TagTlv(tlv_types.UTC_TIME,
                                            utctime)]))
     req_msg = req_obj.build()
-    sstatus = radio_send_msg(radio, req_msg, power)
-    rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, wait)
-    if rsp_msg:
-        #        print(hexlify(rsp_msg))
-        rsp_obj = TagMessage(rsp_msg)
-        #        print(rsp_obj.header.options.param.error_code)
-        #        print(rsp_obj.payload)
-        #print(rsp_obj.header, rsp_obj.name)
-        #if rsp_obj.payload:
-        #    print(rsp_obj.payload)
-        return rsp_obj.payload, rssi, sstatus, rstatus
+    error, payload, msg_meta = msg_exchange(radio, req_obj)
+    rssi, sstatus, rstatus = msg_meta
+    if (error is tlv_errors.SUCCESS):
+        if payload:
+            tagtime = payload2values(payload,
+                                    [tlv_types.UTC_TIME,
+                                    ])[0]
+            return tagtime, rssi, sstatus, rstatus
     return None, None, sstatus, rstatus
 
 
@@ -746,16 +723,17 @@ def radio_read_test(radio, test_name, pos, num, node=None, name=None, power=RADI
     if not node:
         node = TagTlv(tlv_types.NODE_ID, -1)
     if not name:
-        get_name = TagName([node,
+        name = TagName([node,
                             TagTlv('tag'),
                             TagTlv('.test'),
                             TagTlv(test_name),
                             TagTlv('byte'),
                             TagTlv(tlv_types.OFFSET, pos),
                             TagTlv(tlv_types.SIZE, num),])
-    req_obj = TagGet(get_name)
-#    print(get_gps_xyz.name)
+    req_obj = TagGet(name)
+#    print('radio_read_test', req_obj.name)
     req_msg = req_obj.build()
+#    print(hexlify(req_msg))
     radio_send_msg(radio, req_msg, power);
     rsp_msg, rssi, status = radio_receive_msg(radio, MAX_RECV, wait)
     if rsp_msg:
@@ -777,37 +755,43 @@ def radio_read_test(radio, test_name, pos, num, node=None, name=None, power=RADI
                 amt = 0
             return error, offset, amt, block
         else:
-            print("{}".format(rsp_obj.header.options.param.error_code))
+            print("radio_read_test error: {}".format(rsp_obj.header.options.param.error_code))
 #    else:
-#        print('TIMEOUT')
+#        print('radio_read_test', 'TIMEOUT')
     return None
 
 
-def radio_write_test(radio, test_name, buf, node=None, name=None, power=RADIO_POWER, wait=MAX_WAIT):
+def radio_write_test(radio, test_name, buf, pos=0, node=None, name=None, power=RADIO_POWER, wait=MAX_WAIT):
     if not node:
         node = TagTlv(tlv_types.NODE_ID, -1)
     if not name:
-        get_name = TagName([node,
-                            TagTlv('tag'),
-                            TagTlv('.test'),
-                            TagTlv(test_name),
-                            TagTlv('byte'),
-                            TagTlv(tlv_types.OFFSET, 0),
-                            TagTlv(tlv_types.SIZE, len(buf)),])
-    req_obj = TagPut(get_name, pl=buf)
+        name = TagName([node,
+                        TagTlv('tag'),
+                        TagTlv('.test'),
+                        TagTlv(test_name),
+                        TagTlv('byte'),
+                        TagTlv(tlv_types.OFFSET, pos),
+                        TagTlv(tlv_types.SIZE, len(buf)),])
+    req_obj = TagPut(name, pl=buf)
+    # zzz print('radio_write_test', req_obj.name, len(req_obj.payload))
     req_msg = req_obj.build()
     sstatus = radio_send_msg(radio, req_msg, power)
     rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, wait)
     if rsp_msg:
-        #        print(hexlify(rsp_msg))
+        # zzz print(hexlify(rsp_msg))
         rsp_obj = TagMessage(rsp_msg)
-        #        print(rsp_obj.header.options.param.error_code)
-        #        print(rsp_obj.payload)
-        # print(rsp_obj.header, rsp_obj.name)
+        # zzz print(rsp_obj.header, rsp_obj.name)
+        # zzz print(rsp_obj.payload)
         if rsp_obj.payload:
-            return rsp_obj.payload[0].value(), rssi, sstatus, rstatus
-        return none, rssi, sstatus, rstatus
-    return None, None, sstatus, rstatus
+            # zzz print('radio_write_test', rsp_obj.payload)
+            error, offset = payload2values(rsp_obj.payload,
+                                           [tlv_types.ERROR,
+                                            tlv_types.OFFSET,
+                                           ])
+            if error and error != tlv_errors.SUCCESS:
+                return error, offset
+        return tlv_errors.SUCCESS, pos+len(buf)
+    return tlv_errors.EINVAL, pos
 
 
 # # UNIT TEST
