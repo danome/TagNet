@@ -48,6 +48,8 @@ for example, is get_property(). Significant events are recorded in the
 trace buffer for later analysis.
 """
 
+CTS_MAX_WAIT = 50000 # microseconds
+
 class SpiInterface:
     """
     Class to access the Si446x over SPI interface
@@ -123,7 +125,7 @@ class SpiInterface:
                 r = self._get_cts()
                 if (r):  return r
                 next = monotonic.micros()
-        raise RuntimeError('*** radio CTS failure', r, start, end, next)
+        raise RuntimeError('*** radio CTS failure, start: {}, end: {}, next: {}, remainder: {}'.format(start, end, next, r))
 
     def _disable_hard_cts(self):
         """
@@ -144,7 +146,7 @@ class SpiInterface:
 
         Wait for CTS and then SPI write the msg
         """
-        self._get_cts_wait(10000)
+        self._get_cts_wait(CTS_MAX_WAIT)
         if not self._get_cts():
             self.trace.add('RADIO_CTS_ERROR', 'no cts [1]', level=level)
         try:
@@ -161,7 +163,7 @@ class SpiInterface:
         Wait for CTS and then SPI read back the response buffer.
         """
         rsp = bytearray()
-        if not self._get_cts_wait(5000):
+        if not self._get_cts_wait(CTS_MAX_WAIT):
             self.trace.add('RADIO_RSP_ERROR', 'no cts [2]', level=level)
         try:
             r = self.spi.xfer2([0x44] + rlen * [0])
@@ -235,7 +237,8 @@ class Si446xRadio(object):
         self.gpio_cts = cts
         self.gpio_sdn = sdn
         result = set_real_time()
-        print('si446x radio realtime failure to initialize: %'.format(result))
+        if (result):
+            print('failure to initialize si446x radio realtime: {}'.format(result))
 
     def _gpio_callback(self, channel):
         self.trace.add('RADIO_ERROR', 'si446xradio: Edge detected on channel %s'%channel)
