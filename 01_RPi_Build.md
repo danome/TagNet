@@ -35,12 +35,12 @@ sudo diskutil eject /Volumes/boot/
 
 Can now talk to RPi from any network device using raspberrypi.local or see below for more choices
 
-## Connect to the Comitup Hotspot
+### Connect to the Comitup Hotspot
 Using a Wifi-enabled computer, smart phone, or tablet, view a list of available Wifi Access Points. You should see one named 'comitup-' followed by 4 digits (remember this number). Connect to this Hotspot.
 
 If all you want to do is connect with the Pi, you are done at this point. Connect via ssh to pi@raspberrypi.local or pi@comitup-<nnnn>.local, or to pi@10.42.0.1. If you want your Pi and workstation to also have connectivity to the Internet, continue to the next step.
 
-## Connect the Raspberry Pi to your Wifi Access Point
+### Connect the Raspberry Pi to your Wifi Access Point
 While connected to the Comitup Access Point, browse to http://comitup-nnnn.local (using the 4 digits from earlier) or to 'http://raspberrypi.local'. If you are using an operating system that does not understand these ',local' addresses, you can cheat and use http://10.42.0.1.
 
 You should see a list of available Access Points. Select one, enter a password if necessary, and click on 'Connect'.
@@ -82,7 +82,8 @@ java -version
 javac -version
 ```
 Example output
-```pi@dvt6:~ $ java -version
+```
+pi@dvt6:~ $ java -version
 java version "1.8.0_65"
 Java(TM) SE Runtime Environment (build 1.8.0_65-b17)
 Java HotSpot(TM) Client VM (build 25.65-b01, mixed mode)
@@ -126,19 +127,46 @@ cd py-spidev/
 sudo python setup.py install
 sudo usermod -a -G spi pi
 groups
-#check to see if this will be done when tagnet python module is installed
+# used by jupyter for google maps
+sudo pip install pyproj
+sudo pip install gmaps
+# the following can also be installed when installing basestation software
 sudo pip install future
 sudo pip install construct==2.5.2
 sudo pip install machinist
-sudo pip install pyproj
-sudo pip install gmaps
 sudo pip install fusepy
 sudo pip install twisted==13.1.0
 sudo pip install txdbus==1.1.0
-sudo pip install RPi.GPIO
+sudo pip install chest
+# sudo pip install RPi.GPIO      # already installed by comitup
 ```
 
-## Install Jupyter
+## Install TagNet BaseStation Software
+```
+cd ~/
+git clone https://github.com/MamMark/TagNet.git
+cd TagNet/si446x
+sudo python setup.py install
+cd ../tagnet
+sudo python setup.py install
+cd ../tagfuse
+sudo python setup.py install
+```
+
+## Install Tag Tools
+```
+cd ~/
+git clone https://github.com/MamMark/mm.git
+cd mm
+git branch checkout integration
+cd tools/utils/tagcore
+sudo python setup.py install
+cd ../tagdump
+sudo python setup.py install
+```
+
+## Install Jupyter (Optional)
+##### Install Jupyter Software
 This application is used for development and testing purposes. Currently there are notebooks for low level radio device testing and TagFuse related testing.
 ```
 sudo pip install jupyter
@@ -146,6 +174,33 @@ sudo apt-get install -y python-seaborn python-pandas
 sudo apt-get install -y ttf-bitstream-vera
 sudo jupyter nbextension enable --py --sys-prefix widgetsnbextension
 ```
+##### Generate Jupter Password
+
+```
+$ python
+> from IPython.lib import passwd
+> password = passwd(“dogbreath")
+> password
+u'sha1:d5d44468f96e:86888342f48852feeaf0a07f1e55d6cd3d5876dd'
+> CTL-D
+'sha1:1991fa41bea2:3c719e82a4e784e2affb6fb3b25b81d17e317bc0'
+```
+
+##### Build Jupyter Configuration
+Build the default Jupyter configuration settings (should be in your home directory. (Outputs ```/home/pi/.jupyter/jupyter_notebook_config.py```)
+
+```
+jupyter notebook --generate-config
+```
+
+Edit these three lines in jupyter_notebook_config.py (produced in previous step)
+```
+c.NotebookApp.password = u'sha1:d5d44468f96e:86888342f48852feeaf0a07f1e55d6cd3d5876dd'
+c.NotebookApp.ip = '*'
+c.NotebookApp.port = 9000
+```
+
+##### Run Jupter as Background Task
 To start Jupyter on the RPi, use these commands
 ```
 sudo jupyter nbextension enable --py --sys-prefix widgetsnbextension
@@ -154,7 +209,8 @@ jupyter nbextension enable --py gmaps
 su pi -c "nohup nice --adjustment=-20 jupyter notebook --browser=false --allow-root --port=9000 --notebook-dir /home/pi/Desktop/TagNet&"
 ```
 
-#### Mount Shared Folder for Source Code access (Optional)
+## Shared Development Folder (Optional)
+Mount a Network Shared Folder for Source Code access on user workstation.
 
 ##### First Time
 Add usergroup required to share files
@@ -230,11 +286,11 @@ $ sudo nano /etc/default/locale
 LANG="en_US.UTF-8"
 LANGUAGE=“en_US”
 ```
-#######################################################################
 
 ## WPA_SUPPLICANT.CONF
 
-For WiFi access, add access point information to /boot/wpa_supplicant.
+For WiFi access, add access point information to /boot/wpa_supplicant. (comitup does
+handles this differently, so don't mix the two).
 ```
 ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
 update_config=1
@@ -256,147 +312,7 @@ SSH
 touch /Volumes/boot/ssh
 ```
 
-
-## RPi Package Installation
-
-Use ssh to connect to pi@raspberrypi.local
-
-```
-ssh -AXY pi@device.local
-```
-
-Run these commands
-
-```
-sudo apt-get remove --purge oracle-java8-jdk
-sudo apt-get install dirmngr
-echo "deb http://ppa.launchpad.net/webupd8team/java/ubuntu trusty main" | sudo tee /etc/apt/sources.list.d/webupd8team-java.list
-echo "deb-src http://ppa.launchpad.net/webupd8team/java/ubuntu trusty main" | sudo tee -a /etc/apt/sources.list.d/webupd8team-java.list
-sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys EEA14886
-sudo apt-get update
-sudo apt-get install oracle-java8-jdk
-java -version
-```
-
-## load application related packages
-```
-sudo apt-get update
-sudo apt-get install -qy \
-    git gitk ntp \
-    python-twisted \
-    libusb-dev libreadline-dev \
-    emacs emacs24-el
-sudo apt-get install -qy \
-    fuse libfuse2 libfuse-dev \
-    python2.7-llfuse python3-llfuse
-```
-
-## INSTALL ENVIRONMENT dot-files
-
-Set up shell and emacs related files, with this command:
-```
-git clone https://github.com/cire831/dot-files.git
-SRC_DIR=./dot-files/
-DST_DIR=~/
-FILES=".bash_aliases .bash_functions .bash_login .bash_logout .bashrc .emacs.d \
-.environment_bash .gdbinit .gitconfig .gitignore .mspdebug"
-echo -e "\n*** dots from $SRC_DIR -> $DST_DIR ***"
-(for i in $FILES; do echo $i; done) | rsync -aiuWr --files-from=- $SRC_DIR $DST_DIR
-```
-
-## INSTALL PYTHON SOFTWARE
-```
-git clone https://github.com/doceme/py-spidev.git
-cd py-spidev/
-sudo python setup.py install
-sudo usermod -a -G spi pi
-groups
-#check to see if this will be done when tagnet python module is installed
-sudo pip install future
-sudo pip install construct==2.5.2
-sudo pip install temporenc
-sudo pip install machinist
-sudo pip install pyproj
-sudo pip install gmaps
-sudo pip install fusepy
-```
-
-# OPTIONAL DEVELOPMENT CONFIGURATION
-
-## MOUNT SHARED FILE SYSTEM ON MAC
-
-* ON MAC, see https://support.apple.com/en-us/HT204445
-    * use finder to connect to server
-    * use finder to Go/Connect_to_Server with smb://solar.local
-    * specify ‘Open’ as folder to be mounted
-    * find the newly mounted folder at /Volumes/Open
-
-## MOUNT SHARED FOLDER WITH SOURCE CODE
-
-### PERMANENT:
-* mkdir /mnt/Open
-* add to /etc/fstab
-    * //solar.local/Open /mnt/Open cifs exec,user=pi,pass=raspberry,iocharset=utf8,uid=pi,gid=pi,rw  0 0
-* sudo mount -a
-
-### ONE-TIME:
-```
-sudo mount -t cifs //solar.local/Open /mnt/Open -o user=pi,pass=raspberry,iocharset=utf8,uid=pi,gid=pi,rw
-```
-
-## ADD JUPYTER
-Get Jupyter running on RPi using the following commands.
-
-This installs packages Jupyter requires. Console shows the
-URL needed to access the Jupyter web server from user's system.
-```
-sudo pip install jupyter
-sudo apt-get install -y python-seaborn python-pandas
-sudo apt-get install -y ttf-bitstream-vera
-sudo python /usr/local/lib/python2.7/dist-packages/pip install jupyter
-```
-
-## START JUPYTER
-```
-sudo jupyter nbextension enable --py --sys-prefix widgetsnbextension
-jupyter nbextension enable --py gmaps
-nohup jupyter notebook --browser=false --allow-root --port=9000 &> /dev/null &
-```
-
-## CONNECTION
-
-Requires establishing an ssh tunnel from user system
-
-```
-ssh -N -f -L localhost:8889:localhost:8889 pi@P222.local -o ServerAliveInterval=30
-```
-
-
-## GENERATE JUPYTER PASSWORD
-
-```
-$ python
-> from IPython.lib import passwd
-> password = passwd(“dogbreath")
-> password
-u'sha1:d5d44468f96e:86888342f48852feeaf0a07f1e55d6cd3d5876dd'
-> CTL-D
-```
-
-Build the default Jupyter configuration settings (should be in your home directory
-
-```
-jupyter notebook --generate-config
-```
-
-Edit these three lines in jupyter_notebook_config.py (produced in previous step)
-```
-c.NotebookApp.password = u'sha1:d5d44468f96e:86888342f48852feeaf0a07f1e55d6cd3d5876dd'
-c.NotebookApp.ip = '*'
-c.NotebookApp.port = 9000
-```
-
-USING JUPTER
+## USING JUPTER
 
 In browser window enter:
 
