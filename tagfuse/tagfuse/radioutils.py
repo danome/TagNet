@@ -192,21 +192,21 @@ def msg_exchange(radio, req, power=RADIO_POWER, wait=MAX_WAIT):
     and reported appropriately.
     '''
     req_msg = req.build()
-    # zzz print(len(req_msg),hexlify(req_msg))
-    tries = 3
+    tries = MAX_RETRIES
+    # zzz print('msg_exchange',tries,len(req_msg),hexlify(req_msg))
     while (tries):
         error = tlv_errors.ERETRY
         payload = None
-        radio_send_msg(radio, req_msg, power);
-        rsp_buf, rssi, status = radio_receive_msg(radio, MAX_RECV, wait)
+        sstatus = radio_send_msg(radio, req_msg, power)
+        rsp_buf, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, wait)
         if (rsp_buf):
-            # zzz print(len(rsp_buf),hexlify(rsp_buf))
+            # zzz print('msg_exchange',len(rsp_buf),hexlify(rsp_buf))
             try:
                 rsp = TagMessage(bytearray(rsp_buf))
                 if (rsp.payload):
-                    # zzz print('msg exchange response', rsp.payload)
                     payload = rsp.payload
-                    error, eof = payload2values(rsp.payload,
+                    # zzz print('msg_exchange response', payload)
+                    error, eof = payload2values(payload,
                                            [tlv_types.ERROR,
                                             tlv_types.EOF,
                                            ])
@@ -217,15 +217,16 @@ def msg_exchange(radio, req, power=RADIO_POWER, wait=MAX_WAIT):
                     if (error is tlv_errors.EODATA) \
                        or (error is tlv_errors.EALREADY) \
                        or (error is tlv_errors.SUCCESS):
-                        tries = 1
-                # zzz print('msg_exchange, tries: ', tries)
+                        tries = 1 # force terminal condition
             except (TlvBadException, TlvListBadException):
-                pass
+                # zzz print('msg_exchange, tries: ', tries)
+                pass # continue with counting this as retry
         else:
             error = tlv_errors.ETIMEOUT
-            print('msg_exchange: timeout')
+            print('msg_exchange: timeout', tries)
         tries -= 1
-    return error, payload
+    # zzz print('msg_exchange', error, payload)
+    return error, payload, (rssi, sstatus, rstatus)
 
 
 def radio_show_config(radio, config):
