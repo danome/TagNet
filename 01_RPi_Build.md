@@ -4,6 +4,29 @@ The Linux Operating System environment for the Basestation is based on an image 
 
 The software required for the Basestation is then loaded on top of the ComitUp image. In the future, a snapshot of this combined image could be used for distribution.
 
+# Using Disk Images
+The fastest way to build a new Raspberry Pi is to use a disk image that has been created from by cloining a work RPi. You can prepare a new SD disk by copying a previously created image. A disk image can be created from a working SD disk as well.
+
+### Load SD from image
+```
+sudo gunzip -c backup.img.gz | dd of=/dev/sdX status=progress
+```
+
+### Create disk image
+Follow the steps below below to build a new SD Boot Disk with all required software loaded. Once this is complete, run the ``compact.sh``` script in the ```ubuntu_dev/common``` directory to clean up all unnecessary files from the disk (makes the image as small as possible).
+Now umount the SD disk from the RPi and using another system (MAC, PC), issue the following command, where ```/dev/disk3``` is the source SD disk with the working version of software.
+```
+sudo diskutil umountDisk /dev/disk3
+sudo dd if=/dev/disk3 conv=sync,noerror bs=64k status=progress | gzip -c  > backup.img.gz
+```
+Now remove the SD disk from the host maching and insert in PI. You will still need to personalize and localize the RPi which can be accomplished by running ```raspi-config``` again on the RPi (see instructions below for low level Raspbian Configuration).
+
+### monitor progress
+```
+sudo kill -INFO 49719       # linux uses -USR1 signal, MacOS and BSD use -INFO
+sudo pv gunzip -c backup.img.gz | dd of=/dev/sdX
+sudo pv /dev/disk3 | dd conv=sync,noerror bs=64k status=progress | gzip -c  > backup.img.gz
+```
 
 # Build BOOT DISK
 Follow the instructions on the ComitUp site for OS image retrieval and installation [here](https://github.com/davesteele/comitup/wiki/Tutorial#copy-the-image-to-a-microsd-card). The image is 1.4GB so it is recommended to use BitTorrent to download it.
@@ -20,7 +43,7 @@ sudo diskutil eraseDisk FAT32 TAGPIZ MBRFormat /dev/diskXXX
 3. Copy Image
 ```
 sudo diskutil umount /Volumes/TAGPIZ/
-sudo dd bs=1m if=~/Downloads/2018-05-24-Comitup.img of=/dev/rdiskXXX conv=sync
+sudo dd bs=1m if=~/Downloads/2018-05-24-Comitup.img of=/dev/rdiskXXX conv=sync status=progress
 ```
 
 # Start RPi with new SD card
