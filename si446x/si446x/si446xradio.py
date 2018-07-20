@@ -108,7 +108,7 @@ class SpiInterface:
                 SI446X_CMD_READ_CMD_BUFF = 0x44
                 rsp = self.spi.xfer2([SI446X_CMD_READ_CMD_BUFF, 0])
                 return int(rsp[1])
-        raise RuntimeError('*** radio CTS failure')
+        raise RuntimeError('*** radio CTS failure', 'gpio_disabled')
 
     def _get_cts_wait(self, t):
         """
@@ -118,14 +118,16 @@ class SpiInterface:
         """
         start = monotonic.micros()
         end = start + t
-        r = None
+        cts = None
         if (gpio_enabled):
             next = monotonic.micros()
             while end > next:
-                r = self._get_cts()
-                if (r):  return r
+                cts = self._get_cts()
+                if (cts):  return cts
                 next = monotonic.micros()
-        raise RuntimeError('*** radio CTS failure, start: {}, end: {}, next: {}, remainder: {}'.format(start, end, next, r))
+        raise RuntimeError('*** radio CTS failure, start: {}, end: {}, next: {}, cts: {}/{}'.format(start,
+                                                                                                 end, next, cts,
+                                                                                                 self._get_cts()))
 
     def _disable_hard_cts(self):
         """
