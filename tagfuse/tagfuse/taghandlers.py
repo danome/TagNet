@@ -357,11 +357,13 @@ class ImageIOFileHandler(ByteIOFileHandler):
     '''
     def __init__(self, radio, ntype, mode, nlinks):
         super(ImageIOFileHandler, self).__init__(radio, ntype, mode, nlinks)
+        self.offset = 0
 
     def flush(self, path_list): # close
         path_list[-1] = '<version:'+'.'.join(path_list[-1].split('.'))+'>'
-        # zzz print('image io flush', path_list)
-        self['st_size'] = im_close_file(self.radio, path_list)
+        # zzz
+        print('image io flush', path_list)
+        self['st_size'] = im_close_file(self.radio, path_list, self.offset)
 #        if (self['st_size']):
         return 0
 #        raise FuseOSError(ENOENT)
@@ -404,6 +406,7 @@ class ImageIOFileHandler(ByteIOFileHandler):
         if (error) and (error is not tlv_errors.SUCCESS):
             raise FuseOSError(ENOENT)
         if (new_offset):
+            self.offset = new_offset
             return(new_offset - offset)
         else:
             return len(buf)

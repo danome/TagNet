@@ -155,10 +155,11 @@ def im_get_dir(radio, path_list, version=None):
             rtn_list.append((version, state))
     return rtn_list
 
-def im_close_file(radio, path_list):
+def im_close_file(radio, path_list, offset):
 
     def _close_msg(path_list):
         im_name = TagName(path2tlvs(path_list))
+        im_name.append(TagTlv(tlv_types.OFFSET, offset))
         msg = TagPut(im_name, pl=TagTlvList([TagTlv(tlv_types.EOF)]))
         return msg
 
