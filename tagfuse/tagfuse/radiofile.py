@@ -60,7 +60,7 @@ def file_get_bytes(radio, path_list, amount_to_get, file_offset):
     while (amount_to_get) and not eof:
         req_msg = _file_bytes_msg(path_list, amount_to_get, file_offset)
         # zzz print(req_msg.name)
-        err, payload = msg_exchange(radio, req_msg)
+        err, payload, msg_meta = msg_exchange(radio, req_msg)
         # zzz print('file bytes response', err, payload)
         if (err == tlv_errors.SUCCESS) or \
            (err == tlv_errors.EODATA):
@@ -117,7 +117,7 @@ def file_update_attrs(radio, path_list, attrs):
         print('file_attr bad request msg')
         return attrs
     # zzz print('file attr', req_msg.name)
-    err, payload = msg_exchange(radio, req_msg)
+    err, payload, msg_meta = msg_exchange(radio, req_msg)
     if (err == tlv_errors.SUCCESS):
         # zzz print('file attr rsp', payload)
         offset, filesize = payload2values(payload,
@@ -146,7 +146,7 @@ def _put_bytes(radio, tname, buf, offset):
 
     req_msg = _file_put_msg(tname, buf, offset)
     # zzz print(req_msg.name)
-    err, payload = msg_exchange(radio, req_msg)
+    err, payload, msg_meta = msg_exchange(radio, req_msg)
     if (err == tlv_errors.SUCCESS):
         amtLeft = payload2values(payload,
                              [tlv_types.SIZE,

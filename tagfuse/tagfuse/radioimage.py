@@ -89,7 +89,7 @@ def im_put_file(radio, path_list, buf, offset):
                                          buf[(len(buf)-amt_to_put):],
                                          offset)
         print('im put', req_msg.name)
-        error, payload = msg_exchange(radio,
+        error, payload, msg_meta = msg_exchange(radio,
                                      req_msg)
         print('im put rsp error/payload', error, payload)
         if (error is tlv_errors.ERETRY):
@@ -137,7 +137,7 @@ def im_get_dir(radio, path_list, version=None):
         dir_req = _get_dir_msg(path_list, None)
 
     # zzz print('dir_req.name', dir_req.name)
-    error, payload = msg_exchange(radio,
+    error, payload, msg_meta = msg_exchange(radio,
                                  dir_req)
     # zzz print(error, payload)
     rtn_list = []
@@ -165,7 +165,7 @@ def im_close_file(radio, path_list):
     close_req = _close_msg(path_list)
     # zzz
     print('im close file', close_req.name, close_req.payload)
-    error, payload = msg_exchange(radio,
+    error, payload, msg_meta = msg_exchange(radio,
                                  close_req)
     print('im close file',error,payload)
     if (error) \
@@ -196,7 +196,7 @@ def im_delete_file(radio, path_list):
     delete_req = _delete_msg(path_list)
     # zzz
     print(delete_req.name)
-    error, payload = msg_exchange(radio,
+    error, payload, msg_meta = msg_exchange(radio,
                                  delete_req)
     print(payload)
     if (error) and (error != tlv_errors.SUCCESS):
@@ -215,7 +215,7 @@ def im_set_version(radio, path_list):
 
     req_msg = _set_version_msg(path_list)
     print('im_set_version', req_msg.name)
-    err, payload = msg_exchange(radio, req_msg)
+    err, payload, msg_meta = msg_exchange(radio, req_msg)
     if (err is None):
         err = tlv_errors.SUCCESS
     print(err)
