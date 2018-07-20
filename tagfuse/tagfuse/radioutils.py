@@ -364,7 +364,7 @@ def radio_send_msg(radio, msg, pwr):
     bits2send = len(msg) * 8 * 3     # time in bits to wait (3x msgs)
     bits2send += 64 * 8              # include long preamble
     time2wait = (1.0/bps) * bits2send * 1000
-    #time2wait *= 2                   # increase for good measure
+    time2wait *= 3                   # increase for good measure
     # zzz print('radio_send_msg', start, bps, bits2send, time2wait)
 
     # clear interrupts and report any pending
