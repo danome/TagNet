@@ -610,7 +610,7 @@ class TagTlv(object):
                 return _Tlv(tlv_types.NODE_ID,
                             value)
         except IndexError, ValueError:
-            raise TlvBadException(t, v)
+            raise TlvBadException(buf, None)
         return None # shouldn't get here
 
     def copy(self):
