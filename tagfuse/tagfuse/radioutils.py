@@ -14,7 +14,6 @@ __all__ = ['name2version',
            'msg_exchange',
            'path2tlvs',
            'path2list',
-           'radio_start',
            'radio_get_group',
            'radio_get_property',
            'radio_format_group',
@@ -242,16 +241,6 @@ def radio_show_config(radio, config):
     print('\n total: {}'.format(total))
     # ## Get Chip Status
     print(radio.get_chip_status())
-
-def radio_start():
-    '''
-    Start up Radio
-    '''
-    radio=Si446xRadio(0)
-    if (radio == None):
-        raise RuntimeError('radio_start: could not instantiate radio')
-    radio.unshutdown()
-    return radio
 
 # Get Radio Property Group
 
