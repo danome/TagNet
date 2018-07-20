@@ -174,7 +174,7 @@ class ByteIOFileHandler(FileHandler):
 
 
 class RtcFileHandler(FileHandler):
-    '''Tagnet Tlv Type Handler class
+    '''Tagnet RTC Tlv Type Handler class
 
     Performs conversions from network TLV data types to JSON
     data representations. The payload of a response message can
@@ -192,8 +192,9 @@ class RtcFileHandler(FileHandler):
     def getattr(self, path_list, update=False):
         if update:
             epoch = datetime.utcfromtimestamp(0)
-            utctime, _, _, _ = radio_get_rtctime(self.radio,
-                                        node=TagTlv(str(path_list[0])))
+            utctime, a, b, c = radio_get_rtctime(self.radio,
+                                    node=TagTlv(str(path_list[0])))
+            print('*** rtchandler: {}, {}, {}, {}'.format(utctime, a, b, c))
             try:
                 self['st_mtime'] = (utctime - epoch).total_seconds()
             except TypeError:
@@ -534,12 +535,13 @@ class TestEchoHandler(TestBaseHandler):
         if (self.sparse == None):
             self.sparse = SparseFile('_'.join(fpath))
             items = sorted(self.sparse.items())
+            print('*** open_sparse', items)
             if items:
                 offset, block = items[-1]
                 self['st_size'] = offset + len(block)
             else:
                 self['st_size'] = 0
-        print(self.sparse)
+        print('*** open_sparse', self.sparse)
 
     def _close_sparse(self):
         if self.sparse:
