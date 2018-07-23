@@ -360,6 +360,10 @@ class ImageIOFileHandler(ByteIOFileHandler):
         super(ImageIOFileHandler, self).__init__(radio, ntype, mode, nlinks)
         self.offset = 0
 
+    def getattr(self, path_list, update=False):
+        path_list[-1] = '<version:'+'.'.join(path_list[-1].split('.'))+'>'
+        return super(ImageIOFileHandler, self).getattr(path_list, update=update)
+
     def flush(self, path_list): # close
         path_list[-1] = '<version:'+'.'.join(path_list[-1].split('.'))+'>'
         # zzz
