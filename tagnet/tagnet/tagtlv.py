@@ -118,14 +118,17 @@ def int_to_tlv_type(idx):
 
 
 class TlvBadException(Exception):
-    def __init__( self, t, v):
+    def __init__( self, where, t, v):
+        self.where = where
         self.t = t
         self.v = v
         if isinstance(v, bytearray):
             v = str(len(v)) + '.' + hexlify(v)
-        Exception.__init__(self, 'Bad Tlv: type:{}, value:{}'.format(
-            t if (t) else 'None',
-            v if (v) else 'None'))
+        Exception.__init__(self, 'Bad Tlv {}'.format(where))
+#        Exception.__init__(self, 'Bad Tlv {}: type:{}, value:{}'.format(
+#            where,
+#            t if (t) else 'None',
+#            v if (v) else 'None'))
 
 class TlvListBadException(Exception):
     def __init__( self, args):
@@ -320,7 +323,7 @@ class _Tlv(object):
         else:
             self.mytuple = self._build_tlv(t, v)
         if (self.mytuple is None):
-            raise TlvBadException(t, v)
+            raise TlvBadException('_tlv.init', t, v)
 
     def tlv_type(self):
         """
@@ -367,7 +370,7 @@ class _Tlv(object):
             # zzz print(hexlify(hdr))
             return bytearray(hdr + bytearray(v))
         # zzz print('bad tlv')
-        raise TlvBadException(t, v)
+        raise TlvBadException('_to_tlv', t, v)
 
     def _to_tlv_int(self, t, v):
         """
@@ -439,7 +442,7 @@ class _Tlv(object):
                 ba = v
             if (ba):
                 return self._to_tlv(t, ba)
-            raise TlvBadException(t, v)
+            raise TlvBadException('_build_tlv nodeid', t, v)
 
         if (t == tlv_types.EOF):    return self._to_tlv(t, bytearray(''))
 
@@ -459,7 +462,7 @@ class _Tlv(object):
            (t == tlv_types.APP2):
             return self._to_tlv(t, v)
 
-        raise TlvBadException(t, v)
+        raise TlvBadException('_build_tlv', t, v)
 
     def _build_value(self, ba):
         """
@@ -493,13 +496,13 @@ class _Tlv(object):
                 return None
 
         if (len(ba) < 2):
-            raise TlvBadException(ba, None)
+            raise TlvBadException('build_value total len', ba, None)
         t = int_to_tlv_type(ba[0])
         l = ba[1]
         v = ba[2:]
         # zzz print(t,l,hexlify(v))
         if (len(v) != l):
-            raise TlvBadException(t, v)
+            raise TlvBadException('build_value tlv len', t, v)
         if (t == tlv_types.INTEGER):   return int_to_value(v)
         if (t == tlv_types.STRING):    return bytearray(v)
         if (t == tlv_types.GPS):       return list(gps_struct.unpack(v))
@@ -513,7 +516,7 @@ class _Tlv(object):
             except TypeError:
                 print('*** tagtlv.build.rtctime',
                       year, month, day, hour, minute, second, jiffy)
-                raise TlvBadException(t, v)
+                raise TlvBadException('build_value utctime', t, v)
             # zzz print('*** tagtlv._build_value',dt)
             return dt
         if (t == tlv_types.NODE_ID):   return v
@@ -531,7 +534,7 @@ class _Tlv(object):
         if (t == tlv_types.ERROR):     return err_to_value(v)
         if (t == tlv_types.APP1):      return copy.deepcopy(v)
         if (t == tlv_types.APP2):      return copy.deepcopy(v)
-        raise TlvBadException(t, v)
+        raise TlvBadException('build_value unknown type', t, v)
 
 #------------ end of class definition ---------------------
 
@@ -583,7 +586,7 @@ class TagTlv(object):
             elif (t == tlv_types.EOF):
                 self.mytlv = _Tlv(t, bytearray(b''))
         if (self.mytlv is None):
-            raise TlvBadException(t, v)
+            raise TlvBadException('tagtlv.init', t, v)
 
     def _regex_tlv(self, buf):
         # zzz print('regex_tlv', type(buf), buf)
@@ -602,15 +605,17 @@ class TagTlv(object):
             pass
         try:
             key, value = buf[1:-1].split(':')
-            # zzz print('try node_id')
+            # zzz
+            print('try node_id', buf)
             key, value = re.findall('^<(.{1,}):([0-9A-F]+)>',
                                     buf.upper())[0]
-            # zzz print(key, type(value), value)
+            # zzz
+            print(key, type(value), value)
             if (key == 'NODE_ID'):
                 return _Tlv(tlv_types.NODE_ID,
                             value)
         except IndexError, ValueError:
-            raise TlvBadException(buf, None)
+            raise TlvBadException('_regex_tlv', buf, None)
         return None # shouldn't get here
 
     def copy(self):
@@ -632,7 +637,7 @@ class TagTlv(object):
             self.mytlv = _Tlv(t[0],t[1])
             if (self.mytlv):
                 return
-        raise TlvBadException(t, v)
+        raise TlvBadException('update', t, v)
 
     def parse(self, ba):
         """
@@ -640,7 +645,7 @@ class TagTlv(object):
         """
         self.mytlv = _Tlv(ba)
         if (self.mytlv is None):
-            raise TlvBadException(self.mytlv, None)
+            raise TlvBadException('parse', ba, None)
 
     def build(self):
         """
@@ -648,7 +653,7 @@ class TagTlv(object):
         """
         if (self.mytlv):
             return self.mytlv.build()
-        raise TlvBadException(self.mytlv, None)
+        raise TlvBadException('build', self.mytlv, None)
 
     def tlv_type(self):
         return self.mytlv.tlv_type()
@@ -678,7 +683,7 @@ class TagTlv(object):
                 v = hexlify(v)
             return '({}, {})'.format(self.mytlv.tlv_type(),v)
         except:
-            raise TlvBadException(self.mytlv, None)
+            raise TlvBadException('__repr__', self.mytlv, None)
 
     def __len__(self):
         return self.mytlv.__len__()
