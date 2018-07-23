@@ -37,7 +37,7 @@ if (os.path.exists(basedir)
     # zzz print '\n'.join(sys.path)
 
 from radioutils import payload2values, path2tlvs, radio_show_config
-from radioutils import msg_exchange
+from radioutils import msg_exchange, radio_send_msg, radio_receive_msg
 
 from tagnet import TagMessage, TagGet, TagPut, TagHead, TagDelete
 from tagnet import TagName
@@ -45,12 +45,12 @@ from tagnet import TagTlv, TagTlvList, tlv_types, tlv_errors
 from tagnet import TlvListBadException, TlvBadException
 
 # default paramters
-#MAX_WAIT            = 10
-#MAX_RECV            = 255
-#MAX_PAYLOAD         = 254
-#MAX_RETRIES         = 10
-#RADIO_POWER         = 100
-#SHORT_DELAY         = 0
+MAX_WAIT            = 1000 # milliseconds
+MAX_RECV            = 2
+MAX_PAYLOAD         = 254
+MAX_RETRIES         = 4
+RADIO_POWER         = 20
+SHORT_DELAY         = 1000 # milliseonds
 
 def show_radio_config(radio, config):
     '''
@@ -67,7 +67,7 @@ def show_radio_config(radio, config):
     print(radio.get_chip_status())
 
 
-def im_put_file(radio, path_list, buf, offset):
+def im_put_file(radio, path_list, buf, offset, power=RADIO_POWER, wait=MAX_WAIT):
     '''
     Write data to an image file on the Tag
     '''
@@ -84,31 +84,54 @@ def im_put_file(radio, path_list, buf, offset):
 
     amt_to_put = len(buf)
     prev_offset    = offset
-    while (amt_to_put > 0):
+    tries = MAX_RETRIES
+    while (amt_to_put > 0) and (tries > 0):
         req_msg, amt_sent = _put_msg(path_list,
-                                         buf[(len(buf)-amt_to_put):],
-                                         offset)
-        print('im put', req_msg.name)
-        error, payload, msg_meta = msg_exchange(radio,
-                                     req_msg)
-        print('im put rsp error/payload', error, payload)
-        if (error is tlv_errors.ERETRY):
-            continue
-        if (error is not tlv_errors.SUCCESS):
-            break
-        offset = payload2values(payload,
-                             [tlv_types.OFFSET,
-                             ])[0]
-        print('im put offset', offset)
-        if (offset):
-            if (offset <= prev_offset):
-                return tlv_errors.EINVAL, 0
-            amt_to_put -= offset - prev_offset
+                                     buf[(len(buf)-amt_to_put):],
+                                     offset)
+        # zzz
+        print('im_put_file', req_msg.name)
+        req_buf = req_msg.build()
+        sstatus = radio_send_msg(radio, req_buf, power)
+        rsp_buf, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, wait)
+        rsp = None
+        if (rsp_buf):
+            try:
+                rsp = TagMessage(bytearray(rsp_buf))
+                # zzz print('msg_exchange',len(rsp_buf),hexlify(rsp_buf))
+            except (TlvBadException, TlvListBadException):
+                # zzz print('im_put_file, tries: ', tries)
+                tries -=1
+                continue
+        if (rsp) and (rsp.payload):
+            # zzz print('msg_exchange response', rsp.payload)
+            error, offset = payload2values(rsp.payload,
+                                           [tlv_types.ERROR,
+                                            tlv_types.OFFSET,
+                                           ])
+            if error is None: error = tlv_errors.SUCCESS
+            if ((error is tlv_errors.ERETRY) or
+                (error is tlv_errors.EBUSY)):
+                tries -= 1
+            elif error is tlv_errors.SUCCESS:
+                if (offset):
+                    if (offset == prev_offset): # tag missed request
+                        continue
+                    elif offset < prev_offset: # not expected
+                        error = tlv_errors.EINVAL
+                        break
+                    amt_to_put -= offset - prev_offset # move offset
+                else:
+                    amt_to_put  -= amt_sent
+                    offset      += amt_sent
+                    prev_offset  = offset
+                tries = MAX_RETRIES
+            else:
+                break
         else:
-            amt_to_put -= amt_sent
-            offset     += amt_sent
-        prev_offset     = offset
-
+            error = tlv_errors.ETIMEOUT
+            tries -= 1
+            print('msg_exchange: timeout', tries)
     return error, offset
 
 def im_get_file(radio, path_list, size, offset):
