@@ -219,6 +219,7 @@ def msg_exchange(radio, req, power=RADIO_POWER, wait=MAX_WAIT):
                         tries = 1 # force terminal condition
             except (TlvBadException, TlvListBadException):
                 # zzz print('msg_exchange, tries: ', tries)
+                error = tlv_errors.EINVAL
                 pass # continue with counting this as retry
         else:
             error = tlv_errors.ETIMEOUT
