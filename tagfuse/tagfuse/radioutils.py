@@ -679,7 +679,7 @@ def radio_get_rtctime(radio, node=None, name=None, power=RADIO_POWER, wait=MAX_W
                             TagTlv('sys'),
                             TagTlv('rtc')])
     req_obj = TagGet(name)
-    print('*** radio_get_rtctime name: {}'.format(get_name))
+    print('*** radio_get_rtctime name: {}'.format(name))
     error, payload, msg_meta = msg_exchange(radio, req_obj)
     rssi, sstatus, rstatus = msg_meta
     if (error is tlv_errors.SUCCESS):
