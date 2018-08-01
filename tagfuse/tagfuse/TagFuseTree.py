@@ -154,7 +154,7 @@ def TagFuseInfoTree(radio):
             ('',      FileHandler(S_IFDIR, 0o751, 3)),
             ('gps',   DirHandler(OrderedDict([
                 ('',    FileHandler(S_IFDIR, 0o751, 4)),
-                ('xyz', FileHandler(S_IFREG, 0o444, 1)),
+                ('xyz', ByteIOFileHandler(radio, S_IFREG, 0o444, 1)),
                 ('cmd', SimpleRecHandler(radio, S_IFREG, 0o220, 1)),
             ]))),
         ]))),
