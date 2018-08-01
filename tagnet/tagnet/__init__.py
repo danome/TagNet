@@ -14,7 +14,7 @@ if (os.path.exists(os.path.join(basedir, 'setup.py')) and
     sys.path.insert(0, os.path.join(basedir, 'tagnet'))
     print '\n'.join(sys.path)
 
-__version__ = '0.1.4'
+__version__ = '0.2.0'
 print 'TagNet Driver Version {}'.format(__version__)
 
 from .tagnames import *
