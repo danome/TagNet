@@ -591,13 +591,11 @@ class TagTlv(object):
     def _regex_tlv(self, buf):
         # zzz print('regex_tlv', type(buf), buf)
         try:
-            # zzz
-            print('try version', buf)
+            # zzz print('try version', buf)
             key, major, minor, build = \
                 re.findall('^<(.{1,}):([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,5})>',
                            buf.upper())[0]
-            # zzz
-            print(key, major, minor, build)
+            # zzz print(key, major, minor, build)
             if (key == 'VERSION'):
                 return _Tlv(tlv_types.VERSION,
                             (int(major),int(minor),int(build)))
@@ -605,12 +603,10 @@ class TagTlv(object):
             pass
         try:
             key, value = buf[1:-1].split(':')
-            # zzz
-            print('try node_id', buf)
+            # zzz print('try node_id', buf)
             key, value = re.findall('^<(.{1,}):([0-9A-F]+)>',
                                     buf.upper())[0]
-            # zzz
-            print(key, type(value), value)
+            # zzz print(key, type(value), value)
             if (key == 'NODE_ID'):
                 return _Tlv(tlv_types.NODE_ID,
                             value)

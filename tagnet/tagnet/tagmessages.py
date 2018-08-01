@@ -64,7 +64,7 @@ class crc8:
         for c in msg:
             #c = ord(str(c))
             runningCRC = self.crcByte(runningCRC, c)
-        print('crc', hex(runningCRC), len(msg), hexlify(msg))
+        # zzz print('crc', hex(runningCRC), len(msg), hexlify(msg))
         return runningCRC
     def crcByte(self, oldCrc, byte):
         res = self.crcTable[oldCrc & 0xFF ^ byte & 0xFF]
