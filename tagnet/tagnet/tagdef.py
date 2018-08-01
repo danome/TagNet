@@ -1,7 +1,7 @@
 from construct import *
 import enum
 
-TAGNET_VERSION = 1
+TAGNET_VERSION = 2
 DEFAULT_HOPCOUNT = 5
 MAX_HOPCOUNT = 31
 
