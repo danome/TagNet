@@ -86,7 +86,7 @@ MAX_RECV            = 2
 MAX_PAYLOAD         = 254
 MAX_RETRIES         = 4
 RADIO_POWER         = 20
-SHORT_DELAY         = 1000 # milliseonds
+SHORT_DELAY         = 100  # milliseonds
 
 
 #WGS84   EPSG:4326     World Geodetic System 1984 (lat/lon)
@@ -217,9 +217,12 @@ def msg_exchange(radio, req, power=RADIO_POWER, wait=MAX_WAIT):
                        or (error is tlv_errors.EALREADY) \
                        or (error is tlv_errors.SUCCESS):
                         tries = 1 # force terminal condition
+                        # zzz
+                        print('msg_exchange, error: ', error, tries)
             except (TlvBadException, TlvListBadException):
-                # zzz print('msg_exchange, tries: ', tries)
                 error = tlv_errors.EINVAL
+                # zzz
+                print('msg_exchange, bad message: ', tries)
                 pass # continue with counting this as retry
         else:
             error = tlv_errors.ETIMEOUT
