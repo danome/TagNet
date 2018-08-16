@@ -22,6 +22,7 @@ __all__ = ['FileHandler',
            'SysGoldenDirHandler',
            'SysNibDirHandler',
            'SysRunningDirHandler',
+           'VerbosityDirHandler',
 ]
 
 import os
@@ -76,13 +77,16 @@ except ImportError:
 
 from tagnet              import tlv_errors, TagTlv
 
+# new_inode            return next monotonically increasing number
+#
 base_value = 0
-
 def new_inode():
     global base_value
     base_value += 1
     return base_value
 
+# default_file_attrs   return default file attributes dict
+#
 def default_file_attrs(ntype, mode, nlinks, size):
         return dict(st_mode=(ntype | mode),
                     st_nlink=nlinks,
@@ -1147,3 +1151,40 @@ class SysRunningDirHandler(SysDirHandler):
     '''
     def __init__(self, radio, a_dict):
         super(SysRunningDirHandler, self).__init__(radio, a_dict)
+
+
+class VerbosityDirHandler(DirHandler):
+    '''
+    Debug Verbosity Directory Handler class
+
+    Set and get verbosity level using file system.
+    '''
+    def __init__(self, a_dict):
+        super(VerbosityDirHandler, self).__init__(a_dict)
+        self.file_name = str(get_cmd_args().verbosity)
+        self[self.file_name] = FileHandler(S_IFREG, 0o444, 1)
+
+    def create(self, path_list, mode):
+        file_name = path_list[-1]
+        self.log.info(method=inspect.stack()[1][3],
+                      file=file_name, path=path_list)
+        del self[self.file_name]
+        get_cmd_args().verbosity = int(file_name)
+        self[file_name] = FileHandler(S_IFREG, 0o444, 1)
+        self.file_name=file_name
+        self.log.info(method=inspect.stack()[1][3],
+                      path=path_list[:-1],
+                      mode=oct(mode),
+                      file=file_name,
+                      verbosity=get_cmd_args().verbosity)
+        if get_cmd_args().verbosity > 1:
+            self.log.debug('>1',method=inspect.stack()[1][3])
+        if get_cmd_args().verbosity > 2:
+            self.log.debug('>2',method=inspect.stack()[1][3])
+        if get_cmd_args().verbosity > 3:
+            self.log.debug('>3',method=inspect.stack()[1][3])
+        if get_cmd_args().verbosity > 4:
+            self.log.debug('>4',method=inspect.stack()[1][3])
+        return 0
+
+mylog.debug('initiialization complete')
