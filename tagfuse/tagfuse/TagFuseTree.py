@@ -3,9 +3,11 @@ from __future__ import print_function, absolute_import, division
 __all__ = ['TagFuseRootTree',
            'TagFuseTagTree']
 
-import logging
 import os
 import sys
+import structlog
+logger = structlog.getLogger('fuse.log-mixin.' + __name__)
+toplog = logger.bind(scope='global')
 
 from collections import defaultdict, OrderedDict
 import copy
@@ -196,4 +198,4 @@ def TagFuseRootTree(radio):
         ('ffffffffffff', TagFuseTagTree(radio)),
     ]))
 
-# zzz print('*** TagFuseTree.py','ending')
+toplog.debug('initiialization complete')

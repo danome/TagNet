@@ -16,6 +16,10 @@ __all__ = ['im_put_file',
 
 import os
 import sys
+import structlog
+logger = structlog.getLogger('fuse.log-mixin.' + __name__)
+mylog = logger.bind(scope=__name__)
+import inspect
 
 from time import time, sleep
 from binascii import hexlify
@@ -36,8 +40,14 @@ if (os.path.exists(basedir)
             sys.path.insert(0,ndir)
     # zzz print '\n'.join(sys.path)
 
-from radioutils import payload2values, path2tlvs, radio_show_config
-from radioutils import msg_exchange, radio_send_msg, radio_receive_msg
+try:
+    from radioutils import payload2values, path2tlvs, radio_show_config
+    from radioutils import msg_exchange, radio_send_msg, radio_receive_msg
+    from tagfuseargs import get_cmd_args
+except ImportError:
+    from tagfuse.radioutils import payload2values, path2tlvs, radio_show_config
+    from tagfuse.radioutils import msg_exchange, radio_send_msg, radio_receive_msg
+    from tagfuse.tagfuseargs import get_cmd_args
 
 from tagnet import TagMessage, TagGet, TagPut, TagHead, TagDelete
 from tagnet import TagName
@@ -56,15 +66,15 @@ def show_radio_config(radio, config):
     '''
     Show Radio device configuration
     '''
-    radio_show_config(radio.dump_radio())
+    radio_show_config(data=radio.dump_radio())
     total = 0
-    print('\n=== const config strings:')
+    mylog.debug('const config strings:',method=inspect.stack()[1][3])
     for s in config:
-        print((hexlify(s)))
+        mylog.debug(method=inspect.stack()[1][3], data=(hexlify(s)))
         total += len(s) - 4
-    print('\n total: {}'.format(total))
+    mylog.debug(method=inspect.stack()[1][3], count=total)
     # ## Get Chip Status
-    print(radio.get_chip_status())
+    mylog.debug(method=inspect.stack()[1][3], data=radio.get_chip_status())
 
 
 def im_put_file(radio, path_list, buf, offset, power=RADIO_POWER, wait=MAX_WAIT):
@@ -89,8 +99,7 @@ def im_put_file(radio, path_list, buf, offset, power=RADIO_POWER, wait=MAX_WAIT)
         req_msg, amt_sent = _put_msg(path_list,
                                      buf[(len(buf)-amt_to_put):],
                                      offset)
-        # zzz
-        print('im_put_file', req_msg.name)
+        mylog.debug(method=inspect.stack()[1][3], name=req_msg.name)
         req_buf = req_msg.build()
         sstatus = radio_send_msg(radio, req_buf, power)
         rsp_buf, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, wait)
@@ -98,13 +107,17 @@ def im_put_file(radio, path_list, buf, offset, power=RADIO_POWER, wait=MAX_WAIT)
         if (rsp_buf):
             try:
                 rsp = TagMessage(bytearray(rsp_buf))
-                # zzz print('msg_exchange',len(rsp_buf),hexlify(rsp_buf))
+                mylog.debug(method=inspect.stack()[1][3],
+                            data=en(rsp_buf),
+                            data2=hexlify(rsp_buf))
             except (TlvBadException, TlvListBadException):
-                # zzz print('im_put_file, tries: ', tries)
+                mylog.info('bad message',
+                           method=inspect.stack()[1][3],
+                           count=tries)
                 tries -=1
                 continue
         if (rsp) and (rsp.payload):
-            # zzz print('msg_exchange response', rsp.payload)
+            mylog.debug(method=inspect.stack()[1][3], data=rsp.payload)
             error, offset = payload2values(rsp.payload,
                                            [tlv_types.ERROR,
                                             tlv_types.OFFSET,
@@ -131,7 +144,9 @@ def im_put_file(radio, path_list, buf, offset, power=RADIO_POWER, wait=MAX_WAIT)
         else:
             error = tlv_errors.ETIMEOUT
             tries -= 1
-            print('msg_exchange: timeout', tries)
+            mylog.info('timeout',
+                       method=inspect.stack()[1][3],
+                       count=tries)
     return error, offset
 
 def im_get_file(radio, path_list, size, offset):
@@ -144,7 +159,7 @@ def im_get_dir(radio, path_list, version=None):
     Returns a list of tuples containing a directory
     name and current state.
     '''
-    # zzz print('im_get_dir',path_list)
+    mylog.debug(method=inspect.stack()[1][3], path=path_list)
 
     def _get_dir_msg(path_list, version):
         tlv_list = path2tlvs(path_list)
@@ -159,18 +174,25 @@ def im_get_dir(radio, path_list, version=None):
     else:
         dir_req = _get_dir_msg(path_list, None)
 
-    # zzz
-    print('dir_req.name', dir_req.name)
+    mylog.debug(method=inspect.stack()[1][3], name=dir_req.name)
     error, payload, msg_meta = msg_exchange(radio,
                                  dir_req)
-    # zzz print(error, payload)
+    mylog.debug(method=inspect.stack()[1][3],
+                error=error,
+                data=payload,
+                meta=msg_meta)
     rtn_list = []
     if (error == tlv_errors.SUCCESS):
-        # zzz print(payload)
+        if get_cmd_args().verbosity > 2:
+            mylog.debug(method=inspect.stack()[1][3],
+                        data=payload)
         for x in range(0, len(payload), 2):
             version =  payload[x].value()
             state = payload[x+1].value()
-            # zzz print('im get dir, state: {} version: {}'.format(state,version))
+            if get_cmd_args().verbosity > 2:
+                mylog.debug(method=inspect.stack()[1][3],
+                            state=state,
+                            version=version)
             if   (state == 'a'): state = 'active'
             elif (state == 'b'): state = 'backup'
             elif (state == 'g'): state = 'golden'
@@ -188,11 +210,17 @@ def im_close_file(radio, path_list, offset):
         return msg
 
     close_req = _close_msg(path_list)
-    # zzz
-    print('im close file', close_req.name, close_req.payload)
+    if get_cmd_args().verbosity > 2:
+        mylog.debug(method=inspect.stack()[1][3],
+                    name=close_req.name,
+                    data=close_req.payload)
     error, payload, msg_meta = msg_exchange(radio,
                                  close_req)
-    print('im close file',error,payload)
+    if get_cmd_args().verbosity > 2:
+        mylog.debug(method=inspect.stack()[1][3],
+                    error=error,
+                    data=close_req.payload,
+                    meta=msg_meta)
     if (error) \
        and (error != tlv_errors.SUCCESS) \
        and (error != tlv_errors.EODATA):
@@ -216,17 +244,22 @@ def im_delete_file(radio, path_list):
         msg = TagDelete(im_name)
         return msg
 
-    # zzz
-    print('im_delete_file', path_list)
+    if get_cmd_args().verbosity > 2:
+        mylog.debug(method=inspect.stack()[1][3],
+                       path=path_list)
     delete_req = _delete_msg(path_list)
-    # zzz
-    print(delete_req.name)
+    if get_cmd_args().verbosity > 2:
+        mylog.debug(method=inspect.stack()[1][3],
+                       name=delete_req.name,)
     error, payload, msg_meta = msg_exchange(radio,
                                  delete_req)
-    print(payload)
+    if get_cmd_args().verbosity > 2:
+        mylog.debug(method=inspect.stack()[1][3],
+                       error=error,
+                       data=payload)
     if (error) and (error != tlv_errors.SUCCESS):
         error = tlv_errors.SUCCESS
-    print(error)
+    mylog.info(method=inspect.stack()[1][3], error=error,)
     return error
 
 
@@ -239,9 +272,13 @@ def im_set_version(radio, path_list):
         return req_obj
 
     req_msg = _set_version_msg(path_list)
-    print('im_set_version', req_msg.name)
+    if get_cmd_args().verbosity > 2:
+        mylog.debug(method=inspect.stack()[1][3],
+                  name=req_msg.name,)
     err, payload, msg_meta = msg_exchange(radio, req_msg)
     if (err is None):
         err = tlv_errors.SUCCESS
-    print(err)
+    mylog.debug(method=inspect.stack()[1][3], error=err)
     return err
+
+mylog.debug('initiialization complete')

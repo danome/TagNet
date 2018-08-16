@@ -2,8 +2,11 @@
 from __future__ import print_function, absolute_import, division
 #from builtins import *                  # python3 types
 
+import structlog
+logger = structlog.getLogger('fuse.log-mixin.' + __name__)
+toplog = logger.bind(scope='global')
+import inspect
 
-print('loading sparsefile')
 __all__ = ['SparseFile']
 
 from binascii    import hexlify
@@ -32,11 +35,12 @@ class SparseFile(Chest):
     space used by actual data written.
     '''
     def __init__(self, dirname):
-        print('*** sparsefile init', dirname)
         super(SparseFile, self).__init__(path=dirname)
 #        Chest.__init__(self, path=dirname)
         self.dirname = dirname
         self.counts = defaultdict(int)
+        self.log = logger.bind(scope=self.__class__.__name__)
+        self.log.info('initialized',method=inspect.stack()[1][3])
 
     def _check_bytes(self):
         if len(self):
@@ -52,10 +56,12 @@ class SparseFile(Chest):
                     set_b = Set(range(b_s, b_e))
                     common = set_a.intersection(set_b)
                     if len(common):
-                        # zzz
                         print("*** _check_bytes error", common)
+                        self.log.info(method=inspect.stack()[1][3],
+                                      data=common)
                         raise SparseFileException(a_s, a_e, b_s, b_e)
         else:
+            self.log.info('empty list', method=inspect.stack()[1][3],)
             print("*** _check_bytes empty list")
 
     def _coalesce(self):
@@ -86,11 +92,11 @@ class SparseFile(Chest):
         # list is sorted, so b_s (second block) can never be less
         # than a_s (first block) in the comparisons
         # if self.counts['coalese_count'] % 100:
-        print('*** {} sparsefile, cur/max number of blocks: {}/{}, max block size: {}'.format(
-                self.counts['coalesce_count'],
-                len(self), self.counts['max_block_count'],
-                self.counts['max_block_size'],
-            ))
+        if get_cmd_args().verbosity > 2:
+            self.log.debug(method=inspect.stack()[1][3],
+                           count=self.counts['coalesce_count'],
+                           size=len(self), max_count=self.counts['max_block_count'],
+                           max_size=self.counts['max_block_size'], )
         block_list = sorted(self.iterkeys())
         if block_list is None:
             return
@@ -103,14 +109,18 @@ class SparseFile(Chest):
         while (len(block_list)):
             if (len(a_blk) > self.counts['max_block_size']):
                 self.counts['max_block_size'] = len(a_blk)
-            # zzz print('*** coalesce block_list', block_list)
+            if get_cmd_args().verbosity > 2:
+                self.log.debug(method=inspect.stack()[1][3],
+                               data=block_list)
             # first time only, start and end addresses for a_blk
             # start and end address for b_blk
             b_s   = block_list.pop(0)
             b_blk = self[b_s]
             b_e   = b_s + len(b_blk)
-            # zzz print('*** _coalesce loop: a_s: {}, a_e: {}, b_s: {}, b_e: {}'.format(
-            # zzz    a_s, a_e, b_s, b_e))
+            if get_cmd_args().verbosity > 2:
+                self.log.debug(method=inspect.stack()[1][3],
+                               current={'start':a_s, 'end':a_e},
+                               new={'start':b_s, 'end':b_e})
             # case (3.i) first ends before second begins
             if (a_e < b_s):
                 # zzz print('*** coalesce skip to next')
@@ -120,17 +130,27 @@ class SparseFile(Chest):
                 a_e   = b_e
             # case (3.ii) first subsumes second
             elif (a_e >= b_e):
-                # zzz print("coalesce replace", a_s, a_e, b_s, b_e)
+                if get_cmd_args().verbosity > 2:
+                    self.log.debug('replace',
+                                   method=inspect.stack()[1][3],
+                                   current={'start':a_s, 'end':a_e},
+                                   new={'start':b_s, 'end':b_e})
                 del self[b_s]
             # case (3.iii) first overlaps with beginning of second
             elif (a_e < b_e):
-                # zzz print("coalesce combine",
-                # zzz       len(a_blk), hexlify(a_blk), len(b_blk), hexlify(b_blk))
+                if get_cmd_args().verbosity > 2:
+                    self.log.debug('combine',
+                                   method=inspect.stack()[1][3],
+                                   current={'size':len(a_blk), 'data':hexlify(a_blk)},
+                                   new={'size':len(a_blk), 'data':hexlify(b_blk)})
                 # slice the first part of a_blk up to the overlap
                 # with b_blk and then combine with b_blk
                 new_block = a_blk[:b_s-a_s]
                 new_block.extend(b_blk)
-                # zzz print("coalesce combine new", len(new_block), hexlify(new_block))
+                if get_cmd_args().verbosity > 2:
+                    self.log.debug('combine new',
+                                   method=inspect.stack()[1][3],
+                                   current={'size':len(new_block), 'data':hexlify(new_block)},)
                 # replace old a_blk with new_block and delete b_blk.
                 self[a_s] = a_blk = new_block
                 a_e = b_e

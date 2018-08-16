@@ -37,6 +37,7 @@ setup(
                         'future',
                         'enum34',
                         'fusepy',
+                        'structlog',
 #                        'pyproj',
     ],
     provides         = ['tagfuse'],

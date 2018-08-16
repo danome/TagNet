@@ -1,6 +1,9 @@
 import os
 import sys
 import argparse
+import time
+import logging
+import structlog
 
 from myversion import __version__
 
@@ -20,6 +23,19 @@ if (os.path.exists(basedir)
 
 __all__ = ['process_cmd_args', 'get_cmd_args']
 
+import tagnet
+import si446x
+
+
+# logging format control
+#
+logging.Formatter.converter = time.gmtime
+#logging.getLogger(__name__).addHandler(logging.NullHandler())
+fmt_con = logging.Formatter(
+    '--- %(name)-22s %(message)s')
+fmt_log = logging.Formatter(
+    '--- %(asctime)s (%(levelname)s) %(name)-22s - %(message)s')
+
 #
 # global_args    provides a global source for the processed command line
 #                variabls, such as directory name of mount point and where
@@ -27,6 +43,9 @@ __all__ = ['process_cmd_args', 'get_cmd_args']
 #
 global_args = None
 
+#
+# helper routines
+#
 def full_path(dir_):
     if dir_[0] == '~' and not os.path.exists(dir_):
         dir_ = os.path.expanduser(dir_)
@@ -39,7 +58,6 @@ class expand_pathname(argparse.Action):
 
 def process_cmd_args():
     global global_args
-    print('TagNet Fuse Driver version: {}'.format(__version__))
     parser = argparse.ArgumentParser(
         description='Tagnet FUSE Filesystem driver v{}'.format(__version__))
     parser.add_argument('mountpoint',
@@ -52,6 +70,12 @@ def process_cmd_args():
                         action='store_true',
                         default=False,
                         help='disable sparse file storage')
+    parser.add_argument('--logfile',
+                        default='/tmp/tagfuse.log',
+                        help='log filename')
+    parser.add_argument('--loglevel',
+                        default='INFO',
+                        help='loging level')
     parser.add_argument('--disable_sparse_read',
                         action='store_true',
                         default=False,
@@ -73,17 +97,66 @@ def process_cmd_args():
 
     global_args = parser.parse_args()
 
-    print("mountpoint", global_args.mountpoint)
-    if global_args.verbosity:
-        print("verbosity turned on", global_args.verbosity)
-    global_args.sparse_dir = full_path(global_args.sparse_dir)
-    print("sparse files stored here", global_args.sparse_dir)
+    # structured logging configuration
+    #
+    structlog.configure(
+        processors=[
+            structlog.stdlib.filter_by_level,
+            # structlog.processors.StackInfoRenderer(),
+            # structlog.stdlib.PositionalArgumentsFormatter(),
+            structlog.processors.TimeStamper(fmt='%Y-%m-%d %H:%M.%S'),
+            #structlog.processors.KeyValueRenderer(key_order=['scope',
+            #                                                 'method',
+            #                                                 'event'],
+            #                                      drop_missing=True),
+            structlog.processors.JSONRenderer(),
+            # xxx structlog.stdlib.add_logger_name,
+            # structlog.stdlib.add_log_level,
+            # structlog.processors.UnicodeDecoder(),
+            # structlog.processors.StackInfoRenderer(),
+            # structlog.processors.format_exc_info,
+            # xxx structlog.stdlib.render_to_log_kwargs,
+        ],
+        context_class=dict,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
+        cache_logger_on_first_use=True,
+    )
 
+    root = structlog.getLogger('fuse.log-mixin')
+    root.setLevel(global_args.loglevel)
+    try:
+        console = logging.StreamHandler()
+        console.setFormatter(fmt_con)
+        console.setLevel(logging.WARNING)
+        root.addHandler(console)
+
+        fh = logging.FileHandler(global_args.logfile)
+        # need to verfiy that rotating files work correctly
+        # fh = logging.RotatingFileHandler(
+        #    global_args.logfile, maxBytes=100000000, backupCount=3)
+        fh.setFormatter(fmt_log)
+        fh.setLevel(global_args.loglevel)
+        root.addHandler(fh)
+    except (ValueError, TypeError) as e:
+        print('*** bad level: {}'.format(e))
+        sys.exit()
+
+    log = structlog.getLogger('fuse.log-mixin.' + __name__).bind(scope='global')
+    log.setLevel(global_args.loglevel)
+    log.info(version={'tagfuse':__version__, 'tagnet':tagnet.__version__, 'si446x':si446x.__version__})
+
+    log.debug("logging level is {}, stored at {}".format(
+        global_args.loglevel, global_args.logfile))
+    log.debug("mountpoint at {}".format(global_args.mountpoint))
+    if global_args.verbosity:
+        log.debug("verbosity turned on {}".format(global_args.verbosity))
+    global_args.sparse_dir = full_path(global_args.sparse_dir)
+    log.debug("sparse files stored at {}".format(global_args.sparse_dir))
+    log.debug('initiialization complete')
     return global_args
 
 
 def get_cmd_args():
     global global_args
     return global_args
-
-# print('*** tagfuseargs.py','ending')

@@ -9,10 +9,14 @@ __all__ = ['TagStorage',
 
 import os
 import sys
+import structlog
+logger = structlog.getLogger('fuse.log-mixin.' + __name__)
+toplog = logger.bind(scope='global')
+
+
 #sys.setdefaultencoding('utf-8')
 # zzz print('default encoding', sys.getdefaultencoding())
 
-import logging
 from collections import defaultdict, OrderedDict
 from errno import ENOENT, ENODATA, EPERM
 from stat import S_IFDIR, S_IFLNK, S_IFREG
@@ -80,7 +84,7 @@ class TagFuse(LoggingMixIn, Operations):
         # zzz print(self.tree_root)
 
         #uid, gid, pid = fuse_get_context()
-        # zzz print('tagfuse context', fuse_get_context())
+        toplog.debug('tagfuse context {}'.format(fuse_get_context()))
 
         # zzz print(os.getuid(), os.geteuid())
         # zzz print(os.getgid(), os.getegid())
@@ -332,4 +336,4 @@ if __name__ == '__main__':
     import tagfuseargs
     TagStorage(tagfuseargs.process_cmd_args())
 
-# zzz print('** tagfuse.py','ending')
+toplog.debug('initiialization complete')
