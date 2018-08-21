@@ -108,7 +108,7 @@ def im_put_file(radio, path_list, buf, offset, power=RADIO_POWER, wait=MAX_WAIT)
             try:
                 rsp = TagMessage(bytearray(rsp_buf))
                 mylog.debug(method=inspect.stack()[1][3],
-                            data=en(rsp_buf),
+                            data=len(rsp_buf),
                             data2=hexlify(rsp_buf))
             except (TlvBadException, TlvListBadException):
                 mylog.info('bad message',

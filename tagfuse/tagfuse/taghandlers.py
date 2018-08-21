@@ -28,6 +28,7 @@ __all__ = ['FileHandler',
 import os
 import sys
 import inspect
+import logging
 import structlog
 logger = structlog.getLogger('fuse.log-mixin.' + __name__)
 mylog = logger.bind(scope=__name__)
@@ -299,7 +300,7 @@ class SparseIOFileHandler(ByteIOFileHandler):
                            file=sparse_filename,
                            sparse=self.sparse, )
         try:
-            self.sparse = SparseFile(sparse_filename)
+            self.sparse = SparseFile(sparse_filename, get_cmd_args)
             self.log.info(method=inspect.stack()[1][3],
                            file=sparse_filename, )
         except:
@@ -528,7 +529,7 @@ class SimpleRecHandler(FileHandler):
             file_update_attrs(self.radio, path_list, self)
             if get_cmd_args().verbosity > 2:
                 self.log.debug(method=inspect.stack()[1][3],
-                               attrs=attrs)
+                               attrs=self.__repr__())
         return super(SimpleRecHandler, self).getattr(path_list, update=update)
 
     def write(self, path_list, buf, offset):
@@ -622,7 +623,7 @@ class TestEchoHandler(TestBaseHandler):
 
     def _open_sparse(self, fpath):
         if (self.sparse == None):
-            self.sparse = SparseFile('_'.join(fpath))
+            self.sparse = SparseFile('_'.join(fpath), get_cmd_args)
             items = sorted(self.sparse.items())
         if get_cmd_args().verbosity > 2:
             self.log.debug(method=inspect.stack()[1][3], size=len(items))
@@ -843,13 +844,10 @@ class RootDirHandler(DirHandler):
         level).
         '''
         handler, path_list = super(RootDirHandler, self).traverse(path_list, index)
-        if not path_list:
-            return (handler, path_list)
-        if (path_list[index] is not '') and \
-           (path_list[index][0] is not '.'):
+        if path_list and path_list[index] is not '' and not path_list[index].startswith('.'):
             path_list[index] = '<node_id:' + path_list[index] + '>'
-            if get_cmd_args().verbosity > 4:
-                self.log.debug(method=inspect.stack()[1][3],
+        if get_cmd_args().verbosity > 4:
+            self.log.debug(method=inspect.stack()[1][3],
                            index=index, path=path_list)
         return (handler, path_list)
 
@@ -860,9 +858,10 @@ class PollNetDirHandler(DirHandler):
 
     Performs polling for new tags and adds them to root directory.
     '''
-    def __init__(self, radio, a_dict):
+    def __init__(self, radio, count, a_dict):
         super(PollNetDirHandler, self).__init__(a_dict)
-        self.radio = radio
+        self.radio      = radio
+        self.poll_count = count
 
     def readdir(self, path_list, tree_root, new_tag):
         '''
@@ -889,26 +888,26 @@ class PollNetDirHandler(DirHandler):
                 continue          # skip special files
             my_names.append(tag)
         my_set = Set(my_names)
+        tag_set = Set()
         diff_set = Set()
-        for i in range(10):           # poll for list of live tags
-            tag_set = Set(radio_poll(self.radio).keys())
+        for i in range(self.poll_count): # poll for list of live tags
+            tag_set |= Set(radio_poll(self.radio).keys())
             diff_set |= tag_set.difference(my_set)
-            if get_cmd_args().verbosity > 2:
-                self.log.debug(method=inspect.stack()[1][3],
-                           tag=tag_set, diff=diff_set)
-            if diff_set and i > 1:
+            if get_cmd_args().verbosity > 3:
+                self.log.info(method=inspect.stack()[1][3],
+                              local=my_set,
+                              tag=tag_set,
+                              diff=diff_set)
+            if tag_set and i > 3:
                 break
-        self.log.debug(method=inspect.stack()[1][3],
-                      local=my_set,
-                      tag=tag_set,
-                      diff=diff_set)
         for tag in diff_set:          # add new found tags
             # instantiate new directory using default tag file tree
             tree_root[tag] = new_tag(self.radio)
             self[tag] = FileHandler(S_IFREG, 0o444, 1)
             tree_root['']['st_nlink'] += 1
-        dir_names = list(diff_set) + ['.','..']
-        self.log.debug(method=inspect.stack()[1][3], dir_list=dir_names)
+        dir_names = list(tag_set) + ['.','..']
+        if get_cmd_args().verbosity > 1:
+            self.log.debug(method=inspect.stack()[1][3], dir_list=dir_names)
         return dir_names
 
 
@@ -1163,6 +1162,28 @@ class VerbosityDirHandler(DirHandler):
         super(VerbosityDirHandler, self).__init__(a_dict)
         self.file_name = str(get_cmd_args().verbosity)
         self[self.file_name] = FileHandler(S_IFREG, 0o444, 1)
+        self._set_level()
+
+    def _set_level(self):
+        rootlog = structlog.getLogger('fuse.log-mixin')
+        rootlog.setLevel(logging.WARNING)
+        mylog.setLevel(logging.WARNING)
+        if get_cmd_args().verbosity >= 4:
+            rootlog.setLevel(logging.DEBUG)
+            mylog.setLevel(logging.DEBUG)
+            self.log.debug('>4',method=inspect.stack()[1][3])
+        elif get_cmd_args().verbosity == 3:
+            rootlog.setLevel(logging.INFO)
+            mylog.setLevel(logging.DEBUG)
+            self.log.debug('=3',method=inspect.stack()[1][3])
+        elif get_cmd_args().verbosity == 2:
+            rootlog.setLevel(logging.WARNING)
+            mylog.setLevel(logging.DEBUG)
+            self.log.debug('=2',method=inspect.stack()[1][3])
+        elif get_cmd_args().verbosity == 1:
+            rootlog.setLevel(logging.WARNING)
+            mylog.setLevel(logging.INFO)
+            self.log.debug('=1',method=inspect.stack()[1][3])
 
     def create(self, path_list, mode):
         file_name = path_list[-1]
@@ -1177,14 +1198,7 @@ class VerbosityDirHandler(DirHandler):
                       mode=oct(mode),
                       file=file_name,
                       verbosity=get_cmd_args().verbosity)
-        if get_cmd_args().verbosity > 1:
-            self.log.debug('>1',method=inspect.stack()[1][3])
-        if get_cmd_args().verbosity > 2:
-            self.log.debug('>2',method=inspect.stack()[1][3])
-        if get_cmd_args().verbosity > 3:
-            self.log.debug('>3',method=inspect.stack()[1][3])
-        if get_cmd_args().verbosity > 4:
-            self.log.debug('>4',method=inspect.stack()[1][3])
+        self._set_level()
         return 0
 
 mylog.debug('initiialization complete')

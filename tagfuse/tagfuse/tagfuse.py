@@ -322,9 +322,6 @@ def TagStorage(args):
                'kernel_cache':  True,
                'direct_io':     True,
     }
-    # zzz
-    logging.basicConfig(level=logging.INFO)
-    # zzz logging.basicConfig(level=logging.DEBUG) # output FUSE related debug info
     fuse = FUSE(TagFuse(),
                 args.mountpoint,
                 nothreads=True,

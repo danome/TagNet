@@ -159,7 +159,7 @@ def payload2values(payload, keynames):
     plist = []
     if get_cmd_args().verbosity > 3:
         mylog.debug(method=inspect.stack()[1][3],
-                       data=keynames)
+                       data=keynames.__repr__())
     for match_key in keynames:
         item = None
         for tlv in payload:
@@ -173,7 +173,7 @@ def payload2values(payload, keynames):
         plist.append(item)
     if get_cmd_args().verbosity > 3:
         mylog.debug(method=inspect.stack()[1][3],
-                       data=plist)
+                       data=plist.__repr__())
     return (plist)
 
 def path2tlvs(path_list):
@@ -213,7 +213,7 @@ def msg_exchange(radio, req, power=RADIO_POWER, wait=MAX_WAIT):
     req_msg = req.build()
     tries = MAX_RETRIES
     if get_cmd_args().verbosity > 2:
-        mylog.debug(method=inspect.stack()[1][3],
+        mylog.debug('start', method=inspect.stack()[1][3],
                     count=tries,size=len(req_msg),
                     data=hexlify(req_msg))
     while (tries):
@@ -230,7 +230,7 @@ def msg_exchange(radio, req, power=RADIO_POWER, wait=MAX_WAIT):
                 if (rsp.payload):
                     payload = rsp.payload
                     if get_cmd_args().verbosity > 3:
-                        mylog.debug(method=inspect.stack()[1][3], data=payload)
+                        mylog.debug(method=inspect.stack()[1][3], data=payload.__repr__())
                     error, eof = payload2values(payload,
                                            [tlv_types.ERROR,
                                             tlv_types.EOF,
@@ -243,19 +243,20 @@ def msg_exchange(radio, req, power=RADIO_POWER, wait=MAX_WAIT):
                        or (error is tlv_errors.EALREADY) \
                        or (error is tlv_errors.SUCCESS):
                         tries = 1 # force terminal condition
-                        mylog.info('error', method=inspect.stack()[1][3],
-                                   error=error, count=tries)
-            except (TlvBadException, TlvListBadException):
+                        if get_cmd_args().verbosity > 3:
+                            mylog.debug('done', method=inspect.stack()[1][3],
+                                        error=error, count=tries)
+            except (ValueError, TypeError, TlvBadException, TlvListBadException):
                 error = tlv_errors.EINVAL
-                mylog.info('exception', method=inspect.stack()[1][3],)
+                mylog.error('exception', method=inspect.stack()[1][3],)
                 pass # continue with counting this as retry
         else:
             error = tlv_errors.ETIMEOUT
-            mylog.info('timeout', method=inspect.stack()[1][3],
+            mylog.error('timeout', method=inspect.stack()[1][3],
                        error=error, count=tries)
         tries -= 1
     if get_cmd_args().verbosity > 2:
-        mylog.debug(method=inspect.stack()[1][3], error=error, data=payload)
+        mylog.debug('complete',method=inspect.stack()[1][3], error=error, data=payload.__repr__())
     return error, payload, (rssi, sstatus, rstatus)
 
 
@@ -441,7 +442,7 @@ def radio_send_msg(radio, msg, pwr):
             no_action = False
             progress.extend([time(), 'E'])
             radio.fifo_info(rx_flush=True, tx_flush=True)
-            mylog.info('cmd error',method=inspect.stack()[1][3],
+            mylog.error('cmd error',method=inspect.stack()[1][3],
                        data=collect_int_status(status))
         if (status.chip_pend.FIFO_UNDERFLOW_OVERFLOW_ERROR):
             cflags.chip_pend.FIFO_UNDERFLOW_OVERFLOW_ERROR = False
@@ -472,7 +473,7 @@ def radio_send_msg(radio, msg, pwr):
                 progress.extend([time(), 'p'])
         now = time()
     if (now >= end):
-        mylog.info('timeout', method=inspect.stack()[1][3])
+        mylog.error('timeout', method=inspect.stack()[1][3])
         if get_cmd_args().verbosity > 3:
             mylog.debug(method=inspect.stack()[1][3], data=progress)
     __, tx = radio.fifo_info()
@@ -518,7 +519,7 @@ def radio_receive_msg(radio, max_recv, wait):
             status = radio.get_chip_status()
             progress.extend([time(), ['E', status.ph_pend, status.modem_pend, status.chip_pend]])
             radio.fifo_info(rx_flush=True, tx_flush=True)
-            mylog.info('cmd error',method=inspect.stack()[1][3],
+            mylog.error('cmd error',method=inspect.stack()[1][3],
                        data=collect_int_status(status))
             #status = int_status(radio, clr_all_flags)
             #break
@@ -564,7 +565,7 @@ def radio_receive_msg(radio, max_recv, wait):
         msg = None
     elif crc_err:
         progress.extend([time(), ['crc','e',status]])
-        mylog.info('crc error',method=inspect.stack()[1][3])
+        mylog.error('crc error',method=inspect.stack()[1][3])
         if get_cmd_args().verbosity > 3:
             mylog.debug(method=inspect.stack()[1][3], rssi=rssi, data=progress)
         msg = None
@@ -669,10 +670,10 @@ def radio_get_position(radio, node=None, name=None, power=RADIO_POWER, wait=MAX_
                                   'elevation':gps_geo[0],})
             return gps_xyz, gps_geo
         else:
-            mylog.info('response error',method=inspect.stack()[1][3],
+            mylog.error('response error',method=inspect.stack()[1][3],
                        error=error)
     else:
-        mylog.info('timeout',method=inspect.stack()[1][3])
+        mylog.error('timeout',method=inspect.stack()[1][3])
     return None, None
 
 
@@ -811,7 +812,7 @@ def radio_read_test(radio, test_name, pos, num, node=None, name=None, power=RADI
         if get_cmd_args().verbosity > 2:
             mylog.debug(method=inspect.stack()[1][3],
                         error=rsp_obj.header.options.param.error_code,
-                        data=rsp_obj.payload)
+                        data=rsp_obj.payload.__repr__())
         if rsp_obj.payload:
             error, offset, amt, block = payload2values(rsp_obj.payload,
                                   [tlv_types.ERROR,
@@ -821,15 +822,15 @@ def radio_read_test(radio, test_name, pos, num, node=None, name=None, power=RADI
                                   ])
             seta = set(block)
             if (len(seta) > 1):
-                mylog.info('check error',  method=inspect.stack()[1][3],
+                mylog.error('check error',  method=inspect.stack()[1][3],
                            diff=seta, size=amt,)
                 amt = 0
             return error, offset, amt, block
         else:
-            mylog.info('timeout', method=inspect.stack()[1][3],
+            mylog.error('timeout', method=inspect.stack()[1][3],
                        error=rsp_obj.header.options.param.error_code)
     else:
-        mylog.info('timeout', method=inspect.stack()[1][3],)
+        mylog.error('timeout', method=inspect.stack()[1][3],)
     return None
 
 
@@ -847,13 +848,13 @@ def radio_write_test(radio, test_name, buf, pos=0, node=None, name=None, power=R
     req_obj = TagPut(name, pl=buf)
     if get_cmd_args().verbosity > 2:
         mylog.debug(method=inspect.stack()[1][3], name=req_obj.name,
-                    data=req_obj.payload)
+                    data=req_obj.payload.__repr__())
     req_msg = req_obj.build()
     sstatus = radio_send_msg(radio, req_msg, power)
     rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, wait)
     if rsp_msg:
         if get_cmd_args().verbosity > 3:
-            mylog.debug(method=inspect.stack()[1][3], data=rsp_msg)
+            mylog.debug(method=inspect.stack()[1][3], data=rsp_msg.__repr__())
         rsp_obj = TagMessage(rsp_msg)
         if get_cmd_args().verbosity > 4:
             mylog.debug(method=inspect.stack()[1][3],
@@ -863,7 +864,7 @@ def radio_write_test(radio, test_name, buf, pos=0, node=None, name=None, power=R
         if rsp_obj.payload:
             if get_cmd_args().verbosity > 3:
                 mylog.debug(method=inspect.stack()[1][3],
-                            data=rsp_obj.payload)
+                            data=rsp_obj.payload.__repr__())
             error, offset = payload2values(rsp_obj.payload,
                                            [tlv_types.ERROR,
                                             tlv_types.OFFSET,

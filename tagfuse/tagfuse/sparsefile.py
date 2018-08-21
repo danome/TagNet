@@ -34,10 +34,12 @@ class SparseFile(Chest):
     Sparse file provides a large file that takes up only the
     space used by actual data written.
     '''
-    def __init__(self, dirname):
+    def __init__(self, dirname, cmd_arg_func):
         super(SparseFile, self).__init__(path=dirname)
 #        Chest.__init__(self, path=dirname)
         self.dirname = dirname
+        self.get_cmd_args = cmd_arg_func
+        print('sparsefile verbosity', self.get_cmd_args().verbosity)
         self.counts = defaultdict(int)
         self.log = logger.bind(scope=self.__class__.__name__)
         self.log.info('initialized',method=inspect.stack()[1][3])
@@ -92,7 +94,7 @@ class SparseFile(Chest):
         # list is sorted, so b_s (second block) can never be less
         # than a_s (first block) in the comparisons
         # if self.counts['coalese_count'] % 100:
-        if get_cmd_args().verbosity > 2:
+        if self.get_cmd_args().verbosity > 2:
             self.log.debug(method=inspect.stack()[1][3],
                            count=self.counts['coalesce_count'],
                            size=len(self), max_count=self.counts['max_block_count'],
@@ -109,7 +111,7 @@ class SparseFile(Chest):
         while (len(block_list)):
             if (len(a_blk) > self.counts['max_block_size']):
                 self.counts['max_block_size'] = len(a_blk)
-            if get_cmd_args().verbosity > 2:
+            if self.get_cmd_args().verbosity > 2:
                 self.log.debug(method=inspect.stack()[1][3],
                                data=block_list)
             # first time only, start and end addresses for a_blk
@@ -117,7 +119,7 @@ class SparseFile(Chest):
             b_s   = block_list.pop(0)
             b_blk = self[b_s]
             b_e   = b_s + len(b_blk)
-            if get_cmd_args().verbosity > 2:
+            if self.get_cmd_args().verbosity > 2:
                 self.log.debug(method=inspect.stack()[1][3],
                                current={'start':a_s, 'end':a_e},
                                new={'start':b_s, 'end':b_e})
@@ -130,7 +132,7 @@ class SparseFile(Chest):
                 a_e   = b_e
             # case (3.ii) first subsumes second
             elif (a_e >= b_e):
-                if get_cmd_args().verbosity > 2:
+                if self.get_cmd_args().verbosity > 2:
                     self.log.debug('replace',
                                    method=inspect.stack()[1][3],
                                    current={'start':a_s, 'end':a_e},
@@ -138,7 +140,7 @@ class SparseFile(Chest):
                 del self[b_s]
             # case (3.iii) first overlaps with beginning of second
             elif (a_e < b_e):
-                if get_cmd_args().verbosity > 2:
+                if self.get_cmd_args().verbosity > 2:
                     self.log.debug('combine',
                                    method=inspect.stack()[1][3],
                                    current={'size':len(a_blk), 'data':hexlify(a_blk)},
@@ -147,7 +149,7 @@ class SparseFile(Chest):
                 # with b_blk and then combine with b_blk
                 new_block = a_blk[:b_s-a_s]
                 new_block.extend(b_blk)
-                if get_cmd_args().verbosity > 2:
+                if self.get_cmd_args().verbosity > 2:
                     self.log.debug('combine new',
                                    method=inspect.stack()[1][3],
                                    current={'size':len(new_block), 'data':hexlify(new_block)},)
