@@ -64,17 +64,17 @@ def file_get_bytes(radio, path_list, amount_to_get, file_offset):
                          TagTlv(tlv_types.SIZE, amount_to_get)])
         tname = TagName(tlv_list)
         if get_cmd_args().verbosity > 2:
-            mylog.debug(method=inspect.stack()[1][3], name=tname)
+            mylog.debug(method=inspect.stack()[0][3], name=tname)
         return TagGet(tname)
 
     accum_bytes = bytearray()
     eof = False
     while (amount_to_get) and not eof:
         req_msg = _file_bytes_msg(path_list, amount_to_get, file_offset)
-        mylog.debug(method=inspect.stack()[1][3], name=req_msg.name)
+        mylog.debug(method=inspect.stack()[0][3], name=req_msg.name)
         err, payload, msg_meta = msg_exchange(radio, req_msg)
         if get_cmd_args().verbosity > 2:
-            mylog.debug(method=inspect.stack()[1][3],
+            mylog.debug(method=inspect.stack()[0][3],
                            error=err,
                            data=payload)
         if (err == tlv_errors.SUCCESS) or \
@@ -85,7 +85,7 @@ def file_get_bytes(radio, path_list, amount_to_get, file_offset):
                                                      tlv_types.BLOCK,
                                                     ])
             if get_cmd_args().verbosity > 2:
-                mylog.debug(method=inspect.stack()[1][3],
+                mylog.debug(method=inspect.stack()[0][3],
                                offset=offset,
                                count=amt2get,
                                size=len(block),
@@ -96,7 +96,7 @@ def file_get_bytes(radio, path_list, amount_to_get, file_offset):
                 amount_to_get -= len(block)
             if (err == tlv_errors.EODATA):
                 mylog.info('end of data',
-                           method=inspect.stack()[1][3],
+                           method=inspect.stack()[0][3],
                            offset=file_offset,
                            count=amount_to_get,
                            error=err)
@@ -105,29 +105,29 @@ def file_get_bytes(radio, path_list, amount_to_get, file_offset):
 
             if (offset) and (offset != file_offset):
                 mylog.info('offset mismatch',
-                           method=inspect.stack()[1][3],
+                           method=inspect.stack()[0][3],
                            offset=file_offset,
                            size=offset)
                 break
             if (amt2get) and (amt2get != amount_to_get):
                 mylog.info('size mismatch',
-                           method=inspect.stack()[1][3],
+                           method=inspect.stack()[0][3],
                            size=amount_to_get,
                            count=amt2get)
                 break
         elif (err == tlv_errors.EBUSY):
             mylog.info('busy',
-                       method=inspect.stack()[1][3],
+                       method=inspect.stack()[0][3],
                        offset=file_offset,
                        error=err)
             continue
         else:
-            mylog.info('unexpected', method=inspect.stack()[1][3],
+            mylog.info('unexpected', method=inspect.stack()[0][3],
                            offset=file_offset,
                            error=err)
             break
     if get_cmd_args().verbosity > 2:
-        mylog.debug(method=inspect.stack()[1][3],
+        mylog.debug(method=inspect.stack()[0][3],
                     count=file_offset-len(accum_bytes),
                     size=len(accum_bytes),
                     eof=eof)
@@ -145,16 +145,16 @@ def file_update_attrs(radio, path_list, attrs):
     req_msg = _file_attr_msg(path_list)
     if (req_msg == None):
         mylog.info('bad request',
-                   method=inspect.stack()[1][3],
+                   method=inspect.stack()[0][3],
                    path=path_list)
         return attrs
     if get_cmd_args().verbosity > 2:
-        mylog.debug(method=inspect.stack()[1][3],
+        mylog.debug(method=inspect.stack()[0][3],
                     name=req_msg.name)
     err, payload, msg_meta = msg_exchange(radio, req_msg)
     if (err == tlv_errors.SUCCESS):
         if get_cmd_args().verbosity > 2:
-            mylog.debug(method=inspect.stack()[1][3],
+            mylog.debug(method=inspect.stack()[0][3],
                         data=payload)
         offset, filesize = payload2values(payload,
                                           [tlv_types.OFFSET,
@@ -165,7 +165,7 @@ def file_update_attrs(radio, path_list, attrs):
         if (filesize == None): filesize = 0
         if (offset == None): offset = 0
     else:
-        mylog.info('failure', method=inspect.stack()[1][3], error=err)
+        mylog.info('failure', method=inspect.stack()[0][3], error=err)
         this_time = -1
         filesize = 0
     attrs['st_size']  = filesize
@@ -185,7 +185,7 @@ def _put_bytes(radio, tname, buf, offset):
 
     req_msg = _file_put_msg(tname, buf, offset)
     if get_cmd_args().verbosity > 2:
-        mylog.debug(method=inspect.stack()[1][3],
+        mylog.debug(method=inspect.stack()[0][3],
                     name=req_msg.name)
     err, payload, msg_meta = msg_exchange(radio, req_msg)
     if (err == tlv_errors.SUCCESS):
@@ -195,11 +195,11 @@ def _put_bytes(radio, tname, buf, offset):
         if (amtLeft == None):
             amtLeft = len(buf)
         if get_cmd_args().verbosity > 2:
-            mylog.debug(method=inspect.stack()[1][3],
+            mylog.debug(method=inspect.stack()[0][3],
                         count=len(buf),
                         size=amtLeft)
         return amtLeft
-    mylog.info(method=inspect.stack()[1][3], error=err)
+    mylog.info(method=inspect.stack()[0][3], error=err)
     return 0
 
 def file_put_bytes(radio, path_list, buf, offset):
