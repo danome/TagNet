@@ -30,8 +30,7 @@ import sys
 import inspect
 import logging
 import structlog
-logger = structlog.getLogger('fuse.log-mixin.' + __name__)
-mylog = logger.bind(scope=__name__)
+mylog = structlog.getLogger('fuse.log-mixin.' + __name__, scope=__name__)
 
 ###############################
 
@@ -113,42 +112,77 @@ class FileHandler(OrderedDict):
                                     0)
         super(FileHandler, self).__init__(a_dict)
         self.inode = new_inode();
-        self.log = logger.bind(scope=self.__class__.__name__)
-        self.log.info('initialized',method=inspect.stack()[1][3])
+        self.log = mylog.bind(scope=self.__class__.__name__)
+        if get_cmd_args().verbosity > 4:
+            self.log.debug('initialized',
+                           method=inspect.stack()[0][3],
+                           ntype=ntype,
+                           mode=mode,
+                           nlinks=nlinks,
+                           inode=self.inode,
+                           name=self.__class__.__name__)
 
     def __len__(self):
+        if get_cmd_args().verbosity > 2:
+            self.log.debug(method=inspect.stack()[0][3],
+                           size=1)
         return 1
 
     def getattr(self, path_list, update=False):
         self['st_atime'] = time()  # set access time
+        if get_cmd_args().verbosity > 1:
+            self.log.debug(method=inspect.stack()[0][3],
+                           atime=self['st_atime'],
+                           update=update,
+                           path_list=path_list,)
+        if get_cmd_args().verbosity > 2:
+            self.log.debug(method=inspect.stack()[0][3],
+                           attrs=self.__repr__(),
+                           path_list=path_list,)
         return self
 
     def flush(self, path_list):
+        if get_cmd_args().verbosity > 1:
+            self.log.debug(method=inspect.stack()[0][3],
+                           path_list=path_list)
         return 0
 
     def link(self, link_name, target): # hard link
+        self.log.warn('not implmented', method=inspect.stack()[0][3],
+                       path_list=path_list)
         raise FuseOSError(EPERM)
 
     def read(self, path_list, size, offset):
         raise FuseOSError(ENODATA)
 
     def release(self, path_list):      # close
+        if get_cmd_args().verbosity > 1:
+            self.log.debug(method=inspect.stack()[0][3],
+                           path_list=path_list)
         return 0
 
     def truncate(self, path_list, length):
+        if get_cmd_args().verbosity > 2:
+            self.log.debug(method=inspect.stack()[0][3],
+                           path_list=path_list)
         return 0
 
     def unlink(self, path_list):       # delete
+        self.log.warn('not implmented', method=inspect.stack()[0][3],
+                       path_list=path_list)
         raise FuseOSError(EPERM)
 
     def utimens(self, path_list, times):
         atime, mtime = times
-        self.log.debug(method=inspect.stack()[1][3],
-                       times={'access':atime, 'modified':mtime},
-                       path=path_list, )
+        if get_cmd_args().verbosity > 1:
+            self.log.debug(method=inspect.stack()[0][3],
+                           times={'access':atime, 'modified':mtime},
+                           path_list=path_list, )
         return 0
 
     def write(self, path_list, buf, offset):
+        self.log.warn('not implmented', method=inspect.stack()[0][3],
+                       path_list=path_list, offset=offset)
         raise FuseOSError(EPERM)
 
 
@@ -170,27 +204,27 @@ class ByteIOFileHandler(FileHandler):
 
     def read(self, path_list, size, offset):
         if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3],
+            self.log.debug(method=inspect.stack()[0][3],
                            size=size,
                            offset=offset,
-                           path=path_list, )
+                           path_list=path_list, )
         buf, eof = file_get_bytes(self.radio,
                                   path_list,
                                   size,
                                   offset)
-        if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3],
-                           blen=len(buf),
+        if get_cmd_args().verbosity > 1:
+            self.log.debug(method=inspect.stack()[0][3],
+                           size=len(buf),
                            eof=eof,
-                           path=path_list, )
+                           path_list=path_list, )
         return buf
 
     def write(self, path_list, buf, offset):
-        if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3],
+        if get_cmd_args().verbosity > 1:
+            self.log.debug(method=inspect.stack()[0][3],
                            size=size,
                            offset=offset,
-                           path=path_list, )
+                           path_list=path_list, )
         return file_put_bytes(self.radio,
                         path_list,
                         buf,
@@ -215,8 +249,8 @@ class XyzFileHandler(FileHandler):
             return ''
         xyz, geo = radio_get_position(self.radio,
                                  node=TagTlv(str(path_list[0])))
-        if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3],
+        if get_cmd_args().verbosity > 1:
+            self.log.debug(method=inspect.stack()[0][3],
                            xyz=xyz,
                            geo=geo, )
         return xyz.__repr__()
@@ -238,15 +272,16 @@ class RtcFileHandler(FileHandler):
             utctime, a, b, c = radio_get_rtctime(self.radio,
                                     node=TagTlv(str(path_list[0])))
             if get_cmd_args().verbosity > 2:
-                self.log.debug(method=inspect.stack()[1][3],
+                self.log.debug(method=inspect.stack()[0][3],
                                utctime=utctime, )
             try:
                 self['st_mtime'] = (utctime - epoch).total_seconds()
             except TypeError:
                 self['st_mtime'] = -2
-            self.log.info(method=inspect.stack()[1][3],
-                           utctime=utctime,
-                           modified=self['st_mtime'], )
+            if get_cmd_args().verbosity > 1:
+                self.log.debug(method=inspect.stack()[0][3],
+                              utctime=utctime,
+                              modified=self['st_mtime'], )
         return super(RtcFileHandler, self).getattr(path_list, update=update)
 
     def write(self, path_list, buf, offset):
@@ -263,8 +298,8 @@ class RtcFileHandler(FileHandler):
         update the local atime and mtime attributes.
         '''
         atime, mtime = times
-        if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3],
+        if get_cmd_args().verbosity > 1:
+            self.log.debug(method=inspect.stack()[0][3],
                            times={'access':atime, 'modified':mtime}, )
         utctime = datetime.utcfromtimestamp(mtime)
         radio_set_rtctime(self.radio,
@@ -272,7 +307,7 @@ class RtcFileHandler(FileHandler):
                           node=TagTlv(str(path_list[0])))
         self['st_atime'] = atime
         self['st_mtime'] = mtime
-        self.log.info(method=inspect.stack()[1][3],
+        self.log.info(method=inspect.stack()[0][3],
                            utctime=utctime, )
 
 
@@ -282,30 +317,32 @@ class SparseIOFileHandler(ByteIOFileHandler):
     def __init__(self, *args, **kwargs):
         super(SparseIOFileHandler, self).__init__(*args, **kwargs)
         self.sparse = None
+        self.path = None
 
     def _open_sparse(self, fpath):
         if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3],
+            self.log.debug(method=inspect.stack()[0][3],
                            sparse=self.sparse, disable=get_cmd_args().disable_sparse,
                            sparse_dir=get_cmd_args().sparse_dir, )
         if self.sparse is not None or get_cmd_args().disable_sparse:
             if get_cmd_args().verbosity > 2:
-                self.log.debug('early exit', method=inspect.stack()[1][3], )
+                self.log.debug('early exit', method=inspect.stack()[0][3], )
             return
         sparse_filename = os.path.join(
             get_cmd_args().sparse_dir,
             '_'.join(fpath))
         if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3],
+            self.log.debug(method=inspect.stack()[0][3],
                            file=sparse_filename,
                            sparse=self.sparse, )
+        self.path = sparse_filename
         try:
             self.sparse = SparseFile(sparse_filename, get_cmd_args)
-            self.log.info(method=inspect.stack()[1][3],
-                           file=sparse_filename, )
+            self.log.info(method=inspect.stack()[0][3],
+                           path=sparse_filename, )
         except:
-            self.log.info('failed', method=inspect.stack()[1][3],
-                          file=sparse_filename)
+            self.log.info('failed', method=inspect.stack()[0][3],
+                          path=sparse_filename)
             raise
         items = sorted(self.sparse.items())
         if items:
@@ -313,7 +350,7 @@ class SparseIOFileHandler(ByteIOFileHandler):
             if self['st_size'] < (offset + len(block)):
                 self['st_size'] = offset + len(block)
         if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3],
+            self.log.debug(method=inspect.stack()[0][3],
                            count=len(items), sparse=self.sparse)
 
     def _get_sparse(self, offset, size):
@@ -323,11 +360,17 @@ class SparseIOFileHandler(ByteIOFileHandler):
 
     def _add_sparse(self, offset, buf):
         if self.sparse is not None:
+            if get_cmd_args().verbosity > 2:
+                self.log.debug(method=inspect.stack()[0][3],
+                               offset=offset, size=len(buf))
             return self.sparse.add_bytes(offset, buf)
         return len(buf) # acknowledge but ignore data
 
     def _close_sparse(self):
         if self.sparse is not None:
+            if get_cmd_args().verbosity > 2:
+                self.log.debug(method=inspect.stack()[0][3],
+                               path=self.path)
             self.sparse.flush()
 
     def _delete_sparse(self):
@@ -337,23 +380,25 @@ class SparseIOFileHandler(ByteIOFileHandler):
             self.sparse.drop()
             self.sparse = None
             self['st_size'] = 0
-            self.log.info('deleted', method=inspect.stack()[1][3], )
+            self.log.info('deleted', method=inspect.stack()[0][3],
+                          path=self.path)
 
     def flush(self, *args, **kwargs):
-        self.log.info(method=inspect.stack()[1][3], args=args[0])
+        self.log.info(method=inspect.stack()[0][3],
+                      args=args[0],
+                      path=self.path)
         self._close_sparse()
         super(SparseIOFileHandler, self).flush(*args, **kwargs)
         return 0
 
     def getattr(self, path_list, update=False):
-        if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3], path=path_list, update=update)
+        self.path = path_list
         self._open_sparse(path_list)
         return super(SparseIOFileHandler, self).getattr(path_list, update=update)
 
     def read(self, path_list, size, offset):
-        if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3],
+        if get_cmd_args().verbosity > 1:
+            self.log.debug(method=inspect.stack()[0][3],
                            offset=offset,
                            size=size,
                            old_size=self['st_size'])
@@ -371,6 +416,10 @@ class SparseIOFileHandler(ByteIOFileHandler):
         work_list = self._get_sparse(offset, size)
         if (work_list):
             for item in work_list:
+                if get_cmd_args().verbosity > 2:
+                    self.log.debug(method=inspect.stack()[0][3],
+                                   size=len(item),
+                                   sample=hexlify(item[:20]))
                 if isinstance(item, tuple) or \
                    isinstance(item, list):
                     first, last = item
@@ -384,17 +433,12 @@ class SparseIOFileHandler(ByteIOFileHandler):
                         break
                 elif isinstance(item, bytearray) or \
                      isinstance(item, str):
-                    if get_cmd_args().verbosity > 2:
-                        self.log.debug(method=inspect.stack()[1][3],
-                                       count=len(item),
-                                       sample=hexlify(item[:20]))
                     retbuf.extend(item)
                 else:
                     raise FuseOSError(EIO)
-            return retbuf
         elif offset < self['st_size']:
             if get_cmd_args().verbosity > 2:
-                self.log.debug(method=inspect.stack()[1][3],
+                self.log.debug(method=inspect.stack()[0][3],
                                offset=offset,
                                size=self['st_size'])
             size = min(size, self['st_size']-offset)
@@ -403,26 +447,33 @@ class SparseIOFileHandler(ByteIOFileHandler):
             if (xbuf):
                 retbuf.extend(xbuf)
                 self._add_sparse(offset, xbuf)
+        if retbuf:
+            if get_cmd_args().verbosity > 1:
+                self.log.debug(method=inspect.stack()[0][3],
+                               size=len(retbuf),
+                               sample=hexlify(retbuf[:20]))
             return retbuf
         raise FuseOSError(ENODATA)
 
     def unlink(self, *args, **kwargs):       # delete
-        self.log.info(method=inspect.stack()[1][3], sparse=self.sparse)
+        self.log.info(method=inspect.stack()[0][3],
+                      path=self.path,
+                      sparse=self.sparse)
         self._delete_sparse()
         return 0
 
     def write(self, path_list, buf, offset):
         if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3],
+            self.log.debug(method=inspect.stack()[0][3],
                            offset=offset,
                            size=len(buf), )
         self._open_sparse(path_list)
         sz = self._add_sparse(offset, buf)
         if (offset + sz) > self['st_size']:
             self['st_size'] = offset + sz
-        if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3],
-                           size=sz, )
+        if get_cmd_args().verbosity > 1:
+            self.log.debug(method=inspect.stack()[0][3],
+                           offset=offset, size=sz, )
         return sz
 
 
@@ -443,22 +494,23 @@ class ImageIOFileHandler(ByteIOFileHandler):
     def flush(self, path_list): # close
         path_list[-1] = '<version:'+'.'.join(path_list[-1].split('.'))+'>'
         self['st_size'] = im_close_file(self.radio, path_list, self.offset)
-        self.log.debug(method=inspect.stack()[1][3],
-                       path=path_list,
-                       size=self['st_size'])
+        if get_cmd_args().verbosity > 1:
+            self.log.debug(method=inspect.stack()[0][3],
+                           path_list=path_list,
+                           size=self['st_size'])
         return 0
 
     def read(self, path_list, size, offset):
         if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3],
+            self.log.debug(method=inspect.stack()[0][3],
                            offset=offset,
                            size=size,)
         error, buf, offset = im_get_file(self.radio,
                                path_list,
                                size,
                                offset)
-        if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3],
+        if get_cmd_args().verbosity > 1:
+            self.log.debug(method=inspect.stack()[0][3],
                            eof=eof,
                            size=len(buf),
                            error=error)
@@ -467,30 +519,31 @@ class ImageIOFileHandler(ByteIOFileHandler):
         return str(buf)
 
     def release(self, path_list): # close
-        self.log.info(method=inspect.stack()[1][3], path=path_list)
+        self.log.info(method=inspect.stack()[0][3], path_list=path_list)
         return 0
 
     def unlink(self, path_list):  # delete
         version = '<version:'+'.'.join(path_list[-1].split('.'))+'>'
         new_path_list = path_list[:-1]
         new_path_list.append(version)
-        self.log.info(method=inspect.stack()[1][3], path=path_list)
+        self.log.info(method=inspect.stack()[0][3],
+                      version=version, path_list=path_list)
         if im_delete_file(self.radio, new_path_list):
             return 0
         raise FuseOSError(ENOENT)
 
     def write(self, path_list, buf, offset):
         if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3],
+            self.log.debug(method=inspect.stack()[0][3],
                            offset=offset,
                            size=len(buf), )
         error, new_offset = im_put_file(self.radio,
                            path_list,
                            buf,
                            offset)
-        if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3],
-                           offset=new_offset,)
+        if get_cmd_args().verbosity > 1:
+            self.log.debug(method=inspect.stack()[0][3],
+                           offset=new_offset, size=len(buf))
         if (error) and (error is not tlv_errors.SUCCESS):
             raise FuseOSError(ENOENT)
         if (new_offset):
@@ -527,23 +580,25 @@ class SimpleRecHandler(FileHandler):
     def getattr(self, path_list, update=False):
         if (update):
             file_update_attrs(self.radio, path_list, self)
-            if get_cmd_args().verbosity > 2:
-                self.log.debug(method=inspect.stack()[1][3],
-                               attrs=self.__repr__())
         return super(SimpleRecHandler, self).getattr(path_list, update=update)
 
     def write(self, path_list, buf, offset):
         last_seq = self['st_size']
-        # zzz
         if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3],
+            self.log.debug(method=inspect.stack()[0][3],
+                           path_list=path_list,
                            size=len(buf),
                            offset=offset,
-                           last_sequence=last_seq)
+                           sequence=last_seq)
         if (offset and offset != last_seq) or (len(buf) > 200):
             raise FuseOSError(EINVAL)
         self['st_size'] = file_put_bytes(self.radio,
                               path_list, buf, last_seq + 1)
+        if get_cmd_args().verbosity > 1:
+            self.log.debug(method=inspect.stack()[0][3],
+                           size=self['st_size'],
+                           sample=hexlify(buf[:20]),
+                           path_list=path_list)
         return len(buf)
 
 
@@ -626,20 +681,20 @@ class TestEchoHandler(TestBaseHandler):
             self.sparse = SparseFile('_'.join(fpath), get_cmd_args)
             items = sorted(self.sparse.items())
         if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3], size=len(items))
+            self.log.debug(method=inspect.stack()[0][3], size=len(items))
             if items:
                 offset, block = items[-1]
                 self['st_size'] = offset + len(block)
             else:
                 self['st_size'] = 0
         if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3], sparse=self.sparse)
+            self.log.debug(method=inspect.stack()[0][3], sparse=self.sparse)
 
     def _close_sparse(self):
         if self.sparse:
             self.sparse.flush()
         if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3], sparse=self.sparse)
+            self.log.debug(method=inspect.stack()[0][3], sparse=self.sparse)
 
     def _delete_sparse(self):
         if self.sparse:
@@ -647,11 +702,11 @@ class TestEchoHandler(TestBaseHandler):
             self.sparse = None
             self['st_size'] = 0
         if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3], sparse=self.sparse)
+            self.log.debug(method=inspect.stack()[0][3], sparse=self.sparse)
 
     def flush(self, path_list):
-        self.log.debug(method=inspect.stack()[1][3],
-                       path=path_list, )
+        self.log.debug(method=inspect.stack()[0][3],
+                       path_list=path_list, )
         self._close_sparse()
         return 0
 
@@ -661,10 +716,10 @@ class TestEchoHandler(TestBaseHandler):
 
     def read(self, path_list, size, offset):
         if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3],
+            self.log.debug(method=inspect.stack()[0][3],
                            offset=offset,
                            size=size,
-                           path=path_list, )
+                           path_list=path_list, )
         if offset >= self['st_size']:
             raise FuseOSError(ENODATA)
         self._open_sparse(path_list)
@@ -676,7 +731,7 @@ class TestEchoHandler(TestBaseHandler):
                 if isinstance(item, tuple) or \
                    isinstance(item, list):
                     if get_cmd_args().verbosity > 2:
-                        self.log.debug(method=inspect.stack()[1][3], data=item)
+                        self.log.debug(method=inspect.stack()[0][3], data=item)
                     first, last = item
                     last = min(last, self['st_size'])
                     xbuf = bytearray('\x00' * (last - first))
@@ -687,12 +742,12 @@ class TestEchoHandler(TestBaseHandler):
                 elif isinstance(item, bytearray) or \
                      isinstance(item, str):
                     if get_cmd_args().verbosity > 2:
-                        self.log.debug(method=inspect.stack()[1][3],
+                        self.log.debug(method=inspect.stack()[0][3],
                                        size=len(item), data=hexlify(item[:24]))
                     retbuf.extend(item)
                 else:
                     if get_cmd_args().verbosity > 2:
-                        self.log.debug(method=inspect.stack()[1][3],
+                        self.log.debug(method=inspect.stack()[0][3],
                                        error=EIO, data=item)
                     raise FuseOSError(EIO)
             return retbuf
@@ -703,15 +758,15 @@ class TestEchoHandler(TestBaseHandler):
 
     def unlink(self, path_list):       # delete
         if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3],
+            self.log.debug(method=inspect.stack()[0][3],
                            sparse=self.sparse,
-                           path=path_list)
+                           path_list=path_list)
         self._delete_sparse()
         return 0
 
     def write(self, path_list, buf, offset):
         if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3],
+            self.log.debug(method=inspect.stack()[0][3],
                            offset=offset,
                            size=len(buf),)
         self._open_sparse(path_list)
@@ -719,7 +774,7 @@ class TestEchoHandler(TestBaseHandler):
         if (offset + sz) > self['st_size']:
             self['st_size'] = offset + sz
         if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3],
+            self.log.debug(method=inspect.stack()[0][3],
                            size=sz,)
         return sz
 
@@ -757,8 +812,11 @@ class DirHandler(OrderedDict):
     def __init__(self, a_dict):
         super(DirHandler, self).__init__(a_dict)
         self.inode = new_inode()
-        self.log = logger.bind(scope=self.__class__.__name__)
-        self.log.info('initialized', method=inspect.stack()[1][3])
+        self.log = mylog.bind(scope=self.__class__.__name__)
+        if get_cmd_args().verbosity > 4:
+            self.log.debug('initialized',
+                           method=inspect.stack()[0][3],
+                           name=self.__class__.__name__)
         self.parent = None
 
     def traverse(self, parent, path_list, index):
@@ -785,21 +843,25 @@ class DirHandler(OrderedDict):
         else:
             for key, handler in self.iteritems():
                 if get_cmd_args().verbosity > 4:
-                    self.log.debug(method=inspect.stack()[1][3],
+                    self.log.debug(method=inspect.stack()[0][3],
                                    name=key, handler=type(handler))
                 # match the terminal name
                 if (path_list[index] == key):
                     handler.parent = self
                     return (handler, path_list)
-        self.log.debug('fail', method=inspect.stack()[1][3],
-                       index=index, path=path_list)
+            self.log.warn('fail', method=inspect.stack()[0][3],
+                      index=index, path_list=path_list)
         return (None, None)           # no match found
 
     def create(self, path_list, mode):
+        self.log.warn('not implmented', method=inspect.stack()[0][3],
+                       path_list=path_list)
         raise FuseOSError(EINVAL)
 
     def getattr(self, path_list, update=False):
-        self.log.info(method=inspect.stack()[1][3], path=path_list)
+        if get_cmd_args().verbosity > 1:
+            self.log.debug(method=inspect.stack()[0][3],
+                           path_list=path_list, update=update)
         return self['']
 
     def readdir(self, path_list, tree_root, new_tag_def):
@@ -807,25 +869,30 @@ class DirHandler(OrderedDict):
         for name in self.keys():
             if (name != ''):
                 dir_names.append(name)
-        if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3],
-                           dir_list=dir_names)
+        if get_cmd_args().verbosity > 1:
+            self.log.debug(method=inspect.stack()[0][3],
+                           dir_list=dir_names,
+                           path_list=path_list)
         self['']['st_nlink'] = len(dir_names)
         return dir_names
 
     def link(self, link_name, target):
-        self.log.info(method=inspect.stack()[1][3], link_name=link_name, target=target)
+        self.log.info(method=inspect.stack()[0][3],
+                      link_name=link_name,
+                      target=target)
         return 0
 
     def unlink(self, path_list):
-        self.log.info(method=inspect.stack()[1][3], path=path_list)
+        self.log.info(method=inspect.stack()[0][3],
+                      path_list=path_list)
         return 0
 
     def utimens(self, path_list, times):
         atime, mtime = times
-        self.log.debug(method=inspect.stack()[1][3],
-                       times={'access':atime, 'modified':mtime},
-                       path=path_list, )
+        if get_cmd_args().verbosity > 1:
+            self.log.debug(method=inspect.stack()[0][3],
+                           times={'access':atime, 'modified':mtime},
+                           path_list=path_list, )
         return 0
 
 
@@ -902,8 +969,8 @@ class PollNetDirHandler(DirHandler):
         for i in range(self.poll_count): # poll for list of live tags
             tag_set |= Set(radio_poll(self.radio).keys())
             diff_set |= tag_set.difference(my_set)
-            if get_cmd_args().verbosity > 3:
-                self.log.info(method=inspect.stack()[1][3],
+            if get_cmd_args().verbosity > 2:
+                self.log.debug(method=inspect.stack()[0][3],
                               local=my_set,
                               tag=tag_set,
                               diff=diff_set)
@@ -915,8 +982,9 @@ class PollNetDirHandler(DirHandler):
             self[tag] = FileHandler(S_IFREG, 0o444, 1)
             tree_root['']['st_nlink'] += 1
         dir_names = list(tag_set) + ['.','..']
-        if get_cmd_args().verbosity > 1:
-            self.log.debug(method=inspect.stack()[1][3], dir_list=dir_names)
+        self.log.info('poll results',
+                      method=inspect.stack()[0][3],
+                      dir_list=dir_names)
         return dir_names
 
 
@@ -932,13 +1000,13 @@ class ImageDirHandler(DirHandler):
 
     def readdir(self, path_list, tree_root, new_tag_def):
         if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3], path=path_list)
+            self.log.debug(method=inspect.stack()[0][3], path_list=path_list)
         tag_dir = im_get_dir(self.radio, path_list)
         if (tag_dir):
             # make set of versions found on tag
             tag_versions = []
             for version, state in tag_dir:
-                self.log.debug(method=inspect.stack()[1][3],
+                self.log.debug(method=inspect.stack()[0][3],
                               version=version,
                               state=str(state))
                 if (str(state) != 'x'):
@@ -950,7 +1018,7 @@ class ImageDirHandler(DirHandler):
                 if version is not '':
                     my_versions.append(version)
             my_set = Set(my_versions)
-            self.log.info(method=inspect.stack()[1][3],
+            self.log.info(method=inspect.stack()[0][3],
                           local=my_set,
                           tag=tag_set)
 
@@ -968,14 +1036,14 @@ class ImageDirHandler(DirHandler):
                 except KeyError:
                     pass  # wasn't there, ok
 
-        if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3], dir=self)
+        if get_cmd_args().verbosity > 1:
+            self.log.debug(method=inspect.stack()[0][3], dir=self)
         return super(ImageDirHandler, self).readdir(path_list, tree_root, new_tag_def)
 
     def create(self, path_list, mode):
         file_name = path_list[-1]
-        self.log.info(method=inspect.stack()[1][3],
-                      path=path_list[:-1],
+        self.log.info(method=inspect.stack()[0][3],
+                      path_list=path_list[:-1],
                       mode=oct(mode),
                       file=file_name)
         try:
@@ -989,12 +1057,12 @@ class ImageDirHandler(DirHandler):
         return 0
 
     def unlink(self, path_list):  # delete
-        self.log.info(method=inspect.stack()[1][3], path=path_list)
+        self.log.info(method=inspect.stack()[0][3], path_list=path_list)
         del self[path_list[-1]]   # last element is version
         return 0
 
     def release(self, path_list): # close
-        self.log.info(method=inspect.stack()[1][3], path=path_list)
+        self.log.info(method=inspect.stack()[0][3], path_list=path_list)
         return 0
 
 
@@ -1010,7 +1078,7 @@ class SysDirHandler(DirHandler):
 
     def readdir(self, path_list, tree_root, new_tag_def, img_state=''):
         if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3], path=path_list)
+            self.log.debug(method=inspect.stack()[0][3], path_list=path_list)
         tag_dir = im_get_dir(self.radio, path_list)
         if (tag_dir):
             # make set of versions found on tag
@@ -1020,7 +1088,7 @@ class SysDirHandler(DirHandler):
                     tag_versions.append('.'.join(map(str, version)))
             tag_set = Set(tag_versions)
             if get_cmd_args().verbosity > 2:
-                self.log.debug(method=inspect.stack()[1][3], tag=tag_set)
+                self.log.debug(method=inspect.stack()[0][3], tag=tag_set)
             # make set of version founds on self
             my_versions = []
             for version in self.keys():
@@ -1028,7 +1096,7 @@ class SysDirHandler(DirHandler):
                     my_versions.append(version)
             my_set = Set(my_versions)
             if get_cmd_args().verbosity > 2:
-                self.log.debug(method=inspect.stack()[1][3], tag=my_set)
+                self.log.debug(method=inspect.stack()[0][3], tag=my_set)
 
             # add versions on tag but not on self
             for version in tag_set.difference(my_set):
@@ -1040,8 +1108,8 @@ class SysDirHandler(DirHandler):
             # remove versions on self but not on tag
             for version in my_set.difference(tag_set):
                 del self[version]
-        if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[1][3], dir=self)
+        if get_cmd_args().verbosity > 1:
+            self.log.debug(method=inspect.stack()[0][3], dir=self)
         return super(SysDirHandler, self).readdir(path_list, tree_root, new_tag_def)
 
 
@@ -1055,7 +1123,10 @@ class SysActiveDirHandler(SysDirHandler):
         super(SysActiveDirHandler, self).__init__(radio, a_dict)
 
     def link(self, ln_l, tg_l):
-        self.log.debug(method=inspect.stack()[1][3], local_name=ln_l, target=tg_l)
+        if get_cmd_args().verbosity > 2:
+            self.log.debug(method=inspect.stack()[0][3],
+                           local_name=ln_l,
+                           target=tg_l)
         # set new version on tag active directory
         new_version = tg_l[-1]
         ln_lv = ln_l
@@ -1068,23 +1139,25 @@ class SysActiveDirHandler(SysDirHandler):
                 if version != '':
                     del self[version]
             # add new link
-            self.log.info(method=inspect.stack()[1][3],
-                          version=new_version)
             self[new_version] = SysFileHandler(self.radio,
                                         S_IFREG,
                                         0o664,
                                         1)
+            self.log.info(method=inspect.stack()[0][3],
+                          version=new_version)
             return 0
+        self.log.info('timeout', method=inspect.stack()[0][3],
+                      version=new_version)
         return 0
 
     def readdir(self, path_list, tree_root, new_tag_def):
         dir = super(SysActiveDirHandler, self).readdir(
             path_list, tree_root, new_tag_def, img_state='active')
-        self.log.info(method=inspect.stack()[1][3], dir=dir)
+        self.log.info(method=inspect.stack()[0][3], dir=dir)
         return dir
 
     def unlink(self, path_list):
-        self.log.info(method=inspect.stack()[1][3], path=path_list)
+        self.log.info(method=inspect.stack()[0][3], path_list=path_list)
         return 0
 
 
@@ -1098,7 +1171,7 @@ class SysBackupDirHandler(SysDirHandler):
         super(SysBackupDirHandler, self).__init__(radio, a_dict)
 
     def link(self, ln_l, tg_l):
-        self.log.debug(method=inspect.stack()[1][3], local_name=ln_l, target=tg_l)
+        self.log.debug(method=inspect.stack()[0][3], local_name=ln_l, target=tg_l)
         # set new version on tag backup directory
         new_version = tg_l[-1]
         ln_lv = ln_l
@@ -1115,7 +1188,7 @@ class SysBackupDirHandler(SysDirHandler):
                                         S_IFREG,
                                         0o664,
                                         1)
-            self.log.info(method=inspect.stack()[1][3],
+            self.log.info(method=inspect.stack()[0][3],
                           version=new_version)
             return 0
         return 0
@@ -1123,11 +1196,11 @@ class SysBackupDirHandler(SysDirHandler):
     def readdir(self, path_list, tree_root, new_tag_def):
         dir = super(SysBackupDirHandler, self).readdir(
                        path_list, tree_root, new_tag_def, img_state='backup')
-        self.log.info(method=inspect.stack()[1][3], dir=dir)
+        self.log.info(method=inspect.stack()[0][3], dir=dir)
         return dir
 
     def unlink(self, path_list):
-        self.log.info(method=inspect.stack()[1][3], path=path_list)
+        self.log.info(method=inspect.stack()[0][3], path_list=path_list)
         return 0
 
 

@@ -167,7 +167,7 @@ def payload2values(payload, keynames):
                 item = tlv.value()
                 payload.remove(tlv)
                 break
-            if get_cmd_args().verbosity > 3:
+            if get_cmd_args().verbosity > 5:
                 mylog.debug(method=inspect.stack()[0][3],
                                data={'match':match_key, 'tlv':tlv, 'list':plist})
         plist.append(item)

@@ -2,17 +2,17 @@
 from __future__ import print_function, absolute_import, division
 #from builtins import *                  # python3 types
 
-# zzz print('*** tagfuse.py','starting')
 
 __all__ = ['TagStorage',
            'TagFuse',]
 
 import os
 import sys
+import inspect
 import structlog
-logger = structlog.getLogger('fuse.log-mixin.' + __name__)
-toplog = logger.bind(scope='global')
-
+toplog = structlog.getLogger('fuse.log-mixin.' + __name__,scope=__name__)
+toplog.info('starting')
+toplog.warn('starting')
 
 #sys.setdefaultencoding('utf-8')
 # zzz print('default encoding', sys.getdefaultencoding())
@@ -46,8 +46,10 @@ if (os.path.exists(basedir)
 
 try:
     from radioutils  import path2list
+    from tagfuseargs import get_cmd_args
 except ImportError:
     from tagfuse.radioutils  import path2list
+    from tagfuse.tagfuseargs import get_cmd_args
 
 try:
     from TagFuseTree import TagFuseRootTree, TagFuseTagTree
@@ -81,13 +83,13 @@ class TagFuse(LoggingMixIn, Operations):
         self.start = time()
         self.radio = None
         self.tree_root =  None
-        # zzz print(self.tree_root)
+        self.log = structlog.getLogger('fuse.log-mixin.' + __name__, scope='TagFuse')
 
         #uid, gid, pid = fuse_get_context()
-        toplog.debug('tagfuse context {}'.format(fuse_get_context()))
+        if get_cmd_args().verbosity > 3:
+            self.log.debug(method=inspect.stack()[0][3],
+                         context=fuse_get_context())
 
-        # zzz print(os.getuid(), os.geteuid())
-        # zzz print(os.getgid(), os.getegid())
         self.uid = os.getuid()
         self.gid = os.getgid()
 
@@ -115,18 +117,24 @@ class TagFuse(LoggingMixIn, Operations):
     def create(self, path, mode, fh):
         base, name = os.path.split(path)
         dirhandler, path_list = self.LocateNode(base)
-        print('** fuse create', base, name, dirhandler)
+        if get_cmd_args().verbosity > 3:
+            self.log.debug(method=inspect.stack()[0][3],
+                         base=base, name=name, dirhandler=dirhandler)
         # try:
         if (dirhandler):
             path_list.append(name)
             return dirhandler.create(path_list, mode)
 
     def destroy(self, path):
-        print('** tagfuse destroy')
+        if get_cmd_args().verbosity > 3:
+            self.log.debug(method=inspect.stack()[0][3],
+                         path=path)
         return None
 
     def fsync(self, path, datasync, fip):
-        print('** fsync', path, datasync, fip)
+        if get_cmd_args().verbosity > 3:
+            self.log.debug(method=inspect.stack()[0][3],
+                         path=path, datasync=datasync, fip=fip)
         raise FuseOSError(ENOENT)
         # zzz use this to trigger tag to search for sync record
         return 0
@@ -138,9 +146,14 @@ class TagFuse(LoggingMixIn, Operations):
         raise FuseOSError(ENOENT)
 
     def getattr(self, path, fh=None):
-        print('** getattr: path {}'.format(path))
+        if get_cmd_args().verbosity > 4:
+            self.log.debug(method=inspect.stack()[0][3],
+                         path=path, fh=fh)
         handler, path_list = self.LocateNode(path)
-        # zzz print('** getattr: pathlist: {}'.format(path_list))
+        if get_cmd_args().verbosity > 4:
+            self.log.debug(method=inspect.stack()[0][3],
+                         handler=type(handler),
+                         path_list=path_list)
         try:
             return handler.getattr(path_list, update=True)
         except AttributeError:
@@ -173,23 +186,34 @@ class TagFuse(LoggingMixIn, Operations):
         return None
 
     def link(self, link, target):
-        print('** tagfuse.link', link, target)
+        if get_cmd_args().verbosity > 3:
+            self.log.debug(method=inspect.stack()[0][3],
+                         link=link, target=target)
         # make sure target exists
         target_handler, target_list = self.LocateNode(target)
         if (not target_handler):
-            print('** tagfuse.link target doesnt exist')
+            self.log.warn('target doesnt exist',
+                        method=inspect.stack()[0][3],
+                         link=link, target=target)
             raise FuseOSError(ENOENT)
         link_base, link_name = os.path.split(link)
         # make sure version matches
         target_base, target_name = os.path.split(target)
         if (link_name != target_name):
-            print('** tagfuse.link names dont match')
+            self.log.warn('names dont match',
+                        method=inspect.stack()[0][3],
+                        link=link_name, target=taget_name)
             raise FuseOSError(EPERM)
         # link directory handler creates context for linked file
         link_handler, link_list = self.LocateNode(link_base)
         if (link_handler):
+            if get_cmd_args().verbosity > 3:
+                self.log.debug(method=inspect.stack()[0][3],
+                             link=link_list, target=target_list)
             return link_handler.link(link_list, target_list)
-        print('** tagfuse.link link doesnt exist')
+        self.log.warn('link does not exist',
+                    method=inspect.stack()[0][3],
+                    link=link_base)
         raise FuseOSError(ENOENT)
 
     def listxattr(self, path):
@@ -216,18 +240,25 @@ class TagFuse(LoggingMixIn, Operations):
 
     def readdir(self, path, fh):
         handler, path_list = self.LocateNode(path)
-        # zzz print('readdir, handler type:{}, len: {}'.format(type(handler), len(handler)))
+        if get_cmd_args().verbosity > 4:
+                self.log.debug(method=inspect.stack()[0][3],
+                             handler=type(handler),
+                             path_list=path_list)
         dir_list = handler.readdir(path_list, self.tree_root, TagFuseTagTree)
         if dir_list:
             return dir_list
         else:
+            self.log.warn('no directory found',
+                        method=inspect.stack()[0][3],)
             return ['.', '..']
 
     def readlink(self, path):
         raise FuseOSError(ENOENT)
 
     def release(self, path, fh):
-        print('** tag release')
+        if get_cmd_args().verbosity > 4:
+            self.log.debug(method=inspect.stack()[0][3],
+                         path=path, fh=fh)
         handler, path_list = self.LocateNode(path)
         base, name  = os.path.split(path)
         ret_val     = handler.release(path_list)
@@ -332,4 +363,5 @@ if __name__ == '__main__':
     import tagfuseargs
     TagStorage(tagfuseargs.process_cmd_args())
 
-toplog.debug('initiialization complete')
+toplog.info('initiialization complete')
+toplog.warn('initiialization complete')
