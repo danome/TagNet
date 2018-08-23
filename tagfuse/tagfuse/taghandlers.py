@@ -66,14 +66,14 @@ try:
     from radioimage  import im_put_file, im_get_file, im_delete_file, im_close_file
     from radioimage  import im_get_dir, im_set_version
     from radioutils  import path2list, radio_poll, radio_get_rtctime, radio_set_rtctime
-    from tagfuseargs import get_cmd_args
+    from tagfuseargs import get_cmd_args, set_verbosity
     from sparsefile  import SparseFile
 except ImportError:
     from tagfuse.radiofile   import file_get_bytes, file_put_bytes, file_update_attrs
     from tagfuse.radioimage  import im_put_file, im_get_file, im_delete_file, im_close_file
     from tagfuse.radioimage  import im_get_dir, im_set_version
     from tagfuse.radioutils  import path2list, radio_poll, radio_get_rtctime, radio_set_rtctime
-    from tagfuse.tagfuseargs import get_cmd_args
+    from tagfuse.tagfuseargs import get_cmd_args, set_verbosity
     from tagfuse.sparsefile  import SparseFile
 
 from tagnet              import tlv_errors, TagTlv
@@ -1162,43 +1162,25 @@ class VerbosityDirHandler(DirHandler):
         super(VerbosityDirHandler, self).__init__(a_dict)
         self.file_name = str(get_cmd_args().verbosity)
         self[self.file_name] = FileHandler(S_IFREG, 0o444, 1)
-        self._set_level()
-
-    def _set_level(self):
-        rootlog = structlog.getLogger('fuse.log-mixin')
-        rootlog.setLevel(logging.WARNING)
-        mylog.setLevel(logging.WARNING)
-        if get_cmd_args().verbosity >= 4:
-            rootlog.setLevel(logging.DEBUG)
-            mylog.setLevel(logging.DEBUG)
-            self.log.debug('>4',method=inspect.stack()[1][3])
-        elif get_cmd_args().verbosity == 3:
-            rootlog.setLevel(logging.INFO)
-            mylog.setLevel(logging.DEBUG)
-            self.log.debug('=3',method=inspect.stack()[1][3])
-        elif get_cmd_args().verbosity == 2:
-            rootlog.setLevel(logging.WARNING)
-            mylog.setLevel(logging.DEBUG)
-            self.log.debug('=2',method=inspect.stack()[1][3])
-        elif get_cmd_args().verbosity == 1:
-            rootlog.setLevel(logging.WARNING)
-            mylog.setLevel(logging.INFO)
-            self.log.debug('=1',method=inspect.stack()[1][3])
 
     def create(self, path_list, mode):
+        '''
+        delete current setting and replace with new value
+        '''
         file_name = path_list[-1]
-        self.log.info(method=inspect.stack()[1][3],
-                      file=file_name, path=path_list)
+        set_verbosity(int(file_name))
+        if get_cmd_args().verbosity > 4:
+            self.log.debug(method=inspect.stack()[0][3],
+                           file=file_name,
+                           mode=oct(mode),
+                           path_list=path_list)
         del self[self.file_name]
-        get_cmd_args().verbosity = int(file_name)
         self[file_name] = FileHandler(S_IFREG, 0o444, 1)
         self.file_name=file_name
-        self.log.info(method=inspect.stack()[1][3],
-                      path=path_list[:-1],
-                      mode=oct(mode),
-                      file=file_name,
-                      verbosity=get_cmd_args().verbosity)
-        self._set_level()
+        self.log.warn('set verbosity',
+                      method=inspect.stack()[0][3],
+                      verbosity=get_cmd_args().verbosity,
+                      path_list=path_list)
         return 0
 
 mylog.debug('initiialization complete')
