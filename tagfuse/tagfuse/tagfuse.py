@@ -99,9 +99,8 @@ class TagFuse(LoggingMixIn, Operations):
     def LocateNode(self, path):
         path_list = path2list(path)
         if (path == '/'):
-            # zzz print('** located root')
             return self.tree_root, path_list
-        return self.tree_root.traverse(path_list, 0)
+        return self.tree_root.traverse(self.tree_root, path_list, 0)
 
     def DeleteNode(self, path, node):
         pass

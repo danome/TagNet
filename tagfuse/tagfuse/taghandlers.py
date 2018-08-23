@@ -759,8 +759,9 @@ class DirHandler(OrderedDict):
         self.inode = new_inode()
         self.log = logger.bind(scope=self.__class__.__name__)
         self.log.info('initialized', method=inspect.stack()[1][3])
+        self.parent = None
 
-    def traverse(self, path_list, index):
+    def traverse(self, parent, path_list, index):
         """
         Traverse the directory tree until reaching the leaf identified
         by path_list.
@@ -772,14 +773,15 @@ class DirHandler(OrderedDict):
         filenames to Tagnet TLV types.
         Directory keys are printable filenames.
         """
+        self.parent = parent
         if get_cmd_args().verbosity > 4:
-            self.log.debug(method=inspect.stack()[1][3],
-                           index=index, path=path_list)
+            self.log.debug(method=inspect.stack()[0][3],
+                           parent=type(parent), index=index, path_list=path_list)
         if index < (len(path_list) - 1):      # look in subdirectory
             for key, handler in self.iteritems():
                 if (path_list[index] == key):
                     if isinstance(handler, DirHandler):
-                        return handler.traverse(path_list, index + 1)
+                        return handler.traverse(self, path_list, index + 1)
         else:
             for key, handler in self.iteritems():
                 if get_cmd_args().verbosity > 4:
@@ -787,6 +789,7 @@ class DirHandler(OrderedDict):
                                    name=key, handler=type(handler))
                 # match the terminal name
                 if (path_list[index] == key):
+                    handler.parent = self
                     return (handler, path_list)
         self.log.debug('fail', method=inspect.stack()[1][3],
                        index=index, path=path_list)
@@ -832,8 +835,9 @@ class RootDirHandler(DirHandler):
     '''
     def __init__(self, a_dict):
         super(RootDirHandler, self).__init__(a_dict)
+        self.parent = None
 
-    def traverse(self, path_list, index):
+    def traverse(self, parent, path_list, index):
         '''
         perform normal traverse operation followed by a fixup of
         the node_id string in the path_list. Want to convert
@@ -843,12 +847,13 @@ class RootDirHandler(DirHandler):
         string (file attributes) or a dot file (special in this
         level).
         '''
-        handler, path_list = super(RootDirHandler, self).traverse(path_list, index)
+        self.parent = parent
+        handler, path_list = super(RootDirHandler, self).traverse(self, path_list, index)
         if path_list and path_list[index] is not '' and not path_list[index].startswith('.'):
             path_list[index] = '<node_id:' + path_list[index] + '>'
         if get_cmd_args().verbosity > 4:
-            self.log.debug(method=inspect.stack()[1][3],
-                           index=index, path=path_list)
+            self.log.debug(method=inspect.stack()[0][3],
+                           parent=type(parent), index=index, path_list=path_list)
         return (handler, path_list)
 
 
@@ -878,6 +883,10 @@ class PollNetDirHandler(DirHandler):
         tag. The first item is its node id, which we use for the
         directory entry name.
         '''
+        if get_cmd_args().verbosity > 2:
+            self.log.info(method=inspect.stack()[0][3],
+                          parent=type(self.parent),
+                          sibling=type(self.parent['']))
         for tag in self.keys():   # remove all tags found last time
             if tag is '' or tag.startswith('.'):
                 continue
