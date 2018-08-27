@@ -195,11 +195,17 @@ def TagFuseRootTree(radio):
         ('.verbosity', VerbosityDirHandler(OrderedDict([
             ('',       FileHandler(S_IFDIR, 0o751, 4)),
         ]))),
-        ('.poll',   PollNetDirHandler(radio, 10, OrderedDict([
-            ('',       FileHandler(S_IFDIR, 0o751, 4)),
-        ]))),
-        ('.long_poll', PollNetDirHandler(radio, 200, OrderedDict([
-            ('',       FileHandler(S_IFDIR, 0o751, 4)),
+        ('.poll',   DirHandler(OrderedDict([
+            ('',       FileHandler(S_IFDIR, 0o751, 6)),
+            ('new1',   PollNetDirHandler(radio, 35, 'found', OrderedDict([
+                ('',       FileHandler(S_IFDIR, 0o751, 4)),
+            ]))),
+            ('new5',   PollNetDirHandler(radio, 165, 'found', OrderedDict([
+                ('',       FileHandler(S_IFDIR, 0o751, 4)),
+            ]))),
+            ('found', PollNetDirHandler(radio, 1, 'found', OrderedDict([
+                ('',       FileHandler(S_IFDIR, 0o751, 4)),
+            ]))),
         ]))),
         ('ffffffffffff', TagFuseTagTree(radio)),
     ]))
