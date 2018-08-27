@@ -67,13 +67,14 @@ def file_get_bytes(radio, path_list, amount_to_get, file_offset):
             mylog.debug(method=inspect.stack()[0][3], name=tname)
         return TagGet(tname)
 
+    end = time() + DEADMAN_TIME # deadman timer
     accum_bytes = bytearray()
     eof = False
-    while (amount_to_get) and not eof:
+    while (amount_to_get) and time() < end:
         req_msg = _file_bytes_msg(path_list, amount_to_get, file_offset)
         mylog.debug(method=inspect.stack()[0][3], name=req_msg.name)
         err, payload, msg_meta = msg_exchange(radio, req_msg)
-        if get_cmd_args().verbosity > 2:
+        if get_cmd_args().verbosity > 3:
             mylog.debug(method=inspect.stack()[0][3],
                            error=err,
                            data=payload)
