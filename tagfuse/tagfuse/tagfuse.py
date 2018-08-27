@@ -10,9 +10,9 @@ import os
 import sys
 import inspect
 import structlog
-toplog = structlog.getLogger('fuse.log-mixin.' + __name__,scope=__name__)
-toplog.info('starting')
-toplog.warn('starting')
+#toplog = structlog.getLogger('fuse.log-mixin.tagfuse' + __name__)
+#toplog.info('starting')
+#toplog.warn('starting')
 
 #sys.setdefaultencoding('utf-8')
 # zzz print('default encoding', sys.getdefaultencoding())
@@ -46,10 +46,10 @@ if (os.path.exists(basedir)
 
 try:
     from radioutils  import path2list
-    from tagfuseargs import get_cmd_args
+    from tagfuseargs import get_cmd_args, taglog, rootlog
 except ImportError:
     from tagfuse.radioutils  import path2list
-    from tagfuse.tagfuseargs import get_cmd_args
+    from tagfuse.tagfuseargs import get_cmd_args, taglog, rootlog
 
 try:
     from TagFuseTree import TagFuseRootTree, TagFuseTagTree
@@ -83,8 +83,7 @@ class TagFuse(LoggingMixIn, Operations):
         self.start = time()
         self.radio = None
         self.tree_root =  None
-        self.log = structlog.getLogger('fuse.log-mixin.' + __name__, scope='TagFuse')
-
+        self.log = rootlog
         #uid, gid, pid = fuse_get_context()
         if get_cmd_args().verbosity > 3:
             self.log.debug(method=inspect.stack()[0][3],
@@ -154,6 +153,11 @@ class TagFuse(LoggingMixIn, Operations):
             self.log.debug(method=inspect.stack()[0][3],
                          handler=type(handler),
                          path_list=path_list)
+        if get_cmd_args().verbosity > 1:
+            self.log.debug('extra',
+                           method=inspect.stack()[0][3],
+                           handler=type(handler),
+                           path_list=path_list)
         try:
             return handler.getattr(path_list, update=True)
         except AttributeError:
@@ -363,5 +367,5 @@ if __name__ == '__main__':
     import tagfuseargs
     TagStorage(tagfuseargs.process_cmd_args())
 
-toplog.info('initiialization complete')
-toplog.warn('initiialization complete')
+#toplog.info('initiialization complete')
+#toplog.warn('initiialization complete')

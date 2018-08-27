@@ -35,8 +35,7 @@ __all__ = ['name2version',
 import sys
 import os
 import structlog
-logger = structlog.getLogger('fuse.log-mixin.' + __name__)
-mylog = logger.bind(scope=__name__)
+mylog = structlog.getLogger('fuse.log-mixin.tagfuse.' + __name__)
 import inspect
 
 from time import sleep

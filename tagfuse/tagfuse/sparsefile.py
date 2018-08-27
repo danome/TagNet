@@ -60,7 +60,7 @@ class SparseFile(Chest):
                     if len(common):
                         print("*** _check_bytes error", common)
                         self.log.info(method=inspect.stack()[1][3],
-                                      data=common)
+                                      data=common[:20])
                         raise SparseFileException(a_s, a_e, b_s, b_e)
         else:
             self.log.info('empty list', method=inspect.stack()[1][3],)
@@ -111,9 +111,6 @@ class SparseFile(Chest):
         while (len(block_list)):
             if (len(a_blk) > self.counts['max_block_size']):
                 self.counts['max_block_size'] = len(a_blk)
-            if self.get_cmd_args().verbosity > 2:
-                self.log.debug(method=inspect.stack()[1][3],
-                               data=block_list)
             # first time only, start and end addresses for a_blk
             # start and end address for b_blk
             b_s   = block_list.pop(0)
@@ -143,8 +140,8 @@ class SparseFile(Chest):
                 if self.get_cmd_args().verbosity > 2:
                     self.log.debug('combine',
                                    method=inspect.stack()[1][3],
-                                   current={'size':len(a_blk), 'data':hexlify(a_blk)},
-                                   new={'size':len(a_blk), 'data':hexlify(b_blk)})
+                                   current={'size':len(a_blk), 'data':hexlify(a_blk[:20])},
+                                   new={'size':len(a_blk), 'data':hexlify(b_blk[:20])})
                 # slice the first part of a_blk up to the overlap
                 # with b_blk and then combine with b_blk
                 new_block = a_blk[:b_s-a_s]
@@ -152,7 +149,7 @@ class SparseFile(Chest):
                 if self.get_cmd_args().verbosity > 2:
                     self.log.debug('combine new',
                                    method=inspect.stack()[1][3],
-                                   current={'size':len(new_block), 'data':hexlify(new_block)},)
+                                   current={'size':len(new_block), 'data':hexlify(new_block[:20])},)
                 # replace old a_blk with new_block and delete b_blk.
                 self[a_s] = a_blk = new_block
                 a_e = b_e

@@ -30,7 +30,6 @@ import sys
 import inspect
 import logging
 import structlog
-mylog = structlog.getLogger('fuse.log-mixin.' + __name__, scope=__name__)
 
 ###############################
 
@@ -65,14 +64,14 @@ try:
     from radioimage  import im_put_file, im_get_file, im_delete_file, im_close_file
     from radioimage  import im_get_dir, im_set_version
     from radioutils  import path2list, radio_poll, radio_get_rtctime, radio_set_rtctime
-    from tagfuseargs import get_cmd_args, set_verbosity
+    from tagfuseargs import get_cmd_args, set_verbosity, taglog, rootlog
     from sparsefile  import SparseFile
 except ImportError:
     from tagfuse.radiofile   import file_get_bytes, file_put_bytes, file_update_attrs
     from tagfuse.radioimage  import im_put_file, im_get_file, im_delete_file, im_close_file
     from tagfuse.radioimage  import im_get_dir, im_set_version
     from tagfuse.radioutils  import path2list, radio_poll, radio_get_rtctime, radio_set_rtctime
-    from tagfuse.tagfuseargs import get_cmd_args, set_verbosity
+    from tagfuse.tagfuseargs import get_cmd_args, set_verbosity, taglog, rootlog
     from tagfuse.sparsefile  import SparseFile
 
 from tagnet              import tlv_errors, TagTlv
@@ -112,7 +111,8 @@ class FileHandler(OrderedDict):
                                     0)
         super(FileHandler, self).__init__(a_dict)
         self.inode = new_inode();
-        self.log = mylog.bind(scope=self.__class__.__name__)
+        self.log = structlog.getLogger('fuse.log-mixin.tagfuse.' + __name__).bind(
+                scope=self.__class__.__name__)
         if get_cmd_args().verbosity > 4:
             self.log.debug('initialized',
                            method=inspect.stack()[0][3],
@@ -813,7 +813,8 @@ class DirHandler(OrderedDict):
     def __init__(self, a_dict):
         super(DirHandler, self).__init__(a_dict)
         self.inode = new_inode()
-        self.log = mylog.bind(scope=self.__class__.__name__)
+        self.log = structlog.getLogger('fuse.log-mixin.tagfuse.' + __name__).bind(
+                scope=self.__class__.__name__)
         if get_cmd_args().verbosity > 4:
             self.log.debug('initialized',
                            method=inspect.stack()[0][3],
@@ -1327,4 +1328,4 @@ class VerbosityDirHandler(DirHandler):
                       path_list=path_list)
         return 0
 
-mylog.debug('initiialization complete')
+taglog.debug('initiialization complete')
