@@ -11,6 +11,7 @@ UNIT_TESTING = False
 
 __all__ = ['name2version',
            'payload2values',
+           'payload2special',
            'msg_exchange',
            'path2tlvs',
            'path2list',
@@ -147,6 +148,31 @@ def name2version(name):
     convert file name to tuple of version (major,minor,build)
     return name.split('.')
     '''
+
+def payload2special(payload, keynames):
+    '''
+    get first keyname to match and return its value as packed bytes
+    '''
+    buf = bytearray()
+    if get_cmd_args().verbosity > 3:
+        mylog.debug(method=inspect.stack()[0][3],
+                       data=keynames.__repr__())
+    for match_key in keynames:
+        for tlv in payload:
+            if match_key == tlv.tlv_type():
+                buf = bytearray(tlv.build())
+                payload.remove(tlv)
+                break
+            if get_cmd_args().verbosity > 3:
+                mylog.debug(method=inspect.stack()[0][3],
+                               data={'match':match_key, 'tlv':tlv.__repr__()})
+        if buf:
+            break
+    if get_cmd_args().verbosity > 3:
+        mylog.debug(method=inspect.stack()[0][3],
+                       data='' if not buf else hexlify(buf))
+    return buf
+
 
 def payload2values(payload, keynames):
     '''

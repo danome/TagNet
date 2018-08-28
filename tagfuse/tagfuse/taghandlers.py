@@ -12,7 +12,7 @@ __all__ = ['FileHandler',
            'RtcFileHandler',
            'SparseIOFileHandler',
            'ImageIOFileHandler',
-           'SimpleRecHandler',
+           'SimpleIORecHandler',
            'DirHandler',
            'RootDirHandler',
            'PollNetDirHandler',
@@ -60,14 +60,14 @@ if (os.path.exists(basedir)
     # zzz print('\n'.join(sys.path))
 
 try:
-    from radiofile   import file_get_bytes, file_put_bytes, file_update_attrs
+    from radiofile   import file_get_bytes, file_put_bytes, file_update_attrs, simple_get_record
     from radioimage  import im_put_file, im_get_file, im_delete_file, im_close_file
     from radioimage  import im_get_dir, im_set_version
     from radioutils  import path2list, radio_poll, radio_get_rtctime, radio_set_rtctime
     from tagfuseargs import get_cmd_args, set_verbosity, taglog, rootlog
     from sparsefile  import SparseFile
 except ImportError:
-    from tagfuse.radiofile   import file_get_bytes, file_put_bytes, file_update_attrs
+    from tagfuse.radiofile   import file_get_bytes, file_put_bytes, file_update_attrs, simple_get_record
     from tagfuse.radioimage  import im_put_file, im_get_file, im_delete_file, im_close_file
     from tagfuse.radioimage  import im_get_dir, im_set_version
     from tagfuse.radioutils  import path2list, radio_poll, radio_get_rtctime, radio_set_rtctime
@@ -75,6 +75,7 @@ except ImportError:
     from tagfuse.sparsefile  import SparseFile
 
 from tagnet              import tlv_errors, TagTlv
+
 
 # new_inode            return next monotonically increasing number
 #
@@ -554,34 +555,48 @@ class ImageIOFileHandler(ByteIOFileHandler):
             return len(buf)
 
 
-class SimpleRecHandler(FileHandler):
-    '''Simple Record Handler class
+class SimpleIORecHandler(FileHandler):
+    '''
+    Simple Record Handler class
 
-    Performs Simple Record IO.
+    Performs Simple Record IO. A simple record is an object that
+    references a singleton data structure on the Tag, such as
+    the current GPS position.
 
-    A simple record is an object that is referenced by a record
-    number rather by a byte offset.  The offset is the record number
-    for what ever record we are talking about.
-
-    If we want to write another record to the remote, we have to
-    specific the next record number when we do the write.
-
-    We use the file size (st_size) to remember how many records are in the
-    object.  So if we want to write another record we have specify
+    When writing another record to the remote tag, use the file
+    size (st_size in file attribytes) to remember a sequence
+    number to allow the tag to detect duplicate requests. So if
+    we to write another record we have specify a offset using
     st_size + 1.
 
-    This also has the nice property of showing up in an 'ls -l note'.  The
-    'file size' of note is the last note number written.
+    This also has the nice property of showing up in 'ls -l note'.
+    The 'file size' of note is the sequence number of the last note
+    written.
 
+    When reading a record, the requested offset must be zero. The
+    returned data is decoded into a JSON structure based on the
+    content of the response.
+    - TagNet TLVs are self-defined and can be decoded with no
+      additional information
+    - Data blocks are decoded based on the structure type
+      identifier, either a TagCore type or a TagNet Adapter type
+      (see those components for specific structure  definitions
+      that are avaialble to decode).
+    The decoded JSON string is the data returned to the Fuse
+    read call.
+
+    In addition to the tag data, the JSON also contains the
+    timestamp associated with the record, the RSSI strength
+    reading of the received message, and the st_size value.
     '''
     def __init__(self, radio, ntype, mode, nlinks):
-        super(SimpleRecHandler, self).__init__(ntype, mode, nlinks)
+        super(SimpleIORecHandler, self).__init__(ntype, mode, nlinks)
         self.radio = radio
 
     def getattr(self, path_list, update=False):
         if (update):
             file_update_attrs(self.radio, path_list, self)
-        return super(SimpleRecHandler, self).getattr(path_list, update=update)
+        return super(SimpleIORecHandler, self).getattr(path_list, update=update)
 
     def write(self, path_list, buf, offset):
         last_seq = self['st_size']
@@ -601,6 +616,34 @@ class SimpleRecHandler(FileHandler):
                            sample=hexlify(buf[:20]),
                            path_list=path_list)
         return len(buf)
+
+    def _json_output(self, tlv_list):
+        return tlv_list.__repr__() if tlv_list else None
+
+    def read(self, path_list, size, offset):
+        if get_cmd_args().verbosity > 2:
+            self.log.debug(method=inspect.stack()[0][3],
+                           path_list=path_list,
+                           size=len(buf),
+                           offset=offset,)
+        if offset > 0:
+            self.log.info(method=inspect.stack()[0][3],
+                          offset=offset, path_list=path_list)
+            return ''
+        # get the record from the tag
+        err, payload, meta = simple_get_record(self.radio, path_list)
+        if get_cmd_args().verbosity > 1:
+            self.log.debug(method=inspect.stack()[0][3],
+                           error=err,
+                           this=[type(tlv) for tlv in payload])
+        if get_cmd_args().verbosity > 4:
+            self.log.debug(method=inspect.stack()[0][3],
+                           rssi=meta[0],
+                           send_status=meta[1],
+                           recv_status=meta[2],)
+        # return JSON output text
+        return self._json_output(payload) if (err is tlv_errors.SUCCESS or
+                                              err is tlv_errors.EODATA) else None
 
 
 class SysFileHandler(FileHandler):
@@ -861,6 +904,7 @@ class DirHandler(OrderedDict):
         raise FuseOSError(EINVAL)
 
     def getattr(self, path_list, update=False):
+        print('*** dir.getattr', get_cmd_args().verbosity)
         if get_cmd_args().verbosity > 1:
             self.log.debug(method=inspect.stack()[0][3],
                            path_list=path_list, update=update)

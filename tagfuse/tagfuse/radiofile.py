@@ -7,8 +7,8 @@ from builtins import *                  # python3 types
 
 __all__ = ['file_get_bytes',
            'file_put_bytes',
-           'file_update_attrs',]
-
+           'file_update_attrs',
+           'simple_get_record',]
 import os
 import sys
 
@@ -36,11 +36,11 @@ if (os.path.exists(basedir)
     # zzz print '\n'.join(sys.path)
 
 try:
-    from radioutils import payload2values, path2tlvs, path2list
+    from radioutils import payload2values, path2tlvs, path2list, payload2special
     from radioutils import msg_exchange
     from tagfuseargs import get_cmd_args
 except ImportError:
-    from tagfuse.radioutils import payload2values, path2tlvs, path2list
+    from tagfuse.radioutils import payload2values, path2tlvs, path2list, payload2special
     from tagfuse.radioutils import msg_exchange
     from tagfuse.tagfuseargs import get_cmd_args
 
@@ -49,6 +49,54 @@ from tagnet import TagName
 from tagnet import TagTlv, TagTlvList, tlv_types, tlv_errors
 from tagnet import TlvListBadException, TlvBadException
 
+
+# worst, worst case time to wait for message exchange to complete
+DEADMAN_TIME = 10000
+
+def simple_get_record(radio, path_list):
+    '''
+    Simple Record Data Transfer function
+    '''
+    def _file_record_msg(path_list):
+        # / <node_id> / "tag" / "info" / "sens" / "gps" / "xyz"
+        tlv_list = path2tlvs(path_list)
+        tname = TagName(tlv_list)
+        if get_cmd_args().verbosity > 3:
+            mylog.debug(method=inspect.stack()[0][3], name=tname)
+        return TagGet(tname)
+
+    end = time() + DEADMAN_TIME # deadman timer
+    accum_bytes = bytearray()
+    req_msg = _file_record_msg(path_list)
+    while time() < end:
+        mylog.debug(method=inspect.stack()[0][3], name=req_msg.name)
+        err, payload, msg_meta = msg_exchange(radio, req_msg)
+        if get_cmd_args().verbosity > 2:
+            mylog.debug(method=inspect.stack()[0][3],
+                           error=err,
+                           data=payload)
+        if (err == tlv_errors.SUCCESS) or \
+           (err == tlv_errors.EODATA):
+            if (err == tlv_errors.EODATA):
+                mylog.info('end of data',
+                           method=inspect.stack()[0][3],
+                           error=err)
+            break
+        else:
+            mylog.info('error',
+                       method=inspect.stack()[0][3],
+                       error=err)
+            if err != tlv_errors.EBUSY:
+                break
+    if time() > end:
+        mylog.warn('deadman timeout',
+                   method=inspect.stack()[0][3],
+                   end=end, now=time())
+    if get_cmd_args().verbosity > 1:
+        mylog.debug(method=inspect.stack()[0][3],
+                    error=err,
+                    data=payload)
+    return err, payload, msg_meta
 
 def file_get_bytes(radio, path_list, amount_to_get, file_offset):
     '''
@@ -89,12 +137,20 @@ def file_get_bytes(radio, path_list, amount_to_get, file_offset):
                 mylog.debug(method=inspect.stack()[0][3],
                                offset=offset,
                                count=amt2get,
-                               size=len(block),
+                               size=0 if not block else len(block),
                                error=err)
-            if (block):
+            if not block:
+                block = payload2special(payload,
+                               [tlv_types.INTEGER,
+                                tlv_types.UTC_TIME,
+                                tlv_types.VERSION,
+                                tlv_types.GPS,
+                                tlv_types.STRING])
+            if block:
                 accum_bytes   += block
                 file_offset   += len(block)
                 amount_to_get -= len(block)
+
             if (err == tlv_errors.EODATA):
                 mylog.info('end of data',
                            method=inspect.stack()[0][3],
