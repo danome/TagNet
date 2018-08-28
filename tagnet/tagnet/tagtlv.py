@@ -286,6 +286,13 @@ class TagTlvList(list):
             self.extend(TagTlvList(other))
         return self
 
+    def json_repr(self):
+        try:
+            tls = '[' + ",".join([tlv.json_repr() for tlv in self]) + ']'
+
+            return tls
+        except:
+            raise TlvListBadException(' __repr__', self.mytlv, None)
 
 #------------ end of class definition ---------------------
 
@@ -411,14 +418,14 @@ class _Tlv(object):
                 ba = gps_struct.pack(*v)
                 return self._to_tlv(t, bytearray(ba))
 
-#  uint16_t	sub_sec;                /* 16 bit jiffies (32KiHz) */
-#  uint8_t	sec;                    /* 0-59 */
-#  uint8_t	min;                    /* 0-59 */
-#  uint8_t	hr;                     /* 0-23 */
-#  uint8_t      dow;                    /* day of week, 0-6, 0 sunday */
-#  uint8_t	day;                    /* 1-31 */
-#  uint8_t	mon;                    /* 1-12 */
-#  uint16_t	yr;
+        #  uint16_t	sub_sec;   /* 16 bit jiffies (32KiHz) */
+        #  uint8_t	sec;       /* 0-59 */
+        #  uint8_t	min;       /* 0-59 */
+        #  uint8_t	hr;        /* 0-23 */
+        #  uint8_t      dow;       /* day of week, 0-6, 0 sunday */
+        #  uint8_t	day;       /* 1-31 */
+        #  uint8_t	mon;       /* 1-12 */
+        #  uint16_t	yr;
         if (t == tlv_types.UTC_TIME):
             if isinstance(v, datetime):
                 ba = rtctime_struct.pack(v.microsecond / 31,
@@ -680,6 +687,30 @@ class TagTlv(object):
             return '({}, {})'.format(self.mytlv.tlv_type(),v)
         except:
             raise TlvBadException('__repr__', self.mytlv, None)
+
+    def json_repr(self):
+        try:
+            tt = self.mytlv.tlv_type()
+            tv = self.mytlv.value()
+            # zzz print(type(tt), tt, type(tv), tv)
+            if  tt == tlv_types.GPS:
+                gps  = '{"gps": {'
+                gps += '"x": {}, "y": {}, "z": {}'.format(*tv)
+                gps += '}}'
+                return gps
+            elif tt == tlv_types.VERSION:
+                ver  = '{"version": {'
+                ver += '"major": {}, "minor": {}, "build": {}'.format(*tv)
+                ver += '}}'
+                return ver
+            elif tt == tlv_types.UTC_TIME:
+                return '{"timestamp": "' + tv.isoformat() + '"}'
+            elif tt == tlv_types.NODE_ID:
+                return '{"node_id": "' + hexlify(tv) + '"}'
+            else:
+                return '{' + '"{}": "{}"'.format(tt.name,tv) + '}'
+        except:
+            raise TlvBadException(' __repr__', self.mytlv, None)
 
     def __len__(self):
         return self.mytlv.__len__()
