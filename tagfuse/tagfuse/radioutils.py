@@ -280,10 +280,11 @@ def msg_exchange(radio, req, power=RADIO_POWER, wait=MAX_WAIT):
                         error = tlv_errors.SUCCESS
                     if (eof):
                         error = tlv_errors.EODATA
-                    if (error is tlv_errors.EODATA) \
+                    if (error is tlv_errors.SUCCESS) \
+                       or (error is tlv_errors.EODATA) \
                        or (error is tlv_errors.EALREADY) \
-                       or (error is tlv_errors.SUCCESS):
-                        tries = 1 # force terminal condition
+                       or (error is not tlv_errors.EBUSY):
+                        tries = 1 # force terminal condition to exit loop
                         if get_cmd_args().verbosity > 3:
                             mylog.debug('success', method=inspect.stack()[0][3],
                                         lineno=sys._getframe().f_lineno,
