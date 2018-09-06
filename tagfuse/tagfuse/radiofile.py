@@ -128,7 +128,7 @@ def file_get_bytes(radio, path_list, amount_to_get, file_offset):
     end = time() + DEADMAN_TIME # deadman timer
     accum_bytes = bytearray()
     eof = False
-    while (amount_to_get) and time() < end:
+    while (amount_to_get > 0) and time() < end:
         req_msg = _file_bytes_msg(path_list, amount_to_get, file_offset)
         mylog.debug(method=inspect.stack()[0][3],
                     lineno=sys._getframe().f_lineno,
