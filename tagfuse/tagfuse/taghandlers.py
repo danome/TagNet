@@ -627,6 +627,7 @@ class SimpleIORecHandler(FileHandler):
     def __init__(self, radio, ntype, mode, nlinks):
         super(SimpleIORecHandler, self).__init__(ntype, mode, nlinks)
         self.radio = radio
+        self.eof = False
 
     def getattr(self, path_list, update=False):
         if (update):
@@ -641,7 +642,12 @@ class SimpleIORecHandler(FileHandler):
                            size=len(buf),
                            offset=offset,
                            sequence=last_seq)
-        if (offset and offset != last_seq) or (len(buf) > 200):
+        if (offset) or (len(buf) > 200):
+            self.log.warn(method=inspect.stack()[0][3],
+                          lineno=sys._getframe().f_lineno,
+                          size=self['st_size'],
+                          sample=hexlify(buf[:20]),
+                          path_list=path_list)
             raise FuseOSError(EINVAL)
         self['st_size'] = file_put_bytes(self.radio,
                               path_list, buf, last_seq + 1)
@@ -653,7 +659,7 @@ class SimpleIORecHandler(FileHandler):
         return len(buf)
 
     def _json_output(self, tlv_list):
-        return tlv_list.__repr__() if tlv_list else None
+        return tlv_list.json_repr() if tlv_list else ''
 
     def read(self, path_list, size, offset):
         if get_cmd_args().verbosity > 2:
@@ -670,6 +676,8 @@ class SimpleIORecHandler(FileHandler):
                           method=inspect.stack()[0][3],
                           offset=offset, path_list=path_list)
             return ''
+            raise FuseOSError(ENODATA)
+
         # get the record from the tag
         err, payload, meta = simple_get_record(self.radio, path_list)
         if get_cmd_args().verbosity > 1:
@@ -684,14 +692,15 @@ class SimpleIORecHandler(FileHandler):
                            send_status=meta[1],
                            recv_status=meta[2],)
         # return JSON output text
-        return self._json_output(payload) if (err is tlv_errors.SUCCESS or
-                                              err is tlv_errors.EODATA) else None
-
+        if (err is tlv_errors.SUCCESS or err is tlv_errors.EODATA):
+            if err is tlv_errors.EODATA: self.eof = True
+            return self._json_output(payload) + '\n'
         self.log.warn(method=inspect.stack()[0][3],
                       lineno=sys._getframe().f_lineno,
                       error=err,
                       eof=self.eof,
                       path_list=path_list)
+        return ''
 
 class SysFileHandler(FileHandler):
     '''

@@ -682,9 +682,10 @@ class TagTlv(object):
     def __repr__(self):
         try:
             v = self.mytlv.value()
-            if (self.tlv_type() == tlv_types.NODE_ID):
+            tt = self.mytlv_type()
+            if tt == tlv_types.NODE_ID or tt == tlv_types.BLOCK:
                 v = hexlify(v)
-            return '({}, {})'.format(self.mytlv.tlv_type(),v)
+            return '({}, {})'.format(tt, v)
         except:
             raise TlvBadException('__repr__', self.mytlv, None)
 
@@ -707,6 +708,8 @@ class TagTlv(object):
                 return '{"timestamp": "' + tv.isoformat() + '"}'
             elif tt == tlv_types.NODE_ID:
                 return '{"node_id": "' + hexlify(tv) + '"}'
+            elif tt == tt == tlv_types.BLOCK:
+                return '{"block": "' + hexlify(tv) + '"}'
             else:
                 return '{' + '"{}": "{}"'.format(tt.name,tv) + '}'
         except:
