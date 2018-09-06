@@ -62,19 +62,24 @@ def simple_get_record(radio, path_list):
         tlv_list = path2tlvs(path_list)
         tname = TagName(tlv_list)
         if get_cmd_args().verbosity > 3:
-            mylog.debug(method=inspect.stack()[0][3], name=tname)
+            mylog.debug(method=inspect.stack()[0][3],
+                        lineno=sys._getframe().f_lineno,
+                        name=tname)
         return TagGet(tname)
 
     end = time() + DEADMAN_TIME # deadman timer
     accum_bytes = bytearray()
     req_msg = _file_record_msg(path_list)
     while time() < end:
-        mylog.debug(method=inspect.stack()[0][3], name=req_msg.name)
+        mylog.debug(method=inspect.stack()[0][3],
+                    lineno=sys._getframe().f_lineno,
+                    name=req_msg.name)
         err, payload, msg_meta = msg_exchange(radio, req_msg)
         if get_cmd_args().verbosity > 2:
             mylog.debug(method=inspect.stack()[0][3],
-                           error=err,
-                           data=payload)
+                        lineno=sys._getframe().f_lineno,
+                        error=err,
+                        data=payload)
         if (err == tlv_errors.SUCCESS) or \
            (err == tlv_errors.EODATA):
             if (err == tlv_errors.EODATA):
@@ -83,17 +88,20 @@ def simple_get_record(radio, path_list):
                            error=err)
             break
         else:
-            mylog.info('error',
+            mylog.error('error',
                        method=inspect.stack()[0][3],
+                       lineno=sys._getframe().f_lineno,
                        error=err)
             if err != tlv_errors.EBUSY:
                 break
     if time() > end:
         mylog.warn('deadman timeout',
                    method=inspect.stack()[0][3],
+                   lineno=sys._getframe().f_lineno,
                    end=end, now=time())
     if get_cmd_args().verbosity > 1:
         mylog.debug(method=inspect.stack()[0][3],
+                    lineno=sys._getframe().f_lineno,
                     error=err,
                     data=payload)
     return err, payload, msg_meta
@@ -112,7 +120,9 @@ def file_get_bytes(radio, path_list, amount_to_get, file_offset):
                          TagTlv(tlv_types.SIZE, amount_to_get)])
         tname = TagName(tlv_list)
         if get_cmd_args().verbosity > 2:
-            mylog.debug(method=inspect.stack()[0][3], name=tname)
+            mylog.debug(method=inspect.stack()[0][3],
+                        lineno=sys._getframe().f_lineno,
+                        name=tname)
         return TagGet(tname)
 
     end = time() + DEADMAN_TIME # deadman timer
@@ -120,12 +130,15 @@ def file_get_bytes(radio, path_list, amount_to_get, file_offset):
     eof = False
     while (amount_to_get) and time() < end:
         req_msg = _file_bytes_msg(path_list, amount_to_get, file_offset)
-        mylog.debug(method=inspect.stack()[0][3], name=req_msg.name)
+        mylog.debug(method=inspect.stack()[0][3],
+                    lineno=sys._getframe().f_lineno,
+                    name=req_msg.name)
         err, payload, msg_meta = msg_exchange(radio, req_msg)
         if get_cmd_args().verbosity > 3:
             mylog.debug(method=inspect.stack()[0][3],
-                           error=err,
-                           data=payload)
+                        lineno=sys._getframe().f_lineno,
+                        error=err,
+                        data=payload)
         if (err == tlv_errors.SUCCESS) or \
            (err == tlv_errors.EODATA):
             offset, amt2get, block = payload2values(payload,
@@ -135,10 +148,11 @@ def file_get_bytes(radio, path_list, amount_to_get, file_offset):
                                                     ])
             if get_cmd_args().verbosity > 2:
                 mylog.debug(method=inspect.stack()[0][3],
-                               offset=offset,
-                               count=amt2get,
-                               size=0 if not block else len(block),
-                               error=err)
+                            lineno=sys._getframe().f_lineno,
+                            offset=offset,
+                            count=amt2get,
+                            size=0 if not block else len(block),
+                            error=err)
             if not block:
                 block = payload2special(payload,
                                [tlv_types.INTEGER,
@@ -161,13 +175,13 @@ def file_get_bytes(radio, path_list, amount_to_get, file_offset):
                 break
 
             if (offset) and (offset != file_offset):
-                mylog.info('offset mismatch',
+                mylog.warn('offset mismatch',
                            method=inspect.stack()[0][3],
                            offset=file_offset,
                            size=offset)
                 break
             if (amt2get) and (amt2get != amount_to_get):
-                mylog.info('size mismatch',
+                mylog.warn('size mismatch',
                            method=inspect.stack()[0][3],
                            size=amount_to_get,
                            count=amt2get)
@@ -179,12 +193,14 @@ def file_get_bytes(radio, path_list, amount_to_get, file_offset):
                        error=err)
             continue
         else:
-            mylog.info('unexpected', method=inspect.stack()[0][3],
-                           offset=file_offset,
-                           error=err)
+            mylog.error('unexpected', method=inspect.stack()[0][3],
+                        lineno=sys._getframe().f_lineno,
+                        offset=file_offset,
+                        error=err)
             break
     if get_cmd_args().verbosity > 2:
         mylog.debug(method=inspect.stack()[0][3],
+                    lineno=sys._getframe().f_lineno,
                     count=file_offset-len(accum_bytes),
                     size=len(accum_bytes),
                     eof=eof)
@@ -201,17 +217,20 @@ def file_update_attrs(radio, path_list, attrs):
 
     req_msg = _file_attr_msg(path_list)
     if (req_msg == None):
-        mylog.info('bad request',
-                   method=inspect.stack()[0][3],
-                   path=path_list)
+        mylog.error('bad request',
+                    method=inspect.stack()[0][3],
+                    lineno=sys._getframe().f_lineno,
+                    path=path_list)
         return attrs
     if get_cmd_args().verbosity > 2:
         mylog.debug(method=inspect.stack()[0][3],
+                    lineno=sys._getframe().f_lineno,
                     name=req_msg.name)
     err, payload, msg_meta = msg_exchange(radio, req_msg)
     if (err == tlv_errors.SUCCESS):
         if get_cmd_args().verbosity > 2:
             mylog.debug(method=inspect.stack()[0][3],
+                        lineno=sys._getframe().f_lineno,
                         data=payload)
         offset, filesize = payload2values(payload,
                                           [tlv_types.OFFSET,
@@ -222,7 +241,9 @@ def file_update_attrs(radio, path_list, attrs):
         if (filesize == None): filesize = 0
         if (offset == None): offset = 0
     else:
-        mylog.info('failure', method=inspect.stack()[0][3], error=err)
+        mylog.error('response failure', method=inspect.stack()[0][3],
+                    lineno=sys._getframe().f_lineno,
+                    error=err)
         this_time = -1
         filesize = 0
     attrs['st_size']  = filesize
@@ -243,6 +264,7 @@ def _put_bytes(radio, tname, buf, offset):
     req_msg = _file_put_msg(tname, buf, offset)
     if get_cmd_args().verbosity > 2:
         mylog.debug(method=inspect.stack()[0][3],
+                    lineno=sys._getframe().f_lineno,
                     name=req_msg.name)
     err, payload, msg_meta = msg_exchange(radio, req_msg)
     if (err == tlv_errors.SUCCESS):
@@ -253,10 +275,13 @@ def _put_bytes(radio, tname, buf, offset):
             amtLeft = len(buf)
         if get_cmd_args().verbosity > 2:
             mylog.debug(method=inspect.stack()[0][3],
+                        lineno=sys._getframe().f_lineno,
                         count=len(buf),
                         size=amtLeft)
         return amtLeft
-    mylog.info(method=inspect.stack()[0][3], error=err)
+    mylog.error(method=inspect.stack()[0][3],
+               lineno=sys._getframe().f_lineno,
+               error=err)
     return 0
 
 def file_put_bytes(radio, path_list, buf, offset):

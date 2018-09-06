@@ -117,6 +117,7 @@ class FileHandler(OrderedDict):
         if get_cmd_args().verbosity > 4:
             self.log.debug('initialized',
                            method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            ntype=ntype,
                            mode=mode,
                            nlinks=nlinks,
@@ -126,6 +127,7 @@ class FileHandler(OrderedDict):
     def __len__(self):
         if get_cmd_args().verbosity > 2:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            size=1)
         return 1
 
@@ -133,11 +135,13 @@ class FileHandler(OrderedDict):
         self['st_atime'] = time()  # set access time
         if get_cmd_args().verbosity > 1:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            atime=self['st_atime'],
                            update=update,
                            path_list=path_list,)
         if get_cmd_args().verbosity > 2:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            attrs=self.__repr__(),
                            path_list=path_list,)
         return self
@@ -145,6 +149,7 @@ class FileHandler(OrderedDict):
     def flush(self, path_list):
         if get_cmd_args().verbosity > 1:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            path_list=path_list)
         return 0
 
@@ -159,12 +164,14 @@ class FileHandler(OrderedDict):
     def release(self, path_list):      # close
         if get_cmd_args().verbosity > 1:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            path_list=path_list)
         return 0
 
     def truncate(self, path_list, length):
         if get_cmd_args().verbosity > 2:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            path_list=path_list)
         return 0
 
@@ -207,6 +214,7 @@ class ByteIOFileHandler(FileHandler):
     def read(self, path_list, size, offset):
         if get_cmd_args().verbosity > 2:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            size=size,
                            offset=offset,
                            path_list=path_list, )
@@ -216,6 +224,7 @@ class ByteIOFileHandler(FileHandler):
                                   offset)
         if get_cmd_args().verbosity > 1:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            size=len(buf),
                            eof=eof,
                            path_list=path_list, )
@@ -224,6 +233,7 @@ class ByteIOFileHandler(FileHandler):
     def write(self, path_list, buf, offset):
         if get_cmd_args().verbosity > 1:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            size=size,
                            offset=offset,
                            path_list=path_list, )
@@ -253,6 +263,7 @@ class XyzFileHandler(FileHandler):
                                  node=TagTlv(str(path_list[0])))
         if get_cmd_args().verbosity > 1:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            xyz=xyz,
                            geo=geo, )
         return xyz.__repr__()
@@ -275,6 +286,7 @@ class RtcFileHandler(FileHandler):
                                     node=TagTlv(str(path_list[0])))
             if get_cmd_args().verbosity > 2:
                 self.log.debug(method=inspect.stack()[0][3],
+                               lineno=sys._getframe().f_lineno,
                                utctime=utctime, )
             try:
                 self['st_mtime'] = (utctime - epoch).total_seconds()
@@ -282,8 +294,9 @@ class RtcFileHandler(FileHandler):
                 self['st_mtime'] = -2
             if get_cmd_args().verbosity > 1:
                 self.log.debug(method=inspect.stack()[0][3],
-                              utctime=utctime,
-                              modified=self['st_mtime'], )
+                               lineno=sys._getframe().f_lineno,
+                               utctime=utctime,
+                               modified=self['st_mtime'], )
         return super(RtcFileHandler, self).getattr(path_list, update=update)
 
     def write(self, path_list, buf, offset):
@@ -302,6 +315,7 @@ class RtcFileHandler(FileHandler):
         atime, mtime = times
         if get_cmd_args().verbosity > 1:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            times={'access':atime, 'modified':mtime}, )
         utctime = datetime.utcfromtimestamp(mtime)
         radio_set_rtctime(self.radio,
@@ -324,17 +338,20 @@ class SparseIOFileHandler(ByteIOFileHandler):
     def _open_sparse(self, fpath):
         if get_cmd_args().verbosity > 2:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            sparse=self.sparse, disable=get_cmd_args().disable_sparse,
                            sparse_dir=get_cmd_args().sparse_dir, )
         if self.sparse is not None or get_cmd_args().disable_sparse:
             if get_cmd_args().verbosity > 2:
-                self.log.debug('early exit', method=inspect.stack()[0][3], )
+                self.log.debug('early exit', method=inspect.stack()[0][3],
+                                          lineno=sys._getframe().f_lineno,)
             return
         sparse_filename = os.path.join(
             get_cmd_args().sparse_dir,
             '_'.join(fpath))
         if get_cmd_args().verbosity > 2:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            file=sparse_filename,
                            sparse=self.sparse, )
         self.path = sparse_filename
@@ -353,6 +370,7 @@ class SparseIOFileHandler(ByteIOFileHandler):
                 self['st_size'] = offset + len(block)
         if get_cmd_args().verbosity > 2:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            count=len(items), sparse=self.sparse)
 
     def _get_sparse(self, offset, size):
@@ -364,6 +382,7 @@ class SparseIOFileHandler(ByteIOFileHandler):
         if self.sparse is not None:
             if get_cmd_args().verbosity > 2:
                 self.log.debug(method=inspect.stack()[0][3],
+                               lineno=sys._getframe().f_lineno,
                                offset=offset, size=len(buf))
             return self.sparse.add_bytes(offset, buf)
         return len(buf) # acknowledge but ignore data
@@ -372,6 +391,7 @@ class SparseIOFileHandler(ByteIOFileHandler):
         if self.sparse is not None:
             if get_cmd_args().verbosity > 2:
                 self.log.debug(method=inspect.stack()[0][3],
+                          lineno=sys._getframe().f_lineno,
                                path=self.path)
             self.sparse.flush()
 
@@ -401,6 +421,7 @@ class SparseIOFileHandler(ByteIOFileHandler):
     def read(self, path_list, size, offset):
         if get_cmd_args().verbosity > 1:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            offset=offset,
                            size=size,
                            old_size=self['st_size'])
@@ -408,10 +429,19 @@ class SparseIOFileHandler(ByteIOFileHandler):
         if offset >= self['st_size']:
             super(SparseIOFileHandler, self).getattr(path_list, update=True)
         if offset >= self['st_size']:
+            self.log.info('out of data',
+                          method=inspect.stack()[0][3],
+                          lineno=sys._getframe().f_lineno,
+                          size=size,
+                          offset=offset,)
             raise FuseOSError(ENODATA)
         try:
             self._open_sparse(path_list)
         except:
+            self.log.warn('sparse file open failure',
+                          method=inspect.stack()[0][3],
+                          lineno=sys._getframe().f_lineno,
+                          path_list=path_list,)
             raise
         retbuf = bytearray()
         size = min(size, self['st_size'] - offset)
@@ -420,6 +450,7 @@ class SparseIOFileHandler(ByteIOFileHandler):
             for item in work_list:
                 if get_cmd_args().verbosity > 2:
                     self.log.debug(method=inspect.stack()[0][3],
+                                   lineno=sys._getframe().f_lineno,
                                    size=len(item),
                                    sample=hexlify(item[:20]))
                 if isinstance(item, tuple) or \
@@ -441,6 +472,7 @@ class SparseIOFileHandler(ByteIOFileHandler):
         elif offset < self['st_size']:
             if get_cmd_args().verbosity > 2:
                 self.log.debug(method=inspect.stack()[0][3],
+                               lineno=sys._getframe().f_lineno,
                                offset=offset,
                                size=self['st_size'])
             size = min(size, self['st_size']-offset)
@@ -452,6 +484,7 @@ class SparseIOFileHandler(ByteIOFileHandler):
         if retbuf:
             if get_cmd_args().verbosity > 1:
                 self.log.debug(method=inspect.stack()[0][3],
+                               lineno=sys._getframe().f_lineno,
                                size=len(retbuf),
                                sample=hexlify(retbuf[:20]))
             return retbuf
@@ -467,6 +500,7 @@ class SparseIOFileHandler(ByteIOFileHandler):
     def write(self, path_list, buf, offset):
         if get_cmd_args().verbosity > 2:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            offset=offset,
                            size=len(buf), )
         self._open_sparse(path_list)
@@ -475,6 +509,7 @@ class SparseIOFileHandler(ByteIOFileHandler):
             self['st_size'] = offset + sz
         if get_cmd_args().verbosity > 1:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            offset=offset, size=sz, )
         return sz
 
@@ -623,21 +658,28 @@ class SimpleIORecHandler(FileHandler):
     def read(self, path_list, size, offset):
         if get_cmd_args().verbosity > 2:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            path_list=path_list,
-                           size=len(buf),
-                           offset=offset,)
+                           size=size,
+                           offset=offset,
+                           eof=self.eof)
+
+        # gotta read from the beggining, this is simple rec read
         if offset > 0:
-            self.log.info(method=inspect.stack()[0][3],
+            self.log.warn('offset not zero',
+                          method=inspect.stack()[0][3],
                           offset=offset, path_list=path_list)
             return ''
         # get the record from the tag
         err, payload, meta = simple_get_record(self.radio, path_list)
         if get_cmd_args().verbosity > 1:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            error=err,
                            this=[type(tlv) for tlv in payload])
         if get_cmd_args().verbosity > 4:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            rssi=meta[0],
                            send_status=meta[1],
                            recv_status=meta[2],)
@@ -645,6 +687,11 @@ class SimpleIORecHandler(FileHandler):
         return self._json_output(payload) if (err is tlv_errors.SUCCESS or
                                               err is tlv_errors.EODATA) else None
 
+        self.log.warn(method=inspect.stack()[0][3],
+                      lineno=sys._getframe().f_lineno,
+                      error=err,
+                      eof=self.eof,
+                      path_list=path_list)
 
 class SysFileHandler(FileHandler):
     '''
@@ -725,20 +772,26 @@ class TestEchoHandler(TestBaseHandler):
             self.sparse = SparseFile('_'.join(fpath), get_cmd_args)
             items = sorted(self.sparse.items())
         if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[0][3], size=len(items))
+            self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
+                           size=len(items))
             if items:
                 offset, block = items[-1]
                 self['st_size'] = offset + len(block)
             else:
                 self['st_size'] = 0
         if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[0][3], sparse=self.sparse)
+            self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
+                           sparse=self.sparse)
 
     def _close_sparse(self):
         if self.sparse:
             self.sparse.flush()
         if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[0][3], sparse=self.sparse)
+            self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
+                           sparse=self.sparse)
 
     def _delete_sparse(self):
         if self.sparse:
@@ -746,10 +799,13 @@ class TestEchoHandler(TestBaseHandler):
             self.sparse = None
             self['st_size'] = 0
         if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[0][3], sparse=self.sparse)
+            self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
+                           sparse=self.sparse)
 
     def flush(self, path_list):
         self.log.debug(method=inspect.stack()[0][3],
+                       lineno=sys._getframe().f_lineno,
                        path_list=path_list, )
         self._close_sparse()
         return 0
@@ -761,6 +817,7 @@ class TestEchoHandler(TestBaseHandler):
     def read(self, path_list, size, offset):
         if get_cmd_args().verbosity > 2:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            offset=offset,
                            size=size,
                            path_list=path_list, )
@@ -775,7 +832,9 @@ class TestEchoHandler(TestBaseHandler):
                 if isinstance(item, tuple) or \
                    isinstance(item, list):
                     if get_cmd_args().verbosity > 2:
-                        self.log.debug(method=inspect.stack()[0][3], data=item)
+                        self.log.debug(method=inspect.stack()[0][3],
+                                       lineno=sys._getframe().f_lineno,
+                                       data=item)
                     first, last = item
                     last = min(last, self['st_size'])
                     xbuf = bytearray('\x00' * (last - first))
@@ -787,11 +846,13 @@ class TestEchoHandler(TestBaseHandler):
                      isinstance(item, str):
                     if get_cmd_args().verbosity > 2:
                         self.log.debug(method=inspect.stack()[0][3],
+                                       lineno=sys._getframe().f_lineno,
                                        size=len(item), data=hexlify(item[:24]))
                     retbuf.extend(item)
                 else:
                     if get_cmd_args().verbosity > 2:
                         self.log.debug(method=inspect.stack()[0][3],
+                                       lineno=sys._getframe().f_lineno,
                                        error=EIO, data=item)
                     raise FuseOSError(EIO)
             return retbuf
@@ -803,6 +864,7 @@ class TestEchoHandler(TestBaseHandler):
     def unlink(self, path_list):       # delete
         if get_cmd_args().verbosity > 2:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            sparse=self.sparse,
                            path_list=path_list)
         self._delete_sparse()
@@ -811,6 +873,7 @@ class TestEchoHandler(TestBaseHandler):
     def write(self, path_list, buf, offset):
         if get_cmd_args().verbosity > 2:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            offset=offset,
                            size=len(buf),)
         self._open_sparse(path_list)
@@ -819,6 +882,7 @@ class TestEchoHandler(TestBaseHandler):
             self['st_size'] = offset + sz
         if get_cmd_args().verbosity > 2:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            size=sz,)
         return sz
 
@@ -861,6 +925,7 @@ class DirHandler(OrderedDict):
         if get_cmd_args().verbosity > 4:
             self.log.debug('initialized',
                            method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            name=self.__class__.__name__)
         self.parent = None
 
@@ -879,6 +944,7 @@ class DirHandler(OrderedDict):
         self.parent = parent
         if get_cmd_args().verbosity > 4:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            parent=type(parent), index=index, path_list=path_list)
         if index < (len(path_list) - 1):      # look in subdirectory
             for key, handler in self.iteritems():
@@ -889,6 +955,7 @@ class DirHandler(OrderedDict):
             for key, handler in self.iteritems():
                 if get_cmd_args().verbosity > 4:
                     self.log.debug(method=inspect.stack()[0][3],
+                                   lineno=sys._getframe().f_lineno,
                                    name=key, handler=type(handler))
                 # match the terminal name
                 if (path_list[index] == key):
@@ -907,6 +974,7 @@ class DirHandler(OrderedDict):
         print('*** dir.getattr', get_cmd_args().verbosity)
         if get_cmd_args().verbosity > 1:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            path_list=path_list, update=update)
         return self['']
 
@@ -917,6 +985,7 @@ class DirHandler(OrderedDict):
                 dir_names.append(name)
         if get_cmd_args().verbosity > 1:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            dir_list=dir_names,
                            path_list=path_list)
         self['']['st_nlink'] = len(dir_names)
@@ -937,6 +1006,7 @@ class DirHandler(OrderedDict):
         atime, mtime = times
         if get_cmd_args().verbosity > 1:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            times={'access':atime, 'modified':mtime},
                            path_list=path_list, )
         return 0
@@ -966,6 +1036,7 @@ class RootDirHandler(DirHandler):
             path_list[index] = '<node_id:' + path_list[index] + '>'
         if get_cmd_args().verbosity > 4:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            parent=type(parent), index=index, path_list=path_list)
         return (handler, path_list)
 
@@ -1033,6 +1104,7 @@ class PollNetDirHandler(DirHandler):
             new_set |= tag_set.difference(my_set)
             if get_cmd_args().verbosity > 2:
                 self.log.debug(method=inspect.stack()[0][3],
+                               lineno=sys._getframe().f_lineno,
                               local=my_set,
                               new=new_set,
                               tag=tag_set)
@@ -1042,6 +1114,7 @@ class PollNetDirHandler(DirHandler):
                 more += 1
         if get_cmd_args().verbosity > 1:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            local=my_set,
                            new=new_set,
                            tag=tag_set)
@@ -1107,13 +1180,16 @@ class ImageDirHandler(DirHandler):
 
     def readdir(self, path_list, tree_root, new_tag_def):
         if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[0][3], path_list=path_list)
+            self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
+                           path_list=path_list)
         tag_dir = im_get_dir(self.radio, path_list)
         if (tag_dir):
             # make set of versions found on tag
             tag_versions = []
             for version, state in tag_dir:
                 self.log.debug(method=inspect.stack()[0][3],
+                               lineno=sys._getframe().f_lineno,
                               version=version,
                               state=str(state))
                 if (str(state) != 'x'):
@@ -1144,7 +1220,9 @@ class ImageDirHandler(DirHandler):
                     pass  # wasn't there, ok
 
         if get_cmd_args().verbosity > 1:
-            self.log.debug(method=inspect.stack()[0][3], dir=self)
+            self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
+                           dir=self)
         return super(ImageDirHandler, self).readdir(path_list, tree_root, new_tag_def)
 
     def create(self, path_list, mode):
@@ -1185,7 +1263,9 @@ class SysDirHandler(DirHandler):
 
     def readdir(self, path_list, tree_root, new_tag_def, img_state=''):
         if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[0][3], path_list=path_list)
+            self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
+                           path_list=path_list)
         tag_dir = im_get_dir(self.radio, path_list)
         if (tag_dir):
             # make set of versions found on tag
@@ -1195,7 +1275,9 @@ class SysDirHandler(DirHandler):
                     tag_versions.append('.'.join(map(str, version)))
             tag_set = Set(tag_versions)
             if get_cmd_args().verbosity > 2:
-                self.log.debug(method=inspect.stack()[0][3], tag=tag_set)
+                self.log.debug(method=inspect.stack()[0][3],
+                               lineno=sys._getframe().f_lineno,
+                               tag=tag_set)
             # make set of version founds on self
             my_versions = []
             for version in self.keys():
@@ -1203,7 +1285,9 @@ class SysDirHandler(DirHandler):
                     my_versions.append(version)
             my_set = Set(my_versions)
             if get_cmd_args().verbosity > 2:
-                self.log.debug(method=inspect.stack()[0][3], tag=my_set)
+                self.log.debug(method=inspect.stack()[0][3],
+                               lineno=sys._getframe().f_lineno,
+                               tag=my_set)
 
             # add versions on tag but not on self
             for version in tag_set.difference(my_set):
@@ -1216,7 +1300,9 @@ class SysDirHandler(DirHandler):
             for version in my_set.difference(tag_set):
                 del self[version]
         if get_cmd_args().verbosity > 1:
-            self.log.debug(method=inspect.stack()[0][3], dir=self)
+            self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
+                           dir=self)
         return super(SysDirHandler, self).readdir(path_list, tree_root, new_tag_def)
 
 
@@ -1232,6 +1318,7 @@ class SysActiveDirHandler(SysDirHandler):
     def link(self, ln_l, tg_l):
         if get_cmd_args().verbosity > 2:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            local_name=ln_l,
                            target=tg_l)
         # set new version on tag active directory
@@ -1253,8 +1340,9 @@ class SysActiveDirHandler(SysDirHandler):
             self.log.info(method=inspect.stack()[0][3],
                           version=new_version)
             return 0
-        self.log.info('timeout', method=inspect.stack()[0][3],
-                      version=new_version)
+        self.log.warn('timeout', method=inspect.stack()[0][3],
+                      version=new_version,
+                      local_name=ln_l, target=tg_l)
         return 0
 
     def readdir(self, path_list, tree_root, new_tag_def):
@@ -1278,7 +1366,11 @@ class SysBackupDirHandler(SysDirHandler):
         super(SysBackupDirHandler, self).__init__(radio, a_dict)
 
     def link(self, ln_l, tg_l):
-        self.log.debug(method=inspect.stack()[0][3], local_name=ln_l, target=tg_l)
+        if get_cmd_args().verbosity > 2:
+            self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
+                           local_name=ln_l,
+                           target=tg_l)
         # set new version on tag backup directory
         new_version = tg_l[-1]
         ln_lv = ln_l
@@ -1360,6 +1452,7 @@ class VerbosityDirHandler(DirHandler):
         set_verbosity(int(file_name))
         if get_cmd_args().verbosity > 4:
             self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
                            file=file_name,
                            mode=oct(mode),
                            path_list=path_list)

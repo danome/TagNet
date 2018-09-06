@@ -154,8 +154,7 @@ class TagFuse(LoggingMixIn, Operations):
                          handler=type(handler),
                          path_list=path_list)
         if get_cmd_args().verbosity > 1:
-            self.log.debug('extra',
-                           method=inspect.stack()[0][3],
+            self.log.debug(method=inspect.stack()[0][3],
                            handler=type(handler),
                            path_list=path_list)
         try:
