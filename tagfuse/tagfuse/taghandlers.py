@@ -1109,7 +1109,7 @@ class PollNetDirHandler(DirHandler):
                               new=new_set,
                               tag=tag_set)
             if new_set:
-                if more > 3:      # keep looking for a few more
+                if more > 1:      # keep looking for a few more
                     break
                 more += 1
         if get_cmd_args().verbosity > 1:
