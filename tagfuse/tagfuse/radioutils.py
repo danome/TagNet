@@ -675,10 +675,10 @@ def radio_poll(radio, window=1000, slots=16, power=RADIO_POWER, wait=None):
     sstatus    = radio_send_msg(radio, req_msg, power)
     if get_cmd_args().verbosity > 3:
         mylog.debug(method=inspect.stack()[0][3],
-                    lineno=sys._getframe().f_lineno,
-                    name=req_obj.name,
-                    payload=req_obj.payload,
-                    data=hexlify(req_msg))
+                    lineno=sys._getframe().f_lineno,)
+#                    name=req_obj.name,)
+#                    payload=req_obj.payload,)
+#                    data=hexlify(req_msg))
     while (time() < end):
         rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV,
                                                    end - time())

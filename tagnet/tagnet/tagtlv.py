@@ -682,7 +682,7 @@ class TagTlv(object):
     def __repr__(self):
         try:
             v = self.mytlv.value()
-            tt = self.mytlv_type()
+            tt = self.mytlv.tlv_type()
             if tt == tlv_types.NODE_ID or tt == tlv_types.BLOCK:
                 v = hexlify(v)
             return '({}, {})'.format(tt, v)
