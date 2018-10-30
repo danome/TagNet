@@ -124,6 +124,7 @@ def TagFuseSysTree(radio):
         ),
     ]))
 
+
 def TagFuseSDTree(radio):
     return DirHandler(OrderedDict([
         ('',        FileHandler(S_IFDIR, 0o751, 6)),
@@ -133,13 +134,31 @@ def TagFuseSDTree(radio):
                 ('',    FileHandler(S_IFDIR, 0o751, 4)),
             ]))),
             ('dblk',  DirHandler(OrderedDict([
-                ('',     FileHandler(S_IFDIR, 0o751, 7)),
+                ('',     FileHandler(S_IFDIR, 0o751, 12)),
                 ('byte',    SparseIOFileHandler(radio, S_IFREG, 0o444, 1)),
                 ('note',    SimpleIORecHandler (radio, S_IFREG, 0o660, 1)),
-                ('.recnum',   ByteIOFileHandler(radio, S_IFREG, 0o444, 1)),
+                ('.recnum',   ByteIOFileHandler(radio, S_IFREG, 0o664, 1)),
                 ('.last_rec', ByteIOFileHandler(radio, S_IFREG, 0o444, 1)),
                 ('.last_sync',ByteIOFileHandler(radio, S_IFREG, 0o444, 1)),
                 ('.committed',ByteIOFileHandler(radio, S_IFREG, 0o444, 1)),
+                ('.offset',   ByteIOFileHandler(radio, S_IFREG, 0o444, 1)),
+                ('.size',     ByteIOFileHandler(radio, S_IFREG, 0o444, 1)),
+                ('.resync',   ByteIOFileHandler(radio, S_IFREG, 0o664, 1)),
+                ('filter',  DirHandler(OrderedDict([
+                    ('',     FileHandler(S_IFDIR, 0o751, 2)),
+                    ('include',  DirHandler(OrderedDict([
+                        ('',     FileHandler(S_IFDIR, 0o751, 2)),
+                        ('DT_EVENT',  DirHandler(OrderedDict([
+                            ('',        FileHandler(S_IFDIR, 0o751, 2)),
+                        ]))),
+                    ]))),
+                    ('exclude',  DirHandler(OrderedDict([
+                        ('',     FileHandler(S_IFDIR, 0o751, 2)),
+                        ('DT_EVENT',  DirHandler(OrderedDict([
+                            ('',        FileHandler(S_IFDIR, 0o751, 2)),
+                        ]))),
+                    ]))),
+                ])))
             ]))),
             ('panic', DirHandler(OrderedDict([
                 ('',       FileHandler(S_IFDIR, 0o751, 4)),

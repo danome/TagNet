@@ -60,7 +60,7 @@ if (os.path.exists(basedir)
     # zzz print('\n'.join(sys.path))
 
 try:
-    from radiofile   import file_get_bytes, file_put_bytes, file_update_attrs, simple_get_record
+    from radiofile   import file_get_bytes, file_put_bytes, file_update_attrs, simple_get_record, file_truncate
     from radioimage  import im_put_file, im_get_file, im_delete_file, im_close_file
     from radioimage  import im_get_dir, im_set_version
     from radioutils  import path2list, radio_poll, radio_get_rtctime, radio_set_rtctime
@@ -241,6 +241,15 @@ class ByteIOFileHandler(FileHandler):
                         path_list,
                         buf,
                         offset)
+
+    def truncate(self, path_list, length):
+        if get_cmd_args().verbosity > 2:
+            self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
+                           path_list=path_list)
+        return file_truncate(self.radio,
+                             path_list,
+                             length)
 
 
 class XyzFileHandler(FileHandler):
@@ -452,7 +461,7 @@ class SparseIOFileHandler(ByteIOFileHandler):
                     self.log.debug(method=inspect.stack()[0][3],
                                    lineno=sys._getframe().f_lineno,
                                    size=len(item),
-                                   sample=hexlify(item[:20]))
+                                   data=type(item))
                 if isinstance(item, tuple) or \
                    isinstance(item, list):
                     first, last = item
@@ -1262,9 +1271,9 @@ class ImageDirHandler(DirHandler):
 
 class SysDirHandler(DirHandler):
     '''
-    System Active Directory Handler class
+    System Directory Handler class
 
-    Performs active directory specific operations.
+    Performs 'tag/sys' directory specific operations.
     '''
     def __init__(self, radio, a_dict):
         super(SysDirHandler, self).__init__(a_dict)
@@ -1319,7 +1328,7 @@ class SysActiveDirHandler(SysDirHandler):
     '''
     System Active Directory Handler class
 
-    Performs active directory specific operations.
+    Performs sys/active directory specific operations.
     '''
     def __init__(self, radio, a_dict):
         super(SysActiveDirHandler, self).__init__(radio, a_dict)

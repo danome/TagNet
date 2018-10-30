@@ -7,6 +7,7 @@ from builtins import *                  # python3 types
 
 __all__ = ['file_get_bytes',
            'file_put_bytes',
+           'file_truncate',
            'file_update_attrs',
            'simple_get_record',]
 import os
@@ -249,6 +250,34 @@ def file_update_attrs(radio, path_list, attrs):
     attrs['st_size']  = filesize
     attrs['st_mtime'] = this_time
     return attrs
+
+def file_truncate(radio, path_list, offset):
+
+    def _truncate_msg(tname, offset):
+        msg = TagPut(tname,
+                     pl=TagTlvList([(tlv_types.INTEGER, offset)]))
+        return msg
+
+    tname = TagName(path2tlvs(path_list))
+    req_msg = _truncate_msg(tname, offset)
+    if get_cmd_args().verbosity > 2:
+        mylog.debug(method=inspect.stack()[0][3],
+                    lineno=sys._getframe().f_lineno,
+                    name=req_msg.name, offset=offset)
+    err, payload, msg_meta = msg_exchange(radio, req_msg)
+    if (err == tlv_errors.SUCCESS):
+        amtLeft = payload2values(payload,
+                             [tlv_types.SIZE,
+                             ])[0]
+        if get_cmd_args().verbosity > 2:
+            mylog.debug(method=inspect.stack()[0][3],
+                        lineno=sys._getframe().f_lineno,
+                        offset=amtLeft)
+        return amtLeft
+    mylog.error(method=inspect.stack()[0][3],
+               lineno=sys._getframe().f_lineno,
+               error=err)
+    return -2
 
 def _put_bytes(radio, tname, buf, offset):
     '''
