@@ -68,13 +68,13 @@ def show_radio_config(radio, config):
     '''
     radio_show_config(data=radio.dump_radio())
     total = 0
-    mylog.debug('const config strings:',method=inspect.stack()[1][3])
+    mylog.debug('const config strings:',method=inspect.stack()[0][3])
     for s in config:
-        mylog.debug(method=inspect.stack()[1][3], data=(hexlify(s)))
+        mylog.debug(method=inspect.stack()[0][3], data=(hexlify(s)))
         total += len(s) - 4
-    mylog.debug(method=inspect.stack()[1][3], count=total)
+    mylog.debug(method=inspect.stack()[0][3], count=total)
     # ## Get Chip Status
-    mylog.debug(method=inspect.stack()[1][3], data=radio.get_chip_status())
+    mylog.debug(method=inspect.stack()[0][3], data=radio.get_chip_status())
 
 
 def im_put_file(radio, path_list, buf, offset, power=RADIO_POWER, wait=MAX_WAIT):
@@ -99,7 +99,7 @@ def im_put_file(radio, path_list, buf, offset, power=RADIO_POWER, wait=MAX_WAIT)
         req_msg, amt_sent = _put_msg(path_list,
                                      buf[(len(buf)-amt_to_put):],
                                      offset)
-        mylog.debug(method=inspect.stack()[1][3], name=req_msg.name)
+        mylog.debug(method=inspect.stack()[0][3], name=req_msg.name)
         req_buf = req_msg.build()
         sstatus = radio_send_msg(radio, req_buf, power)
         rsp_buf, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, wait)
@@ -107,17 +107,17 @@ def im_put_file(radio, path_list, buf, offset, power=RADIO_POWER, wait=MAX_WAIT)
         if (rsp_buf):
             try:
                 rsp = TagMessage(bytearray(rsp_buf))
-                mylog.debug(method=inspect.stack()[1][3],
+                mylog.debug(method=inspect.stack()[0][3],
                             data=len(rsp_buf),
                             data2=hexlify(rsp_buf))
             except (TlvBadException, TlvListBadException):
                 mylog.info('bad message',
-                           method=inspect.stack()[1][3],
+                           method=inspect.stack()[0][3],
                            count=tries)
                 tries -=1
                 continue
         if (rsp) and (rsp.payload):
-            mylog.debug(method=inspect.stack()[1][3], data=rsp.payload)
+            mylog.debug(method=inspect.stack()[0][3], data=rsp.payload)
             error, offset = payload2values(rsp.payload,
                                            [tlv_types.ERROR,
                                             tlv_types.OFFSET,
@@ -145,7 +145,7 @@ def im_put_file(radio, path_list, buf, offset, power=RADIO_POWER, wait=MAX_WAIT)
             error = tlv_errors.ETIMEOUT
             tries -= 1
             mylog.info('timeout',
-                       method=inspect.stack()[1][3],
+                       method=inspect.stack()[0][3],
                        count=tries)
     return error, offset
 
@@ -159,7 +159,7 @@ def im_get_dir(radio, path_list, version=None):
     Returns a list of tuples containing a directory
     name and current state.
     '''
-    mylog.debug(method=inspect.stack()[1][3], path=path_list)
+    mylog.debug(method=inspect.stack()[0][3], path=path_list)
 
     def _get_dir_msg(path_list, version):
         tlv_list = path2tlvs(path_list)
@@ -174,23 +174,23 @@ def im_get_dir(radio, path_list, version=None):
     else:
         dir_req = _get_dir_msg(path_list, None)
 
-    mylog.debug(method=inspect.stack()[1][3], name=dir_req.name)
+    mylog.debug(method=inspect.stack()[0][3], name=dir_req.name)
     error, payload, msg_meta = msg_exchange(radio,
                                  dir_req)
-    mylog.debug(method=inspect.stack()[1][3],
+    mylog.debug(method=inspect.stack()[0][3],
                 error=error,
                 data=payload,
                 meta=msg_meta)
     rtn_list = []
     if (error == tlv_errors.SUCCESS):
         if get_cmd_args().verbosity > 2:
-            mylog.debug(method=inspect.stack()[1][3],
+            mylog.debug(method=inspect.stack()[0][3],
                         data=payload)
         for x in range(0, len(payload), 2):
             version =  payload[x].value()
             state = payload[x+1].value()
             if get_cmd_args().verbosity > 2:
-                mylog.debug(method=inspect.stack()[1][3],
+                mylog.debug(method=inspect.stack()[0][3],
                             state=state,
                             version=version)
             if   (state == 'a'): state = 'active'
@@ -211,13 +211,13 @@ def im_close_file(radio, path_list, offset):
 
     close_req = _close_msg(path_list)
     if get_cmd_args().verbosity > 2:
-        mylog.debug(method=inspect.stack()[1][3],
+        mylog.debug(method=inspect.stack()[0][3],
                     name=close_req.name,
                     data=close_req.payload)
     error, payload, msg_meta = msg_exchange(radio,
                                  close_req)
     if get_cmd_args().verbosity > 2:
-        mylog.debug(method=inspect.stack()[1][3],
+        mylog.debug(method=inspect.stack()[0][3],
                     error=error,
                     data=close_req.payload,
                     meta=msg_meta)
@@ -245,21 +245,21 @@ def im_delete_file(radio, path_list):
         return msg
 
     if get_cmd_args().verbosity > 2:
-        mylog.debug(method=inspect.stack()[1][3],
+        mylog.debug(method=inspect.stack()[0][3],
                        path=path_list)
     delete_req = _delete_msg(path_list)
     if get_cmd_args().verbosity > 2:
-        mylog.debug(method=inspect.stack()[1][3],
+        mylog.debug(method=inspect.stack()[0][3],
                        name=delete_req.name,)
     error, payload, msg_meta = msg_exchange(radio,
                                  delete_req)
     if get_cmd_args().verbosity > 2:
-        mylog.debug(method=inspect.stack()[1][3],
+        mylog.debug(method=inspect.stack()[0][3],
                        error=error,
                        data=payload)
     if (error) and (error != tlv_errors.SUCCESS):
         error = tlv_errors.SUCCESS
-    mylog.info(method=inspect.stack()[1][3], error=error,)
+    mylog.info(method=inspect.stack()[0][3], error=error,)
     return error
 
 
@@ -273,12 +273,12 @@ def im_set_version(radio, path_list):
 
     req_msg = _set_version_msg(path_list)
     if get_cmd_args().verbosity > 2:
-        mylog.debug(method=inspect.stack()[1][3],
+        mylog.debug(method=inspect.stack()[0][3],
                   name=req_msg.name,)
     err, payload, msg_meta = msg_exchange(radio, req_msg)
     if (err is None):
         err = tlv_errors.SUCCESS
-    mylog.debug(method=inspect.stack()[1][3], error=err)
+    mylog.debug(method=inspect.stack()[0][3], error=err)
     return err
 
 mylog.debug('initiialization complete')
