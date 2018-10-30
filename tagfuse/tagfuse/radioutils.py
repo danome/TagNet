@@ -234,7 +234,7 @@ def path2list(path):
     path = os.path.abspath(os.path.realpath(path))
     return path.split('/')[1:]
 
-def msg_exchange(radio, req, power=RADIO_POWER, wait=MAX_WAIT):
+def msg_exchange(radio, req, power=RADIO_POWER, wait=MAX_WAIT, tries=MAX_RETRIES):
     '''
     Send a TagNet request msg and wait for a response.
 
@@ -244,14 +244,18 @@ def msg_exchange(radio, req, power=RADIO_POWER, wait=MAX_WAIT):
     and reported appropriately.
     '''
     req_msg = req.build()
-    tries = MAX_RETRIES
     if get_cmd_args().verbosity > 2:
         mylog.debug('start', method=inspect.stack()[0][3],
                     lineno=sys._getframe().f_lineno,
+                    hdr=req.header,
                     name=req.name,
-                    count=tries,
+                    tries=tries,
                     size=len(req_msg),
                     sample=hexlify(req_msg[:20]))
+    if get_cmd_args().verbosity > 3 and req.payload:
+        mylog.debug(method=inspect.stack()[0][3],
+                    lineno=sys._getframe().f_lineno,
+                    data=req.payload)
     while (tries):
         error = tlv_errors.ERETRY
         payload = None
@@ -280,16 +284,6 @@ def msg_exchange(radio, req, power=RADIO_POWER, wait=MAX_WAIT):
                         error = tlv_errors.SUCCESS
                     if (eof):
                         error = tlv_errors.EODATA
-                    if (error is tlv_errors.SUCCESS) \
-                       or (error is tlv_errors.EODATA) \
-                       or (error is tlv_errors.EALREADY) \
-                       or (error is not tlv_errors.EBUSY):
-                        tries = 1 # force terminal condition to exit loop
-                        if get_cmd_args().verbosity > 3:
-                            mylog.debug('success', method=inspect.stack()[0][3],
-                                        lineno=sys._getframe().f_lineno,
-                                        error=error,
-                                        count=tries)
             except (ValueError, TypeError, TlvBadException, TlvListBadException):
                 error = tlv_errors.EINVAL
                 mylog.error('rsp exception', method=inspect.stack()[0][3],)
@@ -297,13 +291,29 @@ def msg_exchange(radio, req, power=RADIO_POWER, wait=MAX_WAIT):
         else:
             error = tlv_errors.ETIMEOUT
             mylog.error('timeout', method=inspect.stack()[0][3],
-                       error=error, count=tries)
+                       error=error, tries=tries)
+        if (error is tlv_errors.SUCCESS) \
+           or (error is tlv_errors.EODATA) \
+           or (error is tlv_errors.EALREADY):
+            if get_cmd_args().verbosity > 4:
+                mylog.debug('done', method=inspect.stack()[0][3],
+                            lineno=sys._getframe().f_lineno,
+                            error=error,
+                            tries=tries)
+            break
+        tries -= 1
         if get_cmd_args().verbosity > 3:
             mylog.debug('retry', method=inspect.stack()[0][3],
                         lineno=sys._getframe().f_lineno,
-                        count=tries,
+                        tries=tries,
                         error=error)
-        tries -= 1
+        if (tries) and (error is tlv_errors.EBUSY):
+            sleep(.1)
+            if get_cmd_args().verbosity > 3:
+                mylog.debug('sleep', method=inspect.stack()[0][3],
+                            lineno=sys._getframe().f_lineno,
+                            error=error,
+                            time=.1)
     if get_cmd_args().verbosity > 2:
         mylog.debug('complete', method=inspect.stack()[0][3],
                     lineno=sys._getframe().f_lineno,
@@ -705,7 +715,7 @@ def radio_poll(radio, window=1000, slots=16, power=RADIO_POWER, wait=None):
     if get_cmd_args().verbosity > 2:
         mylog.debug(method=inspect.stack()[0][3],
                     lineno=sys._getframe().f_lineno,
-                    time=time()-start,
+                    elapsed=time()-start,
                     data=found)
     return found
 
