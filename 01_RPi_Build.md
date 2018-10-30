@@ -5,30 +5,11 @@ The Linux Operating System environment for the Basestation is based on an image 
 The software required for the Basestation is then loaded on top of the ComitUp image. In the future, a snapshot of this combined image could be used for distribution.
 
 # Using Disk Images
-The fastest way to build a new Raspberry Pi is to use a disk image that has been created from by cloining a work RPi. You can prepare a new SD disk by copying a previously created image. A disk image can be created from a working SD disk as well.
+The fastest way to build a new Raspberry Pi is to use a disk image that has been created from by cloining a working RPi. You can prepare a new SD disk by copying a previously created image such as the one provided by Comitup maintainer it can be created from a working customized SD disk as well.
 
-### Load SD from image
-```
-sudo gunzip -c backup.img.gz | dd of=/dev/sdX status=progress
-```
+You may need to get the GNU version of coreutils installed on your Mac to get use ```dd``` as described below. Go [here](https://www.topbug.net/blog/2013/04/14/install-and-use-gnu-command-line-tools-in-mac-os-x/) to find details.
 
-### Create disk image
-Follow the steps below below to build a new SD Boot Disk with all required software loaded. Once this is complete, run the ``compact.sh``` script in the ```ubuntu_dev/common``` directory to clean up all unnecessary files from the disk (makes the image as small as possible).
-Now umount the SD disk from the RPi and using another system (MAC, PC), issue the following command, where ```/dev/disk3``` is the source SD disk with the working version of software.
-```
-sudo diskutil umountDisk /dev/disk3
-sudo dd if=/dev/disk3 conv=sync,noerror bs=64k status=progress | gzip -c  > backup.img.gz
-```
-Now remove the SD disk from the host maching and insert in PI. You will still need to personalize and localize the RPi which can be accomplished by running ```raspi-config``` again on the RPi (see instructions below for low level Raspbian Configuration).
-
-### monitor progress
-```
-sudo kill -INFO 49719       # linux uses -USR1 signal, MacOS and BSD use -INFO
-sudo pv gunzip -c backup.img.gz | dd of=/dev/sdX
-sudo pv /dev/disk3 | dd conv=sync,noerror bs=64k status=progress | gzip -c  > backup.img.gz
-```
-
-# Build BOOT DISK
+## Create Boot Disk Using ComitUp Image
 Follow the instructions on the ComitUp site for OS image retrieval and installation [here](https://github.com/davesteele/comitup/wiki/Tutorial#copy-the-image-to-a-microsd-card). The image is 1.4GB so it is recommended to use BitTorrent to download it.
 
 (Commands used, modify for your use)
@@ -44,6 +25,24 @@ sudo diskutil eraseDisk FAT32 TAGPIZ MBRFormat /dev/diskXXX
 ```
 sudo diskutil umount /Volumes/TAGPIZ/
 sudo dd bs=1m if=~/Downloads/2018-05-24-Comitup.img of=/dev/rdiskXXX conv=sync status=progress
+```
+
+## Create Boot Disk from Existing RPi Image
+Follow the steps below below to build a new SD Boot Disk with all required software loaded. Once this is complete, run the ```compact.sh``` script in the ```ubuntu_dev/common``` directory to clean up all unnecessary files from the disk (makes the image as small as possible).
+Now umount the SD disk from the RPi and using another system (MAC, PC), issue the following command, where ```/dev/disk3``` is the source SD disk with the working version of software.
+
+Note: Make sure all packages are loaded correctly before making the copy, including the Comitup software.
+```
+sudo diskutil umountDisk /dev/disk3
+sudo dd if=/dev/disk3 conv=sync,noerror bs=64k status=progress | gzip -c  > backup.img.gz
+```
+Now remove the SD disk from the host maching and insert in PI. You will still need to personalize and localize the RPi which can be accomplished by running ```raspi-config``` again on the RPi (see instructions below for low level Raspbian Configuration).
+
+## Monitoring ```dd``` Progress
+```
+sudo kill -INFO 49719       # linux uses -USR1 signal, MacOS and BSD use -INFO
+sudo pv gunzip -c backup.img.gz | dd of=/dev/sdX
+sudo pv /dev/disk3 | dd conv=sync,noerror bs=64k status=progress | gzip -c  > backup.img.gz
 ```
 
 # Start RPi with new SD card
@@ -75,19 +74,23 @@ You should see a list of available Access Points. Select one, enter a password i
 The Linux installation requires some configuration for localiziation of Operating System. Raspian provides a program to perform the configuration which uses an ascii character based GUI. Alternatively, there are command line tools for setting most of the parameters we are interested in for our Basestation (but alas not all). See Notes below for details on these methods.
 
 * RUN raspi-config
-    * Interfacing Options
-        * enable SPI
-        * enable SSH
-    * hostname
-    * password
-    * localization
+    * Change password
+    * Network Options
+        * hostname
+    * Boot Options
+        * B1 console
+    * Localization Options
         * change locale
             * unselect:  en_GB.UTF-8 UTF-8
             * select:    en_US.UTF-8 UTF-8
             * set it as system default
         * change wifi country
         * change timezone
-    * advanced, expand file system to fill SD card
+    * Interfacing Options
+        * enable SPI
+        * enable SSH
+    * advanced Options
+        * A1 expand file system to fill SD card
 
 
 # Software Installation
@@ -115,7 +118,7 @@ javac 1.8.0_65
 ```
 4. load basic packages
 ```
-sudo apt-get update
+sudo apt-get -qy update && apt-get -qy upgrade && apt-get -qy dist-upgrade && \
 sudo apt-get install -qy \
 git gitk ntp \
 python-twisted \
@@ -150,10 +153,14 @@ cd py-spidev/
 sudo python setup.py install
 sudo usermod -a -G spi pi
 groups
-# used by jupyter for google maps
+```
+#### used by jupyter for google maps
+```
 sudo pip install pyproj
 sudo pip install gmaps
-# the following can also be installed when installing basestation software
+```
+#### these may also be installed as dependencies in BaseStation Applications software
+```
 sudo pip install future
 sudo pip install construct==2.5.2
 sudo pip install machinist
@@ -165,10 +172,13 @@ sudo pip install chest
 ```
 
 ## Install TagNet BaseStation Software
+Replace ```danome``` with ```MamMark``` and ```dm_working``` with ?.
 ```
 cd ~/
-git clone https://github.com/MamMark/TagNet.git
-cd TagNet/si446x
+git clone https://github.com/danome/TagNet.git
+cd TagNet
+git branch checkout dm_working
+cd si446x
 sudo python setup.py install
 cd ../tagnet
 sudo python setup.py install
@@ -177,9 +187,10 @@ sudo python setup.py install
 ```
 
 ## Install Tag Tools
+Replace ```danome``` with ```MamMark``` and ```dm_working``` with ```integration```.
 ```
 cd ~/
-git clone https://github.com/MamMark/mm.git
+git clone https://github.com/danome/mm.git
 cd mm
 git branch checkout integration
 cd tools/utils/tagcore
@@ -192,6 +203,7 @@ sudo python setup.py install
 ##### Install Jupyter Software
 This application is used for development and testing purposes. Currently there are notebooks for low level radio device testing and TagFuse related testing.
 ```
+cd ~/
 sudo pip install jupyter
 sudo apt-get install -y python-seaborn python-pandas
 sudo apt-get install -y ttf-bitstream-vera
@@ -202,15 +214,17 @@ sudo jupyter nbextension enable --py --sys-prefix widgetsnbextension
 ```
 $ python
 > from IPython.lib import passwd
-> password = passwd(“dogbreath")
+> password = passwd("dogbreath")
 > password
 u'sha1:d5d44468f96e:86888342f48852feeaf0a07f1e55d6cd3d5876dd'
 > CTL-D
 'sha1:1991fa41bea2:3c719e82a4e784e2affb6fb3b25b81d17e317bc0'
+
+'sha1:27fa5b4a2d6c:b09e16f0242823eda500e7474a6a46f6f12ffc38'
 ```
 
 ##### Build Jupyter Configuration
-Build the default Jupyter configuration settings (should be in your home directory. (Outputs ```/home/pi/.jupyter/jupyter_notebook_config.py```)
+Build the default Jupyter configuration settings (should be in your home directory at ```/home/pi/.jupyter/jupyter_notebook_config.py```)
 
 ```
 jupyter notebook --generate-config
@@ -228,7 +242,7 @@ To start Jupyter on the RPi, use these commands
 ```
 sudo jupyter nbextension enable --py --sys-prefix widgetsnbextension
 jupyter nbextension enable --py gmaps
-#nohup jupyter notebook --no-browser --port=8999 &
+#nohup jupyter notebook --no-browser --port=9000 &
 su pi -c "nohup nice --adjustment=-20 jupyter notebook --browser=false --allow-root --port=9000 --notebook-dir /home/pi/Desktop/TagNet&"
 ```
 

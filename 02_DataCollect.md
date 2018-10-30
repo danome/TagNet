@@ -408,3 +408,43 @@ def main(host='localhost', port=8086):
     print("Drop database: " + dbname)
     client.drop_database(dbname)
 ```
+
+## Well known Locations
+
+### 237 Blue Bonnet, Scotts Valley, CA
+```
+Geohash: 9q94z0wf5w8d
+```
+```
+Lat:     37.04902356189986
+Lng:    -122.02671189444527
+```
+```
+x:      -2702917
+y:      -4321105
+z:       3821831
+```
+
+### XYZ to Geodetic Format conversion
+```
+https://www.ngs.noaa.gov/cgi-bin/xyz_getgp.prl
+```
+
+### Geodetic to XYZ Format conversion
+```
+https://www.ngs.noaa.gov/cgi-bin/xyz_getxyz.prl
+```
+
+Cast Python integer into signed 32-bit equivalent
+```
+def int32(x):
+  if x>0xFFFFFFFF:
+    raise OverflowError
+  if x>0x7FFFFFFF:
+    x=int(0x100000000-x)
+    if x<2147483648:
+      return -x
+    else:
+      return -2147483648
+  return x
+```
