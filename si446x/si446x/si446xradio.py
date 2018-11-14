@@ -607,6 +607,14 @@ class Si446xRadio(object):
         return None
     #end def
 
+    def get_power(self):
+        """
+        Set radio transmission power level (0x7f = 20dBm)
+        """
+        b = self.get_property('PA', 1, 1)
+        return b[0]
+    #end def
+
     def power_up(self):
         """
         Start up the Radio.
