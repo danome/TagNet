@@ -185,6 +185,7 @@ class TagFuse(LoggingMixIn, Operations):
         # RPi specific config
         self.radio.set_property('PKT', 0x0b, '\x28\x28') # tx/rx threshold
         self.radio.set_property('PREAMBLE', 0, '\x40')   # long preamble
+        self.radio.set_power(20)
         self.tree_root = TagFuseRootTree(self.radio)
         return None
 
