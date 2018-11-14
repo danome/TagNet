@@ -1165,9 +1165,14 @@ class RootDirHandler(DirHandler):
         if get_cmd_args().verbosity > 4:
             self.log.debug(method=inspect.stack()[0][3],
                            lineno=sys._getframe().f_lineno,
-                           parent=type(parent), index=index, path_list=path_list)
+                           root=type(root), parent=type(parent),
+                           index=index, path_list=path_list)
         return (handler, path_list)
 
+
+# number of times to keep polling after first new tag has been found
+# this gives a chance for missed communication
+MAX_POLL = 1
 
 class PollNetDirHandler(DirHandler):
     '''
@@ -1175,19 +1180,46 @@ class PollNetDirHandler(DirHandler):
 
     Performs polling for new tags and adds them to root directory.
     '''
-    def __init__(self, radio, count, active, a_dict):
+    def __init__(self, radio, known, a_dict):
         '''
         radio      instance of radio to use for I/O
         count      maximum number of iterations to poll
-        active     name of directory with tags found by
+        known    name of directory with tags found by
                    previous poll
         '''
         super(PollNetDirHandler, self).__init__(a_dict)
-        self.radio      = radio
-        self.poll_count = count
-        self.active    = active
+        self.radio    = radio
+        self.known    = known
 
-    def readdir(self, path_list, tree_root, new_tag):
+    def create(self, path_list, mode):
+        file_name = path_list[-1]
+        self.log.info(method=inspect.stack()[0][3],
+                      path_list=path_list[:-1],
+                      mode=oct(mode),
+                      file=file_name)
+        # add if this instance is poll/known handler
+        if self.parent[self.known] == self:
+            try:
+                x = self.parent[self.known][file_name]
+                raise FuseOSError(EEXIST)
+            except KeyError:
+                self.parent[self.known][file_name] = FileHandler(S_IFREG, 0o444, 1)
+                self.parent[self.known][file_name]['st_mtime'] = time()
+        return 0
+
+    def unlink(self, path_list):       # delete
+        self.log.info(method=inspect.stack()[0][3],
+                      path_list=path_list)
+        try:
+            del self[path_list[-1]]
+            self['']['st_nlink'] -= 1
+        except:
+            if get_cmd_args().verbosity > 1:
+                self.log.debug('file not found', method=inspect.stack()[0][3],lineno=sys._getframe().f_lineno,
+                               path_list=path_list, )
+        return 0
+
+    def utimens(self, path_list, times):
         '''
         look for any new tags in the neighborhood and add them
         to this node's children. A whole new instance of the
@@ -1202,97 +1234,89 @@ class PollNetDirHandler(DirHandler):
         tag. The first item is its node id, which we use for the
         directory entry name.
         '''
+        atime, mtime = times
+        if get_cmd_args().verbosity > 1:
+            self.log.debug(method=inspect.stack()[0][3],
+                           times={'access':atime, 'modified':mtime},
+                           path_list=path_list, )
+
+        # don't wait more than 10 minutes
+        if (time() - mtime) > ((10 * 60) + 1):
+            raise FuseOSError(EINVAL)
+
         if get_cmd_args().verbosity > 2:
             self.log.info(method=inspect.stack()[0][3],
                           parent=type(self.parent),
-                          active=type(self.parent[self.active]),
+                          known=type(self.parent[self.known]),
                           me=type(self), )
 
-        # clean directory of tags previously added to poll/new
-        if self.parent[self.active] is not self:
+        # clean directory of tags previously if new search
+        if self.parent[self.known] is not self:
             for tag in self.keys():
                 if tag is '' or tag.startswith('.'):
                     continue
                 del self[tag]
 
-        # build list of known tags found in poll/active
-        my_names = []
-        for tag in self.parent[self.active].keys():
+        # build list of existing tag names from poll/known
+        known_names = []
+        for tag in self.parent[self.known].keys():
             if tag is '' or tag.startswith('.'):
                 continue          # skip special files
-            my_names.append(tag)
-        my_set = Set(my_names)    # tags currently active
+            known_names.append(tag)
+        known_set = Set(known_names) # tags currently known
 
         # poll for list of new tags
         tag_set = Set()           # tags found by polling
         new_set = Set()           # tags added to new list
         more = 0
-        for i in range(self.poll_count):
+        while time() < mtime:
             tag_set |= Set(radio_poll(self.radio).keys())
-            new_set |= tag_set.difference(my_set)
+            new_set |= tag_set.difference(known_set)
             if get_cmd_args().verbosity > 2:
                 self.log.debug(method=inspect.stack()[0][3],
                                lineno=sys._getframe().f_lineno,
-                              local=my_set,
+                              local=known_set,
                               new=new_set,
                               tag=tag_set)
-            if new_set:
-                if more > 1:      # keep looking for a few more
+            if new_set:             # stop if any found
+                if more > MAX_POLL: # keep looking for a few more
                     break
                 more += 1
         if get_cmd_args().verbosity > 1:
             self.log.debug(method=inspect.stack()[0][3],
                            lineno=sys._getframe().f_lineno,
-                           local=my_set,
+                           known=known_set,
                            new=new_set,
-                           tag=tag_set)
+                           all=tag_set)
 
-        # add new found tags
+        # add newly discovered tags
         for tag in new_set:
             # Add new Tag tree onto root of TagFuse tree
             # and use passed function to instantiate it
-            tree_root[tag] = new_tag(self.radio)
-            # also add tag name to poll/active directory
-            self.parent[self.active][tag] = FileHandler(S_IFREG, 0o444, 1)
-            self.parent[self.active][tag]['st_mtime'] = time()
-            tree_root['']['st_nlink'] += 1
+            self.root[tag] = self.root.tag_fn(self.radio)
+            self.root['']['st_nlink'] += 1
 
-        # update time for tags that responded previously
-        for tag in my_set.difference(tag_set):
-            self.parent[self.active][tag]['st_mtime'] = time()
+            # add tag to poll/new directory
+            self[tag] = FileHandler(S_IFREG, 0o444, 1)
+            self[tag]['st_mtime'] = time()
+            self['']['st_nlink'] += 1
 
+            # add tag to poll/known directory, if not this object
+            if self.parent[self.known] is not self:
+                self.parent[self.known][tag] = FileHandler(S_IFREG, 0o444, 1)
+                self.parent[self.known][tag]['st_mtime'] = time()
+                self.parent[self.known]['']['st_nlink'] += 1
 
-        dir_names = ['.','..'] + list(new_set)
-        if self.parent[self.active] == self:
-            dir_names += list(my_set)
+        # update time for known tags that responded this time too
+        confirmed_set = known_set.intersection(tag_set)
+        for tag in confirmed_set:
+            self.parent[self.known][tag]['st_mtime'] = time()
 
-        self.log.info('poll results',
-                      method=inspect.stack()[0][3],
-                      dir_list=dir_names)
-        return dir_names
+        if new_set or confirmed_set:
+            self.parent[self.known]['']['st_mtime'] = time()
 
-    def create(self, path_list, mode):
-        file_name = path_list[-1]
-        self.log.info(method=inspect.stack()[0][3],
-                      path_list=path_list[:-1],
-                      mode=oct(mode),
-                      file=file_name)
-        # add if this instance is poll/active handler
-        if self.parent[self.active] == self:
-            try:
-                x = self.parent[self.active][file_name]
-                raise FuseOSError(EEXIST)
-            except KeyError:
-                self.parent[self.active][file_name] = FileHandler(S_IFREG, 0o444, 1)
-                self.parent[self.active][file_name]['st_mtime'] = time()
-        return 0
-
-    def unlink(self, path_list):       # delete
-        self.log.info(method=inspect.stack()[0][3],
-                      path_list=path_list)
-        # delete if this instance is the poll/active handler
-        if self.parent[self.active] == self:
-            del self[path_list[-1]]
+        # update directory time to reflect when changes occurred
+        self['']['st_mtime'] = time()
         return 0
 
 

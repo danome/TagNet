@@ -209,30 +209,26 @@ def TagFuseTagTree(radio):
     ]))
 
 def TagFuseRootTree(radio):
-    return RootDirHandler(OrderedDict([
-        ('',        FileHandler(S_IFDIR, 0o751, 4)),
     return RootDirHandler(TagFuseTagTree, OrderedDict([
         ('',        FileHandler(S_IFDIR, 0o751, 6)),
         ('.test',   DirHandler(OrderedDict([
-            ('',       FileHandler(S_IFDIR, 0o751, 6)),
+            ('',       FileHandler(S_IFDIR, 0o751, 8)),
             ('echo',   TestEchoHandler(S_IFREG, 0o666, 1)),
             ('ones',   TestOnesHandler(S_IFREG, 0o444, 1)),
             ('zeros',  TestZerosHandler(S_IFREG, 0o444, 1)),
             ('sum',    TestSumHandler(S_IFREG, 0o222, 1)),
+            ('tx_pwr', TxPowerFileHandler(radio, '', S_IFREG, 0o662, 1)),
         ]))),
         ('.verbosity', VerbosityDirHandler(OrderedDict([
-            ('',       FileHandler(S_IFDIR, 0o751, 4)),
+            ('',       FileHandler(S_IFDIR, 0o751, 2)),
         ]))),
         ('.poll',   DirHandler(OrderedDict([
-            ('',       FileHandler(S_IFDIR, 0o751, 6)),
-            ('new1',   PollNetDirHandler(radio, 35, 'found', OrderedDict([
-                ('',       FileHandler(S_IFDIR, 0o751, 4)),
+            ('',       FileHandler(S_IFDIR, 0o751, 4)),
+            ('new',    PollNetDirHandler(radio, 'known', OrderedDict([
+                ('',       FileHandler(S_IFDIR, 0o751, 2)),
             ]))),
-            ('new5',   PollNetDirHandler(radio, 165, 'found', OrderedDict([
-                ('',       FileHandler(S_IFDIR, 0o751, 4)),
-            ]))),
-            ('found', PollNetDirHandler(radio, 1, 'found', OrderedDict([
-                ('',       FileHandler(S_IFDIR, 0o751, 4)),
+            ('known',  PollNetDirHandler(radio, 'known', OrderedDict([
+                ('',       FileHandler(S_IFDIR, 0o751, 2)),
             ]))),
         ]))),
         ('ffffffffffff', TagFuseTagTree(radio)),
