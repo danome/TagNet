@@ -17,11 +17,13 @@ __all__ = ['FileHandler',
            'RootDirHandler',
            'PollNetDirHandler',
            'ImageDirHandler',
+           'RssiFileHandler',
            'SysActiveDirHandler',
            'SysBackupDirHandler',
            'SysGoldenDirHandler',
            'SysNibDirHandler',
            'SysRunningDirHandler',
+           'TxPowerFileHandler',
            'VerbosityDirHandler',
 ]
 
@@ -63,14 +65,14 @@ try:
     from radiofile   import file_get_bytes, file_put_bytes, file_update_attrs, simple_get_record, file_truncate
     from radioimage  import im_put_file, im_get_file, im_delete_file, im_close_file
     from radioimage  import im_get_dir, im_set_version
-    from radioutils  import path2list, radio_poll, radio_get_rtctime, radio_set_rtctime
+    from radioutils  import path2list, radio_poll, radio_get_rtctime, radio_set_rtctime, radio_set_power, radio_get_power
     from tagfuseargs import get_cmd_args, set_verbosity, taglog, rootlog
     from sparsefile  import SparseFile
 except ImportError:
     from tagfuse.radiofile   import file_get_bytes, file_put_bytes, file_update_attrs, simple_get_record
     from tagfuse.radioimage  import im_put_file, im_get_file, im_delete_file, im_close_file
     from tagfuse.radioimage  import im_get_dir, im_set_version
-    from tagfuse.radioutils  import path2list, radio_poll, radio_get_rtctime, radio_set_rtctime
+    from tagfuse.radioutils  import path2list, radio_poll, radio_get_rtctime, radio_set_rtctime, radio_set_power, radio_get_power
     from tagfuse.tagfuseargs import get_cmd_args, set_verbosity, taglog, rootlog
     from tagfuse.sparsefile  import SparseFile
 
@@ -96,7 +98,8 @@ def default_file_attrs(ntype, mode, nlinks, size):
                     st_size=size,
                     st_ctime=time(),
                     st_mtime=-1,
-                    st_atime=-1)
+                    st_atime=-1,
+                    rssi=0)
 
 
 class FileHandler(OrderedDict):
@@ -722,6 +725,91 @@ class SysFileHandler(FileHandler):
     def __init__(self, radio, ntype, mode, nlinks):
         super(SysFileHandler, self).__init__(ntype, mode, nlinks)
         self.radio = radio
+
+
+class RssiFileHandler(FileHandler):
+    '''
+    RSSI Measurement File Handler class
+
+    performs reading and reporting Radio signal strength indicator.
+    '''
+    def __init__(self, radio, rssi_stash, ntype, mode, nlinks):
+        '''
+        The local variable indicates the name of the tree-node
+        that provides the receive RSSI value as its st_size.
+        '''
+        super(RssiFileHandler, self).__init__(ntype, mode, nlinks)
+        self.radio = radio
+        self.rssi_stash = rssi_stash
+
+    def getattr(self, path_list, update=False):
+        '''
+        The receive RSSI is sampled during receipt of the most
+        recent response to the Tag's get attributes request
+        and stored on the object referred by rssi_stash. If
+        no referral, then this is the stash object so just
+        return current attributes.
+        '''
+        if self.rssi_stash:
+            if update:
+                file_update_attrs(self.radio, path_list, self)
+                self.parent[self.rssi_stash]['st_size'] = self['rssi']
+                self.parent[self.rssi_stash]['st_mtime'] = self['st_mtime']
+        return super(RssiFileHandler, self).getattr(path_list, update=update)
+
+class TxPowerFileHandler(FileHandler):
+    '''
+    Transmit Power File Handler class
+
+    Performs reading and reporting Radio transmitter power level.
+    Handles both local and remote power control by using the rssi_stash
+    variable to denote whether controlling power of the remote tag or
+    else the local radio. If remote, then send request to tag and
+    use the response data to set the st_size as well as set the
+    rssi_stash.
+    '''
+    def __init__(self, radio, rssi_stash, ntype, mode, nlinks):
+        super(TxPowerFileHandler, self).__init__(ntype, mode, nlinks)
+        self.radio = radio
+        self.rssi_stash = rssi_stash
+
+    def getattr(self, path_list, update=False):
+        if self.rssi_stash:
+            if update:
+                power, rssi, _, _ = radio_get_power(self.radio,
+                                                    node=TagTlv(str(path_list[0])))
+                self['rssi'] = rssi
+                if power:
+                    self['st_size'] = power
+                    self['st_mtime'] = time()
+                else:
+                    self['st_size'] = 0
+                    self['st_mtime'] = -2
+                self.parent[self.rssi_stash]['st_size'] = self['rssi']
+                self.parent[self.rssi_stash]['st_mtime'] = self['st_mtime']
+            if get_cmd_args().verbosity > 2:
+                self.log.debug(method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
+                               path_list=path_list,
+                               time=self['st_mtime'], size=self['st_size'],
+                               rssi=self['rssi'])
+        else:
+            if update:
+                self['st_size'] = self.radio.get_power()
+                self['st_mtime'] = time()
+
+        return super(TxPowerFileHandler, self).getattr(path_list, update=update)
+
+    def truncate(self, path_list, power):
+        if get_cmd_args().verbosity > 2:
+            self.log.debug(method=inspect.stack()[0][3],
+                           lineno=sys._getframe().f_lineno,
+                           path_list=path_list,
+                           power=power)
+        if self.rssi_stash:
+            radio_set_power(self.radio, power, node=TagTlv(str(path_list[0])))
+        else:
+            self.radio.set_power(power)
+        return 0
 
 
 class TestBaseHandler(FileHandler):

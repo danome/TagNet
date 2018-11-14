@@ -185,22 +185,25 @@ def TagFuseTagTree(radio):
     return DirHandler(OrderedDict([
         ('',        FileHandler(S_IFDIR, 0o751, 3)),
         ('tag',     DirHandler(OrderedDict([
-            ('',       FileHandler(S_IFDIR, 0o751, 6)),
+            ('',       FileHandler(S_IFDIR, 0o751, 8)),
             ('poll',   TagFusePollTree(radio)),
             ('sd',     TagFuseSDTree(radio)),
             ('sys',    TagFuseSysTree(radio)),
             ('info',   TagFuseInfoTree(radio)),
             ('radio',  DirHandler(OrderedDict([
-                ('',       FileHandler(S_IFDIR, 0o751, 7)),
+                ('',       FileHandler(S_IFDIR, 0o751, 3)),
                 ('stats',  SimpleIORecHandler(radio, S_IFREG, 0o666, 1)),
             ]))),
             ('.test',   DirHandler(OrderedDict([
-                ('',       FileHandler(S_IFDIR, 0o751, 7)),
+                ('',       FileHandler(S_IFDIR, 0o751, 9)),
                 ('echo',   ByteIOFileHandler(radio, S_IFREG, 0o662, 1)),
                 ('ones',   ByteIOFileHandler(radio, S_IFREG, 0o664, 1)),
                 ('zeros',  ByteIOFileHandler(radio, S_IFREG, 0o664, 1)),
                 ('sum',    ByteIOFileHandler(radio, S_IFREG, 0o664, 1)),
                 ('drop',   ByteIOFileHandler(radio, S_IFREG, 0o662, 1)),
+                ('rssi',   RssiFileHandler(radio, 'rx_rssi', S_IFREG, 0o662, 1)),
+                ('rx_rssi',RssiFileHandler(radio, '', S_IFREG, 0o662, 1)),
+                ('tx_pwr', TxPowerFileHandler(radio, 'rx_rssi', S_IFREG, 0o662, 1)),
             ]))),
         ]))),
     ]))

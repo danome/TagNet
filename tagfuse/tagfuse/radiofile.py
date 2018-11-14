@@ -249,6 +249,7 @@ def file_update_attrs(radio, path_list, attrs):
         filesize = 0
     attrs['st_size']  = filesize
     attrs['st_mtime'] = this_time
+    attrs['rssi'] = msg_meta[0]
     return attrs
 
 def file_truncate(radio, path_list, offset):
