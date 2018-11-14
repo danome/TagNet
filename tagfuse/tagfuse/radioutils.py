@@ -123,8 +123,7 @@ lat, lon, elv = xyz_struct.unpack(ba)
 
 home_geo = float(lat)/10**7, float(lon)/10**7, float(elv)/10**2
 if get_cmd_args().verbosity > 3:
-    mylog.debug('home geolocation',
-                lineno=sys._getframe().f_lineno,
+    mylog.debug('home geolocation', lineno=sys._getframe().f_lineno,
                 data={'latitude':lat,'longitude':lon,'elevation':elv,})
 
 xa = "ffd6c1bf"
@@ -135,8 +134,7 @@ x, y, z = xyz_struct.unpack(ba)
 
 home_xyz = x, y, z
 if get_cmd_args().verbosity > 3:
-    mylog.debug('home geolocation',
-                lineno=sys._getframe().f_lineno,
+    mylog.debug('home xyz location', lineno=sys._getframe().f_lineno,
                 data={'x':x,'y':y,'z':z,})
 
 # Scotts Valley
@@ -261,10 +259,12 @@ def msg_exchange(radio, req, power=RADIO_POWER, wait=MAX_WAIT, tries=MAX_RETRIES
         payload = None
         sstatus = radio_send_msg(radio, req_msg, power)
         rsp_buf, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, wait)
+        if get_cmd_args().verbosity > 4 and req.payload:
+            mylog.debug('msg_exchange received', method=inspect.stack()[0][3],
+                        rssi=rssi, rstatus=rstatus)
         if (rsp_buf):
             if get_cmd_args().verbosity > 3:
-                mylog.debug(method=inspect.stack()[0][3],
-                            lineno=sys._getframe().f_lineno,
+                mylog.debug(method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
                             size=len(rsp_buf),
                             sample=hexlify(rsp_buf[:20]))
             try:
@@ -272,9 +272,7 @@ def msg_exchange(radio, req, power=RADIO_POWER, wait=MAX_WAIT, tries=MAX_RETRIES
                 if (rsp.payload):
                     payload = rsp.payload
                     if get_cmd_args().verbosity > 4:
-                        mylog.debug('rsp payload',
-                                    method=inspect.stack()[0][3],
-                                    lineno=sys._getframe().f_lineno,
+                        mylog.debug('rsp payload', method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
                                     data=payload.__repr__())
                     error, eof = payload2values(payload,
                                            [tlv_types.ERROR,
@@ -296,27 +294,23 @@ def msg_exchange(radio, req, power=RADIO_POWER, wait=MAX_WAIT, tries=MAX_RETRIES
            or (error is tlv_errors.EODATA) \
            or (error is tlv_errors.EALREADY):
             if get_cmd_args().verbosity > 4:
-                mylog.debug('done', method=inspect.stack()[0][3],
-                            lineno=sys._getframe().f_lineno,
+                mylog.debug('done', method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
                             error=error,
                             tries=tries)
             break
         tries -= 1
         if get_cmd_args().verbosity > 3:
-            mylog.debug('retry', method=inspect.stack()[0][3],
-                        lineno=sys._getframe().f_lineno,
+            mylog.debug('retry', method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
                         tries=tries,
                         error=error)
         if (tries) and (error is tlv_errors.EBUSY):
             sleep(.1)
             if get_cmd_args().verbosity > 3:
-                mylog.debug('sleep', method=inspect.stack()[0][3],
-                            lineno=sys._getframe().f_lineno,
+                mylog.debug('sleep', method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
                             error=error,
                             time=.1)
     if get_cmd_args().verbosity > 2:
-        mylog.debug('complete', method=inspect.stack()[0][3],
-                    lineno=sys._getframe().f_lineno,
+        mylog.debug('complete', method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
                     error=error, data=payload.__repr__())
     return error, payload, (rssi, sstatus, rstatus)
 
@@ -478,6 +472,9 @@ def collect_int_status(status):
         for item in pend.iteritems():
             if item[1]:
                 p.append(item[0])
+    if get_cmd_args().verbosity > 4:
+        mylog.debug('*** collect_int_status', method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
+                    status=status, progress=p)
     return p
 
 def radio_send_msg(radio, msg, pwr):
@@ -490,8 +487,7 @@ def radio_send_msg(radio, msg, pwr):
     time2wait = (1.0/bps) * bits2send * 1000
     time2wait *= 3                   # increase for good measure
     if get_cmd_args().verbosity > 3:
-        mylog.debug(method=inspect.stack()[0][3],
-                    lineno=sys._getframe().f_lineno,
+        mylog.debug(method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
                     start=start, speed=bps,
                     bits=bits2send, delay=time2wait)
 
@@ -557,11 +553,13 @@ def radio_send_msg(radio, msg, pwr):
     if (now >= end):
         mylog.error('timeout', method=inspect.stack()[0][3])
         if get_cmd_args().verbosity > 3:
-            mylog.debug(method=inspect.stack()[0][3],
-                        lineno=sys._getframe().f_lineno,
+            mylog.debug(method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
                         data=progress)
     __, tx = radio.fifo_info()
     progress.extend([time(), [':', len(msg), tx]])
+    if get_cmd_args().verbosity > 3:
+        mylog.debug('*** radio_send_msg', method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
+                    progress=progress)
     return progress
 
 
@@ -651,8 +649,7 @@ def radio_receive_msg(radio, max_recv, wait):
         progress.extend([time(), ['crc','e',status]])
         mylog.error('crc error',method=inspect.stack()[0][3])
         if get_cmd_args().verbosity > 3:
-            mylog.debug(method=inspect.stack()[0][3],
-                        lineno=sys._getframe().f_lineno,
+            mylog.debug(method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
                         rssi=rssi, data=progress)
         msg = None
     elif ((pkt_len + 1) != len(msg)):
@@ -660,8 +657,7 @@ def radio_receive_msg(radio, max_recv, wait):
                    expected=pkt_len+1, got=len(msg))
         progress.extend([time(), ['len',pkt_len+1,len(msg),'e',status]])
         if get_cmd_args().verbosity > 3:
-            mylog.debug(method=inspect.stack()[0][3],
-                        lineno=sys._getframe().f_lineno,
+            mylog.debug(method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
                         rssi=rssi, data=progress)
         msg = None
     return (msg, rssi, progress)
@@ -687,16 +683,14 @@ def radio_poll(radio, window=1000, slots=16, power=RADIO_POWER, wait=None):
     start      = time()
     end        = start + wait_time + SHORT_DELAY
     if get_cmd_args().verbosity > 2:
-        mylog.debug(method=inspect.stack()[0][3],
-                    lineno=sys._getframe().f_lineno,
+        mylog.debug(method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
                     start=start, end=end,
                     total=end-start, delay=wait_time,
                     slots=slots, window=window, speed=bps)
     rstatus    = ''
     sstatus    = radio_send_msg(radio, req_msg, power)
     if get_cmd_args().verbosity > 3:
-        mylog.debug(method=inspect.stack()[0][3],
-                    lineno=sys._getframe().f_lineno,)
+        mylog.debug(method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno)
 #                    name=req_obj.name,)
 #                    payload=req_obj.payload,)
 #                    data=hexlify(req_msg))
@@ -706,8 +700,7 @@ def radio_poll(radio, window=1000, slots=16, power=RADIO_POWER, wait=None):
         if rsp_msg:
             last_rssi = rssi
             if get_cmd_args().verbosity > 3:
-                mylog.debug(method=inspect.stack()[0][3],
-                            lineno=sys._getframe().f_lineno,
+                mylog.debug(method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
                             data=hexlify(rsp_msg))
             try:
                 rsp_obj = TagMessage(rsp_msg)
@@ -720,12 +713,10 @@ def radio_poll(radio, window=1000, slots=16, power=RADIO_POWER, wait=None):
             except (TlvBadException, TlvListBadException):
                 mylog.warn('bad parameters',method=inspect.stack()[0][3])
                 if get_cmd_args().verbosity > 3:
-                    mylog.debug(method=inspect.stack()[0][3],
-                                lineno=sys._getframe().f_lineno,
+                    mylog.debug(method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
                                 data=radio.trace.filter(count=-20))
     if get_cmd_args().verbosity > 2:
-        mylog.debug(method=inspect.stack()[0][3],
-                    lineno=sys._getframe().f_lineno,
+        mylog.debug(method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
                     elapsed=time()-start,
                     data=found)
     return found
@@ -745,8 +736,7 @@ def radio_get_position(radio, node=None, name=None, power=RADIO_POWER, wait=MAX_
     xyz_struct = pystruct.Struct('<iii')
     get_gps_xyz = TagGet(name)
     if get_cmd_args().verbosity > 2:
-        mylog.debug(method=inspect.stack()[0][3],
-                    lineno=sys._getframe().f_lineno,
+        mylog.debug(method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
                     name=get_gps_xyz.name)
     req_msg = get_gps_xyz.build()
     error, payload, msg_meta = msg_exchange(radio, req_obj)
@@ -757,16 +747,14 @@ def radio_get_position(radio, node=None, name=None, power=RADIO_POWER, wait=MAX_
                                     [tlv_types.GPS,
                                     ])[0]
             if get_cmd_args().verbosity > 2:
-                mylog.debug(method=inspect.stack()[0][3],
-                            lineno=sys._getframe().f_lineno,
+                mylog.debug(method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
                             data={'x':gps_xyz[0],
                                   'y':gps_xyz[0],
                                   'z':gps_xyz[0],})
             lon, lat, elv = transform(ecef, wgs84, *gps_xyz)
             gps_geo = float(lat), float(lon), float(elv)
             if get_cmd_args().verbosity > 2:
-                mylog.debug('home geolocation',
-                            lineno=sys._getframe().f_lineno,
+                mylog.debug('home geolocation', method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
                             data={'latitude':gps_geo[0],
                                   'longitude':gps_geo[1],
                                   'elevation':gps_geo[0],})
@@ -795,7 +783,9 @@ def radio_get_rssi(radio, node=None, name=None, power=RADIO_POWER, wait=MAX_WAIT
     rssi, sstatus, rstatus = msg_meta
     if (error is tlv_errors.SUCCESS):
         if payload:
-            print('radio_get_rssi',payload)
+            if get_cmd_args().verbosity > 3:
+                mylog.debug('*** radio_get_rssi', method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
+                            payload=payload)
             tag_rssi = payload2values(payload,
                                     [tlv_types.INTEGER,
                                     ])[0]
@@ -856,7 +846,9 @@ def radio_get_rtctime(radio, node=None, name=None, power=RADIO_POWER, wait=MAX_W
                             TagTlv('sys'),
                             TagTlv('rtc')])
     req_obj = TagGet(name)
-    print('*** radio_get_rtctime name: {}'.format(name))
+    if get_cmd_args().verbosity > 3:
+        mylog.debug('*** radio_get_rtctime', method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
+                    name=name)
     error, payload, msg_meta = msg_exchange(radio, req_obj)
     rssi, sstatus, rstatus = msg_meta
     if (error is tlv_errors.SUCCESS):
@@ -905,8 +897,7 @@ def radio_read_test(radio, test_name, pos, num, node=None, name=None, power=RADI
                             TagTlv(tlv_types.SIZE, num),])
     req_obj = TagGet(name)
     if get_cmd_args().verbosity > 2:
-        mylog.debug(method=inspect.stack()[0][3],
-                    lineno=sys._getframe().f_lineno,
+        mylog.debug(method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
                     name=req_obj.name)
     req_msg = req_obj.build()
     radio_send_msg(radio, req_msg, power);
@@ -914,8 +905,7 @@ def radio_read_test(radio, test_name, pos, num, node=None, name=None, power=RADI
     if rsp_msg:
         rsp_obj = TagMessage(rsp_msg)
         if get_cmd_args().verbosity > 2:
-            mylog.debug(method=inspect.stack()[0][3],
-                        lineno=sys._getframe().f_lineno,
+            mylog.debug(method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
                         error=rsp_obj.header.options.param.error_code,
                         data=rsp_obj.payload.__repr__())
         if rsp_obj.payload:
@@ -952,8 +942,7 @@ def radio_write_test(radio, test_name, buf, pos=0, node=None, name=None, power=R
                         TagTlv(tlv_types.SIZE, len(buf)),])
     req_obj = TagPut(name, pl=buf)
     if get_cmd_args().verbosity > 2:
-        mylog.debug(method=inspect.stack()[0][3],
-                    lineno=sys._getframe().f_lineno,
+        mylog.debug(method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
                     name=req_obj.name,
                     data=req_obj.payload.__repr__())
     req_msg = req_obj.build()
@@ -961,20 +950,17 @@ def radio_write_test(radio, test_name, buf, pos=0, node=None, name=None, power=R
     rsp_msg, rssi, rstatus = radio_receive_msg(radio, MAX_RECV, wait)
     if rsp_msg:
         if get_cmd_args().verbosity > 3:
-            mylog.debug(method=inspect.stack()[0][3],
-                        lineno=sys._getframe().f_lineno,
+            mylog.debug(method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
                         data=rsp_msg.__repr__())
         rsp_obj = TagMessage(rsp_msg)
         if get_cmd_args().verbosity > 4:
-            mylog.debug(method=inspect.stack()[0][3],
-                        lineno=sys._getframe().f_lineno,
+            mylog.debug(method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
                         data={'header':rsp_obj.header,
                               'name':rsp_obj.name,
                               'payload':rsp_obj.payload})
         if rsp_obj.payload:
             if get_cmd_args().verbosity > 3:
-                mylog.debug(method=inspect.stack()[0][3],
-                            lineno=sys._getframe().f_lineno,
+                mylog.debug(method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
                             data=rsp_obj.payload.__repr__())
             error, offset = payload2values(rsp_obj.payload,
                                            [tlv_types.ERROR,

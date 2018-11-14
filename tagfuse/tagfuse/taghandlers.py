@@ -789,11 +789,10 @@ class TestEchoHandler(TestBaseHandler):
         if (self.sparse == None):
             self.sparse = SparseFile('_'.join(fpath), get_cmd_args)
             items = sorted(self.sparse.items())
-        if get_cmd_args().verbosity > 2:
-            self.log.debug(method=inspect.stack()[0][3],
-                           lineno=sys._getframe().f_lineno,
-                           size=len(items))
             if items:
+                if get_cmd_args().verbosity > 2:
+                    self.log.debug(method=inspect.stack()[0][3],get_file_size(tempfile) lineno=sys._getframe().f_lineno,
+                                   size=len(items))
                 offset, block = items[-1]
                 self['st_size'] = offset + len(block)
             else:
