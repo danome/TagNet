@@ -485,7 +485,7 @@ class Si446xRadio(object):
         return None
     #end def
 
-    def get_clear_interrupts(self, clr_flags=None):
+    def get_clear_interrupts(self, clr_flags):
         """
         Clear radio chip pending interrupts
 
@@ -497,10 +497,7 @@ class Si446xRadio(object):
 
         Refer to structures defined by the Si4463 radio API revB1B.
         """
-        if clr_flags:
-            self.clear_interrupts(clr_flags)
-        else:
-            self.clear_interrupts()
+        self.clear_interrupts(clr_flags)
         rsp = self.spi.response(int_status_rsp_s.sizeof(),
                                 int_status_rsp_s.name,
                                 level=3)

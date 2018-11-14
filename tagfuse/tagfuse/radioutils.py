@@ -417,22 +417,31 @@ def radio_get_raw_config():
 
 # Get Radio Interrupt Information
 
-def int_status(radio, clr_flags=None, show=False):
-    # set default to clear none if no argument passed
-    clr_flags = clr_flags if (clr_flags) else clr_no_flags
+def int_status(radio, clr_flags, show=False):
     clr_flags.ph_pend.STATE_CHANGE = False    # always clear this interrupt
-    p_g = radio.get_clear_interrupts(clr_flags)
+    if get_cmd_args().verbosity > 4:
+        mylog.debug(method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
+                    flags=clr_flags, show=show)
+    try:
+        p_g = radio.get_clear_interrupts(clr_flags)
+    except Exception as ex:
+        mylog.debug(method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
+                    exception=ex)
+        raise RuntimeError('radio int_status error')
+
     if (show is True):
         s_name =  'int_status_rsp_s'
         p_s = eval(s_name)
         p_d = p_s.build(p_g)
-        if get_cmd_args().verbosity > 4:
-            mylog.debug('const config strings',method=inspect.stack()[0][3],
-                        lineno=sys._getframe().f_lineno,
-                        name=s_name, data=hexlify(p_d))
-            mylog.debug('config structure',method=inspect.stack()[0][3],
-                        lineno=sys._getframe().f_lineno,
-                        data=radio_display_structs[p_s](p_s, p_d))
+        mylog.debug('const config strings',method=inspect.stack()[0][3],
+                    lineno=sys._getframe().f_lineno,
+                    name=s_name, data=hexlify(p_d))
+        mylog.debug('config structure',method=inspect.stack()[0][3],
+                    lineno=sys._getframe().f_lineno,
+                    data=radio_display_structs[p_s](p_s, p_d))
+    if get_cmd_args().verbosity > 4:
+        mylog.debug(method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
+                    results=p_g)
     return p_g
 
 
@@ -487,9 +496,11 @@ def radio_send_msg(radio, msg, pwr):
                     bits=bits2send, delay=time2wait)
 
     # clear interrupts and report any pending
-    progress.extend(collect_int_status(int_status(radio, clr_all_flags)))
-    radio.set_power(pwr)
-    progress.extend([time(),['Pwr',pwr]])
+    ints = int_status(radio, clr_all_flags)
+    if get_cmd_args().verbosity > 5:
+        mylog.debug('*** radio_send_msg', method=inspect.stack()[0][3], lineno=sys._getframe().f_lineno,
+                    int_status=ints)
+    progress.extend(collect_int_status(ints))
 
     __, tx = radio.fifo_info(rx_flush=True, tx_flush=True)
     if (tx != MAX_FIFO_SIZE):
@@ -573,7 +584,7 @@ def radio_receive_msg(radio, max_recv, wait):
 
     msg = bytearray()
     rssi = -1
-    int_status(radio) # clear all interrupt pending flags
+    int_status(radio, clr_all_flags) # clear all interrupt pending flags
     radio.fifo_info(rx_flush=True, tx_flush=True)
     radio.start_rx(0)
     status = int_status(radio, clr_no_flags)
@@ -629,9 +640,9 @@ def radio_receive_msg(radio, max_recv, wait):
             no_action = False
             progress.extend([time(), 'O'])
             break
-        status = int_status(radio, clr_flags=cflags)
+        status = int_status(radio, cflags)
 
-    status = int_status(radio)                   # clear all outstanding
+    status = int_status(radio, clr_all_flags)       # clear all outstanding
     pkt_len = radio.get_packet_info()
     if (time() > end):
         progress.extend([time(), ['to','e',status]])
