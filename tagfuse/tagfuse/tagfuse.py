@@ -101,7 +101,7 @@ class TagFuse(LoggingMixIn, Operations):
         path_list = path2list(path)
         if (path == '/'):
             return self.tree_root, path_list
-        return self.tree_root.traverse(self.tree_root, path_list, 0)
+        return self.tree_root.traverse(self.tree_root, self.tree_root, path_list, 0)
 
     def DeleteNode(self, path, node):
         pass
@@ -247,7 +247,7 @@ class TagFuse(LoggingMixIn, Operations):
                 self.log.debug(method=inspect.stack()[0][3],
                              handler=type(handler),
                              path_list=path_list)
-        dir_list = handler.readdir(path_list, self.tree_root, TagFuseTagTree)
+        dir_list = handler.readdir(path_list)
         if dir_list:
             return dir_list
         else:

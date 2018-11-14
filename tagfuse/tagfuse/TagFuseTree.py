@@ -208,6 +208,8 @@ def TagFuseTagTree(radio):
 def TagFuseRootTree(radio):
     return RootDirHandler(OrderedDict([
         ('',        FileHandler(S_IFDIR, 0o751, 4)),
+    return RootDirHandler(TagFuseTagTree, OrderedDict([
+        ('',        FileHandler(S_IFDIR, 0o751, 6)),
         ('.test',   DirHandler(OrderedDict([
             ('',       FileHandler(S_IFDIR, 0o751, 6)),
             ('echo',   TestEchoHandler(S_IFREG, 0o666, 1)),

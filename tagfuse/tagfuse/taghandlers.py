@@ -945,9 +945,10 @@ class DirHandler(OrderedDict):
                            method=inspect.stack()[0][3],
                            lineno=sys._getframe().f_lineno,
                            name=self.__class__.__name__)
+        self.root = None
         self.parent = None
 
-    def traverse(self, parent, path_list, index):
+    def traverse(self, root, parent, path_list, index):
         """
         Traverse the directory tree until reaching the leaf identified
         by path_list.
@@ -958,26 +959,41 @@ class DirHandler(OrderedDict):
         class to handle any required conversion from printable
         filenames to Tagnet TLV types.
         Directory keys are printable filenames.
+        The parent and root values for each node traversed is set
+        based on input. This is a kludgy way to make sure all of
+        the nodes have been properly initialized. This can't be
+        done at object.__init__() because the initialization of
+        the Root Tree happens before the root node id is known.
+        Since nodes in the tree can be dynamically added or
+        removed at any time we would have to make sure that it
+        is properly initialized. Doing it here makes sure that
+        every node is set, albeit a little extra overhead
+        since it mught have already been set by previous call.
         """
+        self.root = root
         self.parent = parent
         if get_cmd_args().verbosity > 4:
             self.log.debug(method=inspect.stack()[0][3],
                            lineno=sys._getframe().f_lineno,
-                           parent=type(parent), index=index, path_list=path_list)
+                           root=type(root), parent=type(parent),
+                           index=index, path_list=path_list)
         if index < (len(path_list) - 1):      # look in subdirectory
             for key, handler in self.iteritems():
+                handler.root = root
+                handler.parent = self
                 if (path_list[index] == key):
                     if isinstance(handler, DirHandler):
-                        return handler.traverse(self, path_list, index + 1)
+                        return handler.traverse(root, self, path_list, index + 1)
         else:
             for key, handler in self.iteritems():
+                handler.root = root
+                handler.parent = self
                 if get_cmd_args().verbosity > 4:
                     self.log.debug(method=inspect.stack()[0][3],
                                    lineno=sys._getframe().f_lineno,
                                    name=key, handler=type(handler))
                 # match the terminal name
                 if (path_list[index] == key):
-                    handler.parent = self
                     return (handler, path_list)
             self.log.warn('fail', method=inspect.stack()[0][3],
                       index=index, path_list=path_list)
@@ -996,7 +1012,7 @@ class DirHandler(OrderedDict):
                            path_list=path_list, update=update)
         return self['']
 
-    def readdir(self, path_list, tree_root, new_tag_def):
+    def readdir(self, path_list):
         dir_names = ['.','..']
         for name in self.keys():
             if (name != ''):
@@ -1034,11 +1050,17 @@ class RootDirHandler(DirHandler):
     '''
     Tag Tree Root Directory Handler class
     '''
-    def __init__(self, a_dict):
+    def __init__(self, tag_fn, a_dict):
+        '''
+        tag_fn provides the function to call when creating new
+        tag instances in the Tag Tree.
+        '''
         super(RootDirHandler, self).__init__(a_dict)
+        self.tag_fn = tag_fn
+        self.root = None
         self.parent = None
 
-    def traverse(self, parent, path_list, index):
+    def traverse(self, root, parent, path_list, index):
         '''
         perform normal traverse operation followed by a fixup of
         the node_id string in the path_list. Want to convert
@@ -1048,8 +1070,9 @@ class RootDirHandler(DirHandler):
         string (file attributes) or a dot file (special in this
         level).
         '''
+        self.root = root
         self.parent = parent
-        handler, path_list = super(RootDirHandler, self).traverse(self, path_list, index)
+        handler, path_list = super(RootDirHandler, self).traverse(root, self, path_list, index)
         if path_list and path_list[index] is not '' and not path_list[index].startswith('.'):
             path_list[index] = '<node_id:' + path_list[index] + '>'
         if get_cmd_args().verbosity > 4:
@@ -1196,7 +1219,7 @@ class ImageDirHandler(DirHandler):
         super(ImageDirHandler, self).__init__(a_dict)
         self.radio = radio
 
-    def readdir(self, path_list, tree_root, new_tag_def):
+    def readdir(self, path_list):
         if get_cmd_args().verbosity > 2:
             self.log.debug(method=inspect.stack()[0][3],
                            lineno=sys._getframe().f_lineno,
@@ -1241,7 +1264,7 @@ class ImageDirHandler(DirHandler):
             self.log.debug(method=inspect.stack()[0][3],
                            lineno=sys._getframe().f_lineno,
                            dir=self)
-        return super(ImageDirHandler, self).readdir(path_list, tree_root, new_tag_def)
+        return super(ImageDirHandler, self).readdir(path_list)
 
     def create(self, path_list, mode):
         file_name = path_list[-1]
@@ -1279,7 +1302,7 @@ class SysDirHandler(DirHandler):
         super(SysDirHandler, self).__init__(a_dict)
         self.radio = radio
 
-    def readdir(self, path_list, tree_root, new_tag_def, img_state=''):
+    def readdir(self, path_list, img_state=''):
         if get_cmd_args().verbosity > 2:
             self.log.debug(method=inspect.stack()[0][3],
                            lineno=sys._getframe().f_lineno,
@@ -1321,7 +1344,7 @@ class SysDirHandler(DirHandler):
             self.log.debug(method=inspect.stack()[0][3],
                            lineno=sys._getframe().f_lineno,
                            dir=self)
-        return super(SysDirHandler, self).readdir(path_list, tree_root, new_tag_def)
+        return super(SysDirHandler, self).readdir(path_list)
 
 
 class SysActiveDirHandler(SysDirHandler):
@@ -1363,9 +1386,9 @@ class SysActiveDirHandler(SysDirHandler):
                       local_name=ln_l, target=tg_l)
         return 0
 
-    def readdir(self, path_list, tree_root, new_tag_def):
+    def readdir(self, path_list):
         dir = super(SysActiveDirHandler, self).readdir(
-            path_list, tree_root, new_tag_def, img_state='active')
+            path_list, img_state='active')
         self.log.info(method=inspect.stack()[0][3], dir=dir)
         return dir
 
@@ -1410,9 +1433,9 @@ class SysBackupDirHandler(SysDirHandler):
             return 0
         return 0
 
-    def readdir(self, path_list, tree_root, new_tag_def):
+    def readdir(self, path_list):
         dir = super(SysBackupDirHandler, self).readdir(
-                       path_list, tree_root, new_tag_def, img_state='backup')
+                       path_list, img_state='backup')
         self.log.info(method=inspect.stack()[0][3], dir=dir)
         return dir
 
