@@ -131,7 +131,7 @@ fuse libfuse2 libfuse-dev \
 python2.7-llfuse python3-llfuse
 ```
 
-## Install dot-files
+## Install local configuration files
 These files provide a 'standard' configuration for tool related environment setup.
 
 1. copy files, including .* files with this command:
@@ -144,6 +144,26 @@ FILES=".bash_aliases .bash_functions .bash_login .bash_logout .bashrc .emacs.d \
 echo -e "\n*** dots from $SRC_DIR -> $DST_DIR ***"
 (for i in $FILES; do echo $i; done) | rsync -aiuWr --files-from=- $SRC_DIR $DST_DIR
 ```
+
+2. edit .bashrc to change EXPECTED_USER to 'pi' (was 'xyz').
+
+
+3. install magit
+
+start emacs
+
+initialization will execute:
+
+    (require 'package)
+    (add-to-list 'package-archives '("melpa" . "http://melpa.org/packages/") t)
+    (package-initialize)
+    (when (not package-archive-contents)
+      (package-refresh-contents))
+
+you will see emacs fetch various components from melpa.
+
+execute 'M-x package-install RET magit RET'
+
 
 ## Install Python related Packages
 These are packages required by TagNet BaseStation applications.
@@ -171,13 +191,23 @@ sudo pip install chest
 # sudo pip install RPi.GPIO      # already installed by comitup
 ```
 
-## Install TagNet BaseStation Software
+## Install source, TagNet and Tag tools
 Replace ```danome``` with ```MamMark``` and ```dm_working``` with ?.
 ```
-cd ~/
-git clone https://github.com/danome/TagNet.git
+mkdir ~/tag
+cd ~/tag
+git clone https://github.com/cire831/TagNet.git
 cd TagNet
 git branch checkout dm_working
+cd ~/tag
+git clone https://github.com/cire831/mm.git
+cd mm
+git branch checkout cire_working
+```
+
+## Install TagNet and Tag Tools
+```
+cd ~/tag/TagNet
 cd si446x
 sudo python setup.py install
 cd ../tagnet
@@ -186,18 +216,14 @@ cd ../tagfuse
 sudo python setup.py install
 ```
 
-## Install Tag Tools
-Replace ```danome``` with ```MamMark``` and ```dm_working``` with ```integration```.
 ```
-cd ~/
-git clone https://github.com/danome/mm.git
-cd mm
-git branch checkout integration
+cd ~/tag/mm
 cd tools/utils/tagcore
 sudo python setup.py install
 cd ../tagdump
 sudo python setup.py install
 ```
+
 
 ## Install Jupyter (Optional)
 ##### Install Jupyter Software
