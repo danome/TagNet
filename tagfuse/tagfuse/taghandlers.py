@@ -237,7 +237,7 @@ class ByteIOFileHandler(FileHandler):
         if get_cmd_args().verbosity > 1:
             self.log.debug(method=inspect.stack()[0][3],
                            lineno=sys._getframe().f_lineno,
-                           size=size,
+                           size=len(buf),
                            offset=offset,
                            path_list=path_list, )
         return file_put_bytes(self.radio,
